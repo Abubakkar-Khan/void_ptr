@@ -25,6 +25,7 @@ class GameEngine {
     constructor() {
         this.state = GAME_STATES.MENU;
         this.lastTime = 0;
+        this.accumulator = 0; // Fixed: Initialize accumulator to prevent NaN loop freeze
         this.tickRate = 1000 / 60; // 60 FPS update rate for smooth movement
         this.activeUpgradesSelection = [];
         this.selectedMinutes = 999;
