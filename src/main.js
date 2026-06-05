@@ -106,7 +106,7 @@ class GameEngine {
             this.state = GAME_STATES.MENU;
         } else if (action === 'resume') {
             this.state = GAME_STATES.PLAYING;
-        } else if (action.startsWith('w_') || action === 'drone' || action === 'electric' || action === 'thread' || action === 'speed' || action === 'fire_rate' || action === 'heal') {
+        } else if (['thread', 'speed', 'fire_rate', 'heal', 'drone', 'electric', 'shield', 'freeze', 'bomb'].includes(action)) {
             player.applyUpgrade(action);
             this.state = GAME_STATES.PLAYING;
         }

@@ -54,15 +54,15 @@ export class Projectile {
                 const dy = this.targetEnemy.y + this.targetEnemy.height/2 - this.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 0) {
-                    this.vx += (dx / dist) * 0.1;
-                    this.vy += (dy / dist) * 0.1;
+                    this.vx += (dx / dist) * 0.15; // increased steering force
+                    this.vy += (dy / dist) * 0.15;
                 }
             }
             
             const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-            if (speed > 0.9) {
-                this.vx = (this.vx / speed) * 0.9;
-                this.vy = (this.vy / speed) * 0.9;
+            if (speed > 1.4) { // increased speed cap from 0.9
+                this.vx = (this.vx / speed) * 1.4;
+                this.vy = (this.vy / speed) * 1.4;
             }
             
             const angle = Math.atan2(this.vy, this.vx) * (180 / Math.PI);
@@ -210,7 +210,7 @@ class WeaponSystem {
             }
         }
         else if (type === 'seeker_rockets') {
-            const speed = 0.25;
+            const speed = 0.45; // increased launch speed from 0.25
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.8;
                 const angle = Math.atan2(uy, ux) + spread;

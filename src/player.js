@@ -334,7 +334,7 @@ export class Player {
                         const aimAngle = Math.atan2(closest.y + closest.height/2 - droneY, closest.x + closest.width/2 - droneX);
                         weaponsInstance.projectiles.push(new ProjectileBase(
                             droneX, droneY, 
-                            Math.cos(aimAngle) * 0.3, Math.sin(aimAngle) * 0.3, 
+                            Math.cos(aimAngle) * 0.5, Math.sin(aimAngle) * 0.5, // increased launch speed
                             { damage: 1.5, type: 'rocket', life: 180 }
                         ));
                     }
@@ -506,8 +506,14 @@ export class Player {
 
         for (let row = 0; row < this.height; row++) {
             for (let col = 0; col < this.width; col++) {
-                const char = this.currentPattern[row][col];
+                let char = this.currentPattern[row][col];
                 if (char === ' ') continue;
+
+                // Make player ship characters glitch/change constantly to look alive
+                if (Math.random() < 0.20) {
+                    const GLITCH_GLYPHS = '▲▼◀▶║═╔╗╚╝░▒▓█⌗*+';
+                    char = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+                }
 
                 const gx = ix + col;
                 const gy = iy + row;

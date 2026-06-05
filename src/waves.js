@@ -1,4 +1,5 @@
 import { enemies } from './enemies.js';
+import { effects } from './effects.js';
 
 class Director {
     constructor() {

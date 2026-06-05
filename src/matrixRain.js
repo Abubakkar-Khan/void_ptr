@@ -31,7 +31,7 @@ export class MatrixRain {
         }
 
         // Seed breakable static code barriers (pillars/debris) in the large world
-        const numObstacles = 45;
+        const numObstacles = 20;
         for (let i = 0; i < numObstacles; i++) {
             const ox = Math.floor(20 + Math.random() * (cols - 40));
             const oy = Math.floor(20 + Math.random() * (rows - 40));

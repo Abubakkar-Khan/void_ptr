@@ -5,6 +5,15 @@ import { matrixRain } from './matrixRain.js';
 const GLYPHS = '01.:;|/\\-_';
 const BRUTE_GLYPHS = ['█', '▓', '▒', '░', '#', '■', '▪', ' ', '█', '█'];
 
+const DRONE_CHARS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const BRUTE_CHARS = ['█', '▓', '▒', '░', '☣', '☠', '✖', '†', '#'];
+const BRUTE_MED_CHARS = ['█', '▓', '▒', '░', '✖', '†', '#'];
+const SHOOTER_CHARS = ['B', 'U', 'G', 'E', 'R', 'R', 'P', 'T', 'R', 'V', 'O', 'I', 'D'];
+const WORM_CHARS = ['S', 'N', 'A', 'K', 'E', '8', 's', 'o', '0'];
+const VIRUS_CHARS = ['☣', '☠', '✖', '†', '‡', '§', '¶', '?', '*'];
+const BOSS_HEAD_CHARS = ['█', '☣', '☠', '⚔', '✖', '☠', '☣'];
+const BOSS_SEG_CHARS = ['F','A','T','A','L','E','R','R','O','R','C','R','A','S','H'];
+
 function get8WayDirection(vx, vy) {
     let angle = Math.atan2(vy, vx);
     if (angle < 0) angle += Math.PI * 2;
@@ -370,35 +379,34 @@ export class Enemy {
             for (let i = 0; i < this.trail.length; i++) {
                 const pos = this.trail[i];
                 const radius = 1.0 - (i / this.trail.length) * 0.7;
-                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, radius, GLYPHS, 0.7 * (1 - i / this.trail.length) * brightMult);
+                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, radius, DRONE_CHARS, 0.7 * (1 - i / this.trail.length) * brightMult);
             }
             // Head
-            stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, GLYPHS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, DRONE_CHARS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         } 
         else if (this.type === 'brute') {
             // Large wobbly organic blob
-            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 2.8, BRUTE_GLYPHS, 1.0 * brightMult);
+            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 2.8, BRUTE_CHARS, 1.0 * brightMult);
         }
         else if (this.type === 'brute_medium') {
             // Medium wobbly organic blob
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.8, BRUTE_GLYPHS, 0.9 * brightMult);
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.8, BRUTE_MED_CHARS, 0.9 * brightMult);
         }
         else if (this.type === 'shooter') {
             // Shooter teardrop shape blob pointing towards movement
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.5, GLYPHS, 0.9 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.5, SHOOTER_CHARS, 0.9 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
         else if (this.type === 'worm') {
             // Slitherer chain of wobbly blobs
             for (let i = 0; i < this.trail.length; i++) {
                 const pos = this.trail[i];
-                const char = (i % 2 === 0) ? ['O'] : ['0'];
-                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, 1.1, char, 0.9 * (1 - i / this.trail.length) * brightMult);
+                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, 1.1, WORM_CHARS, 0.9 * (1 - i / this.trail.length) * brightMult);
             }
         }
         else if (this.type === 'virus') {
             // Pulsating virus blob
             const scale = 1.4 + Math.sin(Date.now() * 0.02) * 0.2;
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, scale, ['§', '*', '#'], 0.85 * brightMult);
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, scale, VIRUS_CHARS, 0.85 * brightMult);
         }
         else if (this.type === 'boss_snake') {
             // Draw wobbly trailing segments
@@ -406,12 +414,11 @@ export class Enemy {
                 if (i % 4 === 0) {
                     const pos = this.trail[i];
                     const radius = 2.2 - (i / this.trail.length) * 1.2;
-                    const charSet = (i % 8 === 0) ? ['O', '0', '#'] : ['░', '▒', '▓'];
-                    stampOrganicBlob(rendererInstance, pos.x + 2.5, pos.y + 2.5, radius, charSet, 0.7 * (1 - i / this.trail.length) * brightMult);
+                    stampOrganicBlob(rendererInstance, pos.x + 2.5, pos.y + 2.5, radius, BOSS_SEG_CHARS, 0.7 * (1 - i / this.trail.length) * brightMult);
                 }
             }
             // Draw head
-            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.6, ['█', '▓', '▒', '░', '#'], 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.6, BOSS_HEAD_CHARS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
     }
 
