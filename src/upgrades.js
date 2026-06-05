@@ -1,14 +1,14 @@
 export const UPGRADES = [
-    { id: 'thread', icon: '⇶', title: 'MULTI-THREAD', description: 'Fire an additional projectile stream.', maxLevel: 4 },
-    { id: 'speed', icon: '⋙', title: 'OVERCLOCK', description: 'Increase movement speed.', maxLevel: 5 },
-    { id: 'fire_rate', icon: '⇲', title: 'TURBO BOOST', description: 'Increase weapon firing rate significantly.', maxLevel: 5 },
-    { id: 'heal', icon: '♥', title: 'REPAIR SECTOR', description: 'Restore 2 Integrity points.', maxLevel: 999 },
-    { id: 'drone', icon: '+', title: 'HELPER DRONE', description: 'Spawn a helper drone that auto-fires homing missiles.', maxLevel: 3 },
-    { id: 'electric', icon: '☇', title: 'TESLA OVERLOAD', description: 'Shock nearby enemies with passive lightning discharges.', maxLevel: 3 },
-    { id: 'shield', icon: '🛡', title: 'SHIELD MATRIX', description: 'Deploy a shield that blocks one hit (recharges).', maxLevel: 3 },
-    { id: 'freeze', icon: '❅', title: 'SYSTEM FREEZE', description: 'Periodically freeze all enemies for 3 seconds.', maxLevel: 3 },
-    { id: 'bomb', icon: '※', title: 'STACK FLUSH', description: 'Trigger a shockwave clearing bullets and damaging enemies.', maxLevel: 3 },
-    { id: 'dash_dmg', icon: '⚡', title: 'DASH CORRUPTION', description: 'Dashing through enemies deals heavy corruption damage.', maxLevel: 3 }
+    { id: 'thread', icon: '⇶', title: 'MULTI-THREAD', description: 'Fire an additional 100% projectile stream.', maxLevel: 4 },
+    { id: 'speed', icon: '⋙', title: 'OVERCLOCK', description: 'Increase movement speed by 15%.', maxLevel: 5 },
+    { id: 'fire_rate', icon: '⇲', title: 'TURBO BOOST', description: 'Increase weapon firing rate by 20%.', maxLevel: 5 },
+    { id: 'heal', icon: '♥', title: 'REPAIR SECTOR', description: 'Restore 40% Integrity points.', maxLevel: 999 },
+    { id: 'drone', icon: '+', title: 'HELPER DRONE', description: 'Spawn a helper drone auto-firing homing rockets.', maxLevel: 3 },
+    { id: 'electric', icon: '☇', title: 'TESLA OVERLOAD', description: 'Zap up to 3 nearby enemies. (+50% power per level).', maxLevel: 3 },
+    { id: 'shield', icon: '🛡', title: 'SHIELD MATRIX', description: 'Deploy a shield blocking one hit. (-20% recharge delay per level).', maxLevel: 3 },
+    { id: 'freeze', icon: '❅', title: 'SYSTEM FREEZE', description: 'Freeze all enemies for 3 seconds. (-16% cooldown per level).', maxLevel: 3 },
+    { id: 'bomb', icon: '※', title: 'STACK FLUSH', description: 'Blast shockwave clearing bullets and dealing 5 damage.', maxLevel: 3 },
+    { id: 'dash_dmg', icon: '⚡', title: 'DASH CORRUPTION', description: 'Dashing through enemies deals 6 damage. (+50% power per level).', maxLevel: 3 }
 ];
 
 export const upgrades = {
