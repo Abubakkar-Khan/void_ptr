@@ -190,7 +190,7 @@ class WeaponSystem {
                     }
                     
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 3.0, // increased laser damage to 3.0
+                        damage: 2.0, // laser damage set to 2.0
                         type: 'laser',
                         life: 2, // 2 frames to ensure drawing and collision check
                         piercing: true

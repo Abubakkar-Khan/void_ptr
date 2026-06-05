@@ -22,13 +22,20 @@ const TITLE_LINES = [
     '╰──────────────────────────────────────────────╯'
 ];
 
-const CRASH_LINES = [
-    ' ██████╗██████╗  █████╗ ███████╗██╗  ██╗',
-    '██╔════╝██╔══██╗██╔══██╗██╔════╝██║  ██║',
-    '╚█████╗ ██████╔╝███████║███████╗███████║',
-    ' ╚═══██╗██╔══██╗██╔══██║╚════██║██╔══██║',
-    '██████╔╝██║  ██║██║  ██║███████║██║  ██║',
-    '╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝'
+const GAME_OVER_LINES = [
+    '   ██████╗  █████╗ ███╗   ███╗███████╗',
+    '  ██╔════╝ ██╔══██╗████╗ ████║██╔════╝',
+    '  ██║  ███╗███████║██╔████╔██║█████╗  ',
+    '  ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝  ',
+    '  ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗',
+    '   ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝',
+    '                                      ',
+    '  ██████╗ ██╗   ██╗███████╗██████╗    ',
+    ' ██╔═══██╗██║   ██║██╔════╝██╔══██╗   ',
+    ' ██║   ██║██║   ██║█████╗  ██████╔╝   ',
+    ' ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗   ',
+    ' ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║   ',
+    '  ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝   '
 ];
 
 const VICTORY_LINES = [
@@ -333,8 +340,8 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 72;
-        const panelH = 30;
+        const panelW = 78;
+        const panelH = 32;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -346,8 +353,8 @@ class UIManager {
         this.stampText(renderer, "═ CHOOSE YOUR VEHICLE ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select a hull configuration to initialize", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 20;
-        const cardH = 18;
+        const cardW = 23;
+        const cardH = 20;
         const cardY = py + 7;
         const startX = px + Math.floor((panelW - (3 * cardW + 6)) / 2);
 
@@ -422,8 +429,8 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 72;
-        const panelH = 30;
+        const panelW = 78;
+        const panelH = 32;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -435,7 +442,7 @@ class UIManager {
         this.stampText(renderer, "═ LEVEL UP ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select an upgrade module to install", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 20;
+        const cardW = 23;
         const cardH = 20;
         const cardY = py + 7;
         const startX = px + Math.floor((panelW - (cards.length * cardW + (cards.length - 1) * 3)) / 2);
@@ -483,7 +490,7 @@ class UIManager {
 
         // Expanded screen width to fit the beautiful block ASCII banners
         const panelW = 64;
-        const panelH = 22;
+        const panelH = 26;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -504,23 +511,25 @@ class UIManager {
             for (let i = 0; i < wrapped.length; i++) {
                 this.stampText(renderer, wrapped[i], cc, py + 9 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
+            
+            this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 13, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 16, 24, 3, t, mx, my, cc, cr);
         } else {
-            // Draw crash/game over block ASCII art
-            const crashX = px + Math.floor((panelW - 41) / 2);
-            for (let i = 0; i < CRASH_LINES.length; i++) {
-                this.stampText(renderer, CRASH_LINES[i], crashX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            // Draw game over block ASCII art
+            const gameOverX = px + Math.floor((panelW - 42) / 2);
+            for (let i = 0; i < GAME_OVER_LINES.length; i++) {
+                this.stampText(renderer, GAME_OVER_LINES[i], gameOverX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
             }
 
             const crashText = "Fatal collision detected. Stack overflow in local buffer. Purging memory sectors...";
             const wrapped = this.wrapText(crashText, panelW - 8);
             for (let i = 0; i < wrapped.length; i++) {
-                this.stampText(renderer, wrapped[i], cc, py + 9 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                this.stampText(renderer, wrapped[i], cc, py + 16 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
+            
+            this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 19, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 21, 24, 3, t, mx, my, cc, cr);
         }
-
-        this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 13, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-
-        this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 16, 24, 3, t, mx, my, cc, cr);
     }
 
     drawText(ctx, text, x, y, size = 20, color = '#00ff41', align = 'center') {
