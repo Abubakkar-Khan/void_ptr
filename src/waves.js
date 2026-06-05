@@ -29,9 +29,16 @@ class Director {
         this.timeElapsed++;
         this.spawnTimer--;
 
-        // Periodically spawn boss (first boss at 1.5 mins / 5400 ticks, then every 2.5 mins / 9000 ticks)
-        if (this.timeElapsed > 0 && (this.timeElapsed === 5400 || (this.timeElapsed > 5400 && (this.timeElapsed - 5400) % 9000 === 0))) {
-            this.spawnBoss(worldCols, worldRows);
+        // Periodically spawn boss (boss_snake at 1.5-min intervals, eye + carrier at 3-min marks)
+        if (this.timeElapsed > 0) {
+            if (this.timeElapsed % 10800 === 0) {
+                // 3, 6, 9 mins
+                this.spawnBoss(worldCols, worldRows, 'boss_eye');
+                this.spawnBoss(worldCols, worldRows, 'boss_carrier');
+            } else if ((this.timeElapsed - 5400) % 10800 === 0) {
+                // 1.5, 4.5, 7.5 mins
+                this.spawnBoss(worldCols, worldRows, 'boss_snake');
+            }
         }
 
         // Difficulty ramping based on time passed
@@ -78,7 +85,7 @@ class Director {
         }
     }
 
-    spawnBoss(cols, rows) {
+    spawnBoss(cols, rows, type = 'boss_snake') {
         const edge = Math.floor(Math.random() * 4);
         let x, y;
         const padding = 10;
@@ -87,7 +94,7 @@ class Director {
         else if (edge === 2) { x = -padding; y = rows / 2; }
         else { x = cols + padding; y = rows / 2; }
         
-        enemies.spawn(x, y, 'boss_snake');
+        enemies.spawn(x, y, type);
         effects.triggerFlash();
     }
 

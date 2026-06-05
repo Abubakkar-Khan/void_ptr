@@ -1,5 +1,6 @@
 import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { RENDER_CELL_TYPES } from './renderer.js';
+import { audio } from './audio.js';
 
 const TITLE_LINES = [
     '╭──────────────────────────────────────────────╮',
@@ -21,13 +22,30 @@ const TITLE_LINES = [
     '╰──────────────────────────────────────────────╯'
 ];
 
+const CRASH_LINES = [
+    ' ██████╗██████╗  █████╗ ███████╗██╗  ██╗',
+    '██╔════╝██╔══██╗██╔══██╗██╔════╝██║  ██║',
+    '╚█████╗ ██████╔╝███████║███████╗███████║',
+    ' ╚═══██╗██╔══██╗██╔══██║╚════██║██╔══██║',
+    '██████╔╝██║  ██║██║  ██║███████║██║  ██║',
+    '╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝'
+];
+
+const VICTORY_LINES = [
+    ' ██╗   ██╗██╗  ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗',
+    ' ██║   ██║██║ ██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗╚██╗ ██╔╝ ',
+    ' ██║   ██║██║ ██║        ██║   ██║   ██║██████╔╝ ╚████╔╝  ',
+    ' ╚██╗ ██╔╝██║ ██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝   ',
+    '  ╚████╔╝ ██║ ╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║    ',
+    '   ╚═══╝  ╚═╝  ╚══════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝    '
+];
+
 const GLYPHS = '01.:;|/\\-_';
 
 class UIManager {
     constructor() {
         this.hoveredItem = null;
         this.colorMode = true;
-        this.soundMode = true;
         
         this.currentScreen = null;
         this.transitionProgress = 0.0;
@@ -40,7 +58,6 @@ class UIManager {
             this.transitionProgress = 0.0;
         }
         if (this.transitionProgress < 1.0) {
-            // Animates faster during games (ship select, paused, upgrades, etc.)
             const speed = (screenName === 'menu') ? 0.07 : 0.15;
             this.transitionProgress += speed;
             if (this.transitionProgress > 1.0) {
@@ -102,7 +119,6 @@ class UIManager {
                     const mx = Math.round(parentCc + (targetX - parentCc) * t);
                     const my = Math.round(parentCr + (targetY - parentCr) * t);
                     
-                    // Shadow character with very dim glow
                     this.stampCell(renderer, mx, my, '░', RENDER_CELL_TYPES.UI_BORDER, 0.15);
                 }
             }
@@ -139,6 +155,23 @@ class UIManager {
     }
 
     stampCard(renderer, px, py, w, h, t, isHovered, parentCc, parentCr) {
+        // Draw card shadow first (shifted by 2 cells horizontally, 1 cell vertically)
+        if (t >= 0.8) {
+            for (let dy = 1; dy < h + 1; dy++) {
+                for (let dx = 2; dx < w + 2; dx++) {
+                    if (dx >= 2 && dx < w && dy >= 1 && dy < h) continue;
+                    
+                    const targetX = px + dx;
+                    const targetY = py + dy;
+                    const mx = Math.round(parentCc + (targetX - parentCc) * t);
+                    const my = Math.round(parentCr + (targetY - parentCr) * t);
+                    
+                    this.stampCell(renderer, mx, my, '░', RENDER_CELL_TYPES.UI_BORDER, 0.12);
+                }
+            }
+        }
+
+        // Draw card content
         for (let dy = 0; dy < h; dy++) {
             for (let dx = 0; dx < w; dx++) {
                 const targetX = px + dx;
@@ -267,7 +300,6 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        // Smaller title panel since subtitle and description are removed
         const panelW = 54;
         const panelH = 29;
         const px = Math.floor((viewCols - panelW) / 2);
@@ -278,19 +310,18 @@ class UIManager {
 
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
-        // Stamp title lines (big banner)
         const titleX = px + Math.floor((panelW - 48) / 2);
         for (let i = 0; i < TITLE_LINES.length; i++) {
             this.stampText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
         }
 
-        // Buttons (shifted up)
         const playBtnY = py + 20;
         this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
         this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
 
         const optBtnY = py + 24;
-        this.stampButton(renderer, 'toggle_sound', `Sound: ${this.soundMode ? 'ON' : 'OFF'}`, px + 15, optBtnY, 24, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
     }
 
     stampShipSelectScreen(renderer, mx, my) {
@@ -320,10 +351,11 @@ class UIManager {
         const cardY = py + 7;
         const startX = px + Math.floor((panelW - (3 * cardW + 6)) / 2);
 
+        // Rearranged starting cards: Seeker Left, Blaster Middle, Laser Right
         const ships = [
-            { id: 'ship_normal', title: 'Auto-Blaster', icon: '▲', desc: 'Standard fire. Upgrades: double shot, spread.' },
-            { id: 'ship_seeker', title: 'Homing Pods', icon: '◈', desc: 'Fires seeker missiles that automatically target enemies.' },
-            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets.' }
+            { id: 'ship_seeker', title: 'Homing Pods', icon: '◈', desc: 'Fires seeker missiles that automatically target enemies. (Dmg: 5)' },
+            { id: 'ship_normal', title: 'Auto-Blaster', icon: '▲', desc: 'Standard fire. Upgrades: double shot, spread. (Dmg: 5)' },
+            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 3)' }
         ];
 
         for (let i = 0; i < ships.length; i++) {
@@ -430,7 +462,7 @@ class UIManager {
             // Title
             this.stampText(renderer, c.title, cardX + Math.floor(cardW/2), cardY + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
-            // Pretext wrapped desc
+            // Description
             const wrappedDesc = this.wrapText(c.description, cardW - 4);
             for (let j = 0; j < wrappedDesc.length; j++) {
                 this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), cardY + 8 + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
@@ -449,8 +481,9 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 42;
-        const panelH = 18;
+        // Expanded screen width to fit the beautiful block ASCII banners
+        const panelW = 64;
+        const panelH = 22;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -460,24 +493,34 @@ class UIManager {
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
         if (isVictory) {
-            this.stampText(renderer, "═ SURVIVAL ACHIEVED ═", cc, py + 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            // Draw victory block ASCII art
+            const victoryX = px + Math.floor((panelW - 57) / 2);
+            for (let i = 0; i < VICTORY_LINES.length; i++) {
+                this.stampText(renderer, VICTORY_LINES[i], victoryX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            }
+            
             const victoryText = "System successfully cleared all hostile autonomous threads. Memory integrity preserved.";
-            const wrapped = this.wrapText(victoryText, panelW - 6);
+            const wrapped = this.wrapText(victoryText, panelW - 8);
             for (let i = 0; i < wrapped.length; i++) {
-                this.stampText(renderer, wrapped[i], cc, py + 6 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                this.stampText(renderer, wrapped[i], cc, py + 9 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
         } else {
-            this.stampText(renderer, "═ SYSTEM CRASH ═", cc, py + 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            // Draw crash/game over block ASCII art
+            const crashX = px + Math.floor((panelW - 41) / 2);
+            for (let i = 0; i < CRASH_LINES.length; i++) {
+                this.stampText(renderer, CRASH_LINES[i], crashX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            }
+
             const crashText = "Fatal collision detected. Stack overflow in local buffer. Purging memory sectors...";
-            const wrapped = this.wrapText(crashText, panelW - 6);
+            const wrapped = this.wrapText(crashText, panelW - 8);
             for (let i = 0; i < wrapped.length; i++) {
-                this.stampText(renderer, wrapped[i], cc, py + 6 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                this.stampText(renderer, wrapped[i], cc, py + 9 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
         }
 
-        this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 10, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 13, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
 
-        this.stampButton(renderer, 'restart', 'System Reboot', px + 9, py + 13, 24, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 16, 24, 3, t, mx, my, cc, cr);
     }
 
     drawText(ctx, text, x, y, size = 20, color = '#00ff41', align = 'center') {
@@ -519,27 +562,16 @@ class UIManager {
 
     handleClicks(onActionCallback, cards = []) {
         if (!this.hoveredItem) return;
-
-        if (this.hoveredItem === 'select_ship_endless') onActionCallback('select_ship_endless');
-        else if (this.hoveredItem === 'select_ship_10') onActionCallback('select_ship_10');
-        else if (this.hoveredItem === 'ship_normal') onActionCallback('ship_normal');
-        else if (this.hoveredItem === 'ship_seeker') onActionCallback('ship_seeker');
-        else if (this.hoveredItem === 'ship_laser') onActionCallback('ship_laser');
-        else if (this.hoveredItem === 'restart') onActionCallback('restart');
-        else if (this.hoveredItem === 'resume') onActionCallback('resume');
-        else if (this.hoveredItem === 'quit') onActionCallback('quit');
-        else if (this.hoveredItem === 'toggle_sound') {
-            this.soundMode = !this.soundMode;
-            onActionCallback('toggle_sound');
-        }
-        else if (this.hoveredItem === 'toggle_color') {
-            this.colorMode = !this.colorMode;
-            onActionCallback('toggle_color');
-        }
-        else if (this.hoveredItem.startsWith('upgrade_')) {
+        
+        if (this.hoveredItem.startsWith('upgrade_')) {
             const index = parseInt(this.hoveredItem.split('_')[1]);
-            if (cards[index]) onActionCallback(cards[index].id);
+            if (cards[index]) {
+                onActionCallback(cards[index].id);
+            }
+        } else {
+            onActionCallback(this.hoveredItem);
         }
     }
 }
+
 export const ui = new UIManager();

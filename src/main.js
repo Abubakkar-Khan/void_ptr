@@ -47,12 +47,36 @@ class GameEngine {
             }
         });
 
+        this.cheatBuffer = '';
         window.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' || e.key === 'p') {
                 if (this.state === GAME_STATES.PLAYING) {
                     this.state = GAME_STATES.PAUSED;
                 } else if (this.state === GAME_STATES.PAUSED) {
                     this.state = GAME_STATES.PLAYING;
+                    ui.currentScreen = null;
+                }
+            }
+
+            // Cheat codes
+            if (e.key.length === 1 && /^[a-zA-Z]$/.test(e.key)) {
+                this.cheatBuffer = (this.cheatBuffer + e.key.toLowerCase()).slice(-20);
+                if (this.cheatBuffer.endsWith('sudo')) {
+                    player.invincibilityTimer = 360000; // 100 minutes of invincibility
+                    player.score += 1337;
+                    audio.playUpgradeSelect();
+                    effects.triggerFlash();
+                    this.cheatBuffer = '';
+                } else if (this.cheatBuffer.endsWith('deadcode')) {
+                    player.xp = player.xpToNextLevel;
+                    const leveledUp = player.gainXp(0);
+                    if (leveledUp) {
+                        audio.playWaveClear();
+                        this.state = GAME_STATES.LEVEL_UP;
+                        ui.currentScreen = null;
+                        this.activeUpgradesSelection = upgrades.getRandomSelection(player, 3);
+                    }
+                    this.cheatBuffer = '';
                 }
             }
         });
@@ -75,6 +99,7 @@ class GameEngine {
         // Center camera on player immediately
         renderer.updateCamera(player.x, player.y);
         this.state = GAME_STATES.PLAYING;
+        ui.currentScreen = null;
     }
 
     processMenuAction(action) {
@@ -106,9 +131,15 @@ class GameEngine {
             this.state = GAME_STATES.MENU;
         } else if (action === 'resume') {
             this.state = GAME_STATES.PLAYING;
-        } else if (['thread', 'speed', 'fire_rate', 'heal', 'drone', 'electric', 'shield', 'freeze', 'bomb'].includes(action)) {
+            ui.currentScreen = null;
+        } else if (action === 'toggle_music') {
+            audio.toggleMusic();
+        } else if (action === 'toggle_sfx') {
+            audio.toggleSfx();
+        } else if (['thread', 'speed', 'fire_rate', 'heal', 'drone', 'electric', 'shield', 'freeze', 'bomb', 'dash_dmg'].includes(action)) {
             player.applyUpgrade(action);
             this.state = GAME_STATES.PLAYING;
+            ui.currentScreen = null;
         }
     }
 
@@ -171,6 +202,26 @@ class GameEngine {
         const pBullets = weapons.projectiles;
         const eEnemies = enemies.enemies;
         const eBullets = enemies.projectiles;
+
+        // General cleanup loop for dead enemies (killed by zaps, dashes, bomb blasts, etc.)
+        for (let e = eEnemies.length - 1; e >= 0; e--) {
+            const enemy = eEnemies[e];
+            if (enemy.hp <= 0) {
+                audio.playEnemyDeath();
+                enemy.onDeath(enemies, eBullets);
+                player.score += enemy.xpValue;
+                
+                const leveledUp = player.gainXp(enemy.xpValue);
+                eEnemies.splice(e, 1);
+                
+                if (leveledUp) {
+                    audio.playWaveClear();
+                    this.state = GAME_STATES.LEVEL_UP;
+                    ui.currentScreen = null;
+                    this.activeUpgradesSelection = upgrades.getRandomSelection(player, 3);
+                }
+            }
+        }
         
         // Player Bullets vs Enemies
         for (let b = pBullets.length - 1; b >= 0; b--) {
@@ -193,7 +244,7 @@ class GameEngine {
 
                     if (isDead) {
                         audio.playEnemyDeath();
-                        enemy.onDeath(enemies);
+                        enemy.onDeath(enemies, eBullets);
                         player.score += enemy.xpValue;
                         
                         const leveledUp = player.gainXp(enemy.xpValue);
@@ -202,7 +253,8 @@ class GameEngine {
                         if (leveledUp) {
                             audio.playWaveClear();
                             this.state = GAME_STATES.LEVEL_UP;
-                            this.activeUpgradesSelection = upgrades.getRandomSelection(3);
+                            ui.currentScreen = null;
+                            this.activeUpgradesSelection = upgrades.getRandomSelection(player, 3);
                         }
                     }
 

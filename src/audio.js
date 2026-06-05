@@ -2,6 +2,8 @@ class AudioManager {
     constructor() {
         this.ctx = null;
         this.enabled = true;
+        this.musicEnabled = true;
+        this.sfxEnabled = true;
         this.drone = null;
         this.musicInterval = null;
         this.musicStep = 0;
@@ -20,26 +22,41 @@ class AudioManager {
         }
     }
 
-    toggle() {
-        this.enabled = !this.enabled;
-        
-        if (this.ctx) {
-            if (!this.enabled) {
-                this.ctx.suspend();
-            } else {
-                this.ctx.resume();
-                if (!this.drone) {
-                    this.startBackgroundDrone();
-                }
-                this.startMusic();
+    toggleMusic() {
+        this.musicEnabled = !this.musicEnabled;
+        if (!this.musicEnabled) {
+            this.stopMusic();
+            if (this.drone && this.drone.gain) {
+                this.drone.gain.gain.setValueAtTime(0, this.ctx.currentTime);
             }
+        } else {
+            this.init();
+            if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+            if (this.drone && this.drone.gain) {
+                this.drone.gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+            }
+            this.startMusic();
         }
-        return this.enabled;
+        return this.musicEnabled;
+    }
+
+    toggleSfx() {
+        this.sfxEnabled = !this.sfxEnabled;
+        return this.sfxEnabled;
+    }
+
+    stopMusic() {
+        if (this.musicInterval) {
+            clearInterval(this.musicInterval);
+            this.musicInterval = null;
+        }
     }
 
     // A low-frequency humming cyberpunk background drone
     startBackgroundDrone() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.musicEnabled) return;
 
         try {
             const ctx = this.ctx;
@@ -78,7 +95,7 @@ class AudioManager {
             
             // Slow modulation of filter frequency to make it "breathe"
             const modulateFilter = () => {
-                if (!this.drone || !this.enabled || ctx.state === 'suspended') return;
+                if (!this.drone || !this.musicEnabled || ctx.state === 'suspended') return;
                 const time = ctx.currentTime;
                 // Swing between 80Hz and 180Hz over 5 seconds
                 filter.frequency.setValueAtTime(filter.frequency.value, time);
@@ -93,7 +110,7 @@ class AudioManager {
     }
 
     playShoot(type = 'bullet') {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         if (ctx.state === 'suspended') ctx.resume();
 
@@ -106,7 +123,6 @@ class AudioManager {
         const now = ctx.currentTime;
 
         if (type === 'laser' || type === 'null_laser') {
-            // High frequency buzz sweep
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(900, now);
             osc.frequency.exponentialRampToValueAtTime(200, now + 0.18);
@@ -117,7 +133,6 @@ class AudioManager {
             osc.start(now);
             osc.stop(now + 0.18);
         } else if (type === 'cannon') {
-            // Massive deep boom sweep
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(150, now);
             osc.frequency.exponentialRampToValueAtTime(30, now + 0.45);
@@ -128,7 +143,6 @@ class AudioManager {
             osc.start(now);
             osc.stop(now + 0.45);
         } else if (type === 'wave') {
-            // Rising sweep
             osc.type = 'sine';
             osc.frequency.setValueAtTime(120, now);
             osc.frequency.exponentialRampToValueAtTime(600, now + 0.25);
@@ -139,7 +153,6 @@ class AudioManager {
             osc.start(now);
             osc.stop(now + 0.25);
         } else {
-            // Standard small blip
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(600, now);
             osc.frequency.exponentialRampToValueAtTime(150, now + 0.08);
@@ -153,10 +166,9 @@ class AudioManager {
     }
 
     playHit() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         
-        // Short white noise burst
         const bufferSize = ctx.sampleRate * 0.05; // 50ms
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -183,12 +195,10 @@ class AudioManager {
     }
 
     playEnemyDeath() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
-
         const now = ctx.currentTime;
         
-        // Low distorted crunch noise
         const bufferSize = ctx.sampleRate * 0.15; // 150ms
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -213,7 +223,6 @@ class AudioManager {
 
         noise.start();
 
-        // Also add a low square pitch sweep
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(100, now);
@@ -231,11 +240,10 @@ class AudioManager {
     }
 
     playPlayerDamage() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         const now = ctx.currentTime;
 
-        // Bass rumble
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(120, now);
@@ -259,11 +267,10 @@ class AudioManager {
     }
 
     playUpgradeSelect() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         const now = ctx.currentTime;
 
-        // Cyber chime arpeggio
         const playChime = (freq, delay, dur) => {
             const osc = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
@@ -273,7 +280,7 @@ class AudioManager {
             osc.frequency.value = freq;
             
             osc2.type = 'sine';
-            osc2.frequency.value = freq * 1.5; // harmonics
+            osc2.frequency.value = freq * 1.5;
 
             gain.gain.setValueAtTime(0, now + delay);
             gain.gain.linearRampToValueAtTime(0.08, now + delay + 0.02);
@@ -296,18 +303,17 @@ class AudioManager {
     }
 
     playWaveClear() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         const now = ctx.currentTime;
 
-        // Long warm synth chord sweep
-        const notes = [130.81, 164.81, 196.00, 261.63]; // C3, E3, G3, C4
+        const notes = [130.81, 164.81, 196.00, 261.63];
         
         notes.forEach((freq) => {
             const osc = ctx.createOscillator();
             osc.type = 'sine';
             osc.frequency.setValueAtTime(freq, now);
-            osc.frequency.linearRampToValueAtTime(freq * 1.05, now + 1.2); // slight detune sweep
+            osc.frequency.linearRampToValueAtTime(freq * 1.05, now + 1.2);
 
             const gain = ctx.createGain();
             gain.gain.setValueAtTime(0, now);
@@ -323,7 +329,7 @@ class AudioManager {
     }
 
     playDash() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.sfxEnabled) return;
         const ctx = this.ctx;
         const now = ctx.currentTime;
         const osc = ctx.createOscillator();
@@ -344,44 +350,40 @@ class AudioManager {
     }
 
     startMusic() {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.musicEnabled) return;
         if (this.musicInterval) return;
 
         const tempo = 120; // BPM
-        const stepTime = 60 / tempo / 2; // 8th notes (0.25 seconds per step)
+        const stepTime = 60 / tempo / 2; // 8th notes
 
-        // Melodic loop in A minor / Pentatonic (retro space vibe)
         const bassLine = [
-            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 82.41, // A1, A1, C2, C2, D2, D2, G2, E2
-            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 110.00 // A1, A1, C2, C2, D2, D2, G2, A2
+            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 82.41,
+            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 110.00
         ];
 
         const melodyLine = [
-            220.00, 0,      261.63, 293.66, 329.63, 0,      293.66, 220.00, // A3, -, C4, D4, E4, -, D4, A3
-            220.00, 0,      261.63, 293.66, 392.00, 329.63, 293.66, 0,      // A3, -, C4, D4, G4, E4, D4, -
-            220.00, 0,      261.63, 293.66, 329.63, 392.00, 440.00, 0,      // A3, -, C4, D4, E4, G4, A4, -
-            392.00, 329.63, 293.66, 261.63, 293.66, 0,      220.00, 0       // G4, E4, D4, C4, D4, -, A3, -
+            220.00, 0,      261.63, 293.66, 329.63, 0,      293.66, 220.00,
+            220.00, 0,      261.63, 293.66, 392.00, 329.63, 293.66, 0,      
+            220.00, 0,      261.63, 293.66, 329.63, 392.00, 440.00, 0,      
+            392.00, 329.63, 293.66, 261.63, 293.66, 0,      220.00, 0       
         ];
 
         let lastScheduledTime = this.ctx.currentTime;
 
         const scheduleNextNotes = () => {
-            const lookAhead = 0.4; // schedule notes 400ms ahead
+            const lookAhead = 0.4;
             const now = this.ctx.currentTime;
 
             while (lastScheduledTime < now + lookAhead) {
                 const bassFreq = bassLine[this.musicStep % bassLine.length];
                 const melodyFreq = melodyLine[this.musicStep % melodyLine.length];
 
-                // Play Bass (Square wave, low pass filtered, quiet background)
                 if (bassFreq > 0) {
                     this.playSynthNote(bassFreq, lastScheduledTime, stepTime * 0.9, 'square', 0.04);
                 }
 
-                // Play Melody (Triangle or pulse wave, slight echo)
                 if (melodyFreq > 0) {
                     this.playSynthNote(melodyFreq, lastScheduledTime, stepTime * 0.6, 'triangle', 0.035);
-                    // Add a quiet echo step
                     this.playSynthNote(melodyFreq, lastScheduledTime + stepTime * 0.5, stepTime * 0.3, 'sine', 0.015);
                 }
 
@@ -394,7 +396,7 @@ class AudioManager {
     }
 
     playSynthNote(freq, startTime, duration, type = 'square', volume = 0.05) {
-        if (!this.ctx || !this.enabled) return;
+        if (!this.ctx || !this.musicEnabled) return;
         const ctx = this.ctx;
 
         const osc = ctx.createOscillator();

@@ -150,12 +150,12 @@ class WeaponSystem {
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 1.5, type: 'bullet', life: 120 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 5.0, type: 'bullet', life: 120 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
         else if (type === 'null_laser') {
-            const maxRange = 55; // max length of laser
+            const maxRange = 90; // extended laser range from 55 to 90
             for (let i = 0; i < streams; i++) {
                 const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams
                 const angle = Math.atan2(uy, ux) + spread;
@@ -184,13 +184,13 @@ class WeaponSystem {
                     }
                     
                     if (matrixRain.obstacles && matrixRain.obstacles[ix][iy]) {
-                        matrixRain.damageObstacle(ix, iy, 0.25);
+                        matrixRain.damageObstacle(ix, iy, 0.5);
                         effects.spawnImpactSparks(tx, ty);
                         break;
                     }
                     
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 0.35,
+                        damage: 3.0, // increased laser damage to 3.0
                         type: 'laser',
                         life: 2, // 2 frames to ensure drawing and collision check
                         piercing: true
@@ -214,7 +214,7 @@ class WeaponSystem {
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.8;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 4.0, type: 'rocket', life: 240, width: 2, height: 2 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 5.0, type: 'rocket', life: 240, width: 2, height: 2 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate * 3.0; 
         }

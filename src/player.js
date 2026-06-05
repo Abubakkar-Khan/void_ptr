@@ -104,6 +104,7 @@ export class Player {
         this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
         this.weaponType = 'auto_blaster';
         this.aimAngle = -Math.PI / 2; // Default facing UP
+        this.dashDmgLevel = 0; // Initialize dash corruption damage level
         this.currentPattern = PLAYER_PATTERNS.UP;
     }
 
@@ -112,6 +113,7 @@ export class Player {
         this.y = gridRows / 2;
         this.vx = 0; this.vy = 0;
         this.aimAngle = -Math.PI / 2; // Default facing UP
+        this.dashDmgLevel = 0; // Reset dash corruption damage level
         this.hp = this.maxHp;
         this.score = 0;
         this.xp = 0;
@@ -161,6 +163,9 @@ export class Player {
         else if (upgradeId === 'bomb') {
             this.bombLevel++;
             this.bombCooldown = Math.max(60, 600 - (this.bombLevel - 1) * 100);
+        }
+        else if (upgradeId === 'dash_dmg') {
+            this.dashDmgLevel++;
         }
         this.recalculateStats();
     }
@@ -240,6 +245,23 @@ export class Player {
             this.invincibilityTimer = Math.max(this.invincibilityTimer, 2);
             // Spawn smear frames
             this.dashGhosts.push({ x: this.x, y: this.y, pattern: this.currentPattern, life: 8 });
+
+            // Dash corruption damage check
+            if (this.dashDmgLevel > 0 && enemiesList) {
+                const px = this.x + 1.5;
+                const py = this.y + 1.5;
+                const dashRadius = 2.8;
+                for (const e of enemiesList) {
+                    if (e.type === 'blackhole') continue;
+                    const ex = e.x + e.width / 2;
+                    const ey = e.y + e.height / 2;
+                    const dist = Math.sqrt((ex - px) * (ex - px) + (ey - py) * (ey - py));
+                    if (dist <= dashRadius + (e.width / 2)) {
+                        e.takeDamage(this.dashDmgLevel * 6.0); // 6 / 12 / 18 damage
+                        effects.spawnImpactSparks(ex, ey);
+                    }
+                }
+            }
         } else {
             let accel = this.acceleration;
             let maxSpd = this.speed;
@@ -253,6 +275,27 @@ export class Player {
 
             this.vx += moveVec.x * accel;
             this.vy += moveVec.y * accel;
+
+            // Blackhole gravitational pull on player velocity
+            if (enemiesList) {
+                for (const e of enemiesList) {
+                    if (e.type === 'blackhole') {
+                        const bdx = (e.x + 2.5) - (this.x + 1.5);
+                        const bdy = (e.y + 2.5) - (this.y + 1.5);
+                        const bdist = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
+                        if (bdist < 32) {
+                            const pullForce = ((32 - bdist) / 32) * 0.09;
+                            this.vx += (bdx / bdist) * pullForce;
+                            this.vy += (bdy / bdist) * pullForce;
+                            
+                            // Deal damage if player is pulled too close to blackhole center
+                            if (bdist < 2.5) {
+                                this.takeDamage(1);
+                            }
+                        }
+                    }
+                }
+            }
 
             this.vx *= fric;
             this.vy *= fric;
@@ -546,13 +589,20 @@ export class Player {
             for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
                 // Slight spin offset using current time
                 const rotAngle = a + (Date.now() * 0.0015);
-                const sx = Math.floor(ix + 1.5 + Math.cos(rotAngle) * 2.3);
-                const sy = Math.floor(iy + 1.5 + Math.sin(rotAngle) * 2.3);
+                const sx = Math.floor(ix + 1.5 + Math.cos(rotAngle) * 2.6);
+                const sy = Math.floor(iy + 1.5 + Math.sin(rotAngle) * 2.6);
                 
                 if (sx >= 0 && sx < rendererInstance.cols && sy >= 0 && sy < rendererInstance.rows) {
                     rendererInstance.types[sx][sy] = RENDER_CELL_TYPES.GLITCH;
-                    rendererInstance.chars[sx][sy] = '⌗';
-                    rendererInstance.brightness[sx][sy] = 0.75;
+                    
+                    let shieldChar = '◦';
+                    const cosVal = Math.cos(rotAngle);
+                    if (cosVal < -0.5) shieldChar = '(';
+                    else if (cosVal > 0.5) shieldChar = ')';
+                    else shieldChar = '=';
+
+                    rendererInstance.chars[sx][sy] = shieldChar;
+                    rendererInstance.brightness[sx][sy] = 0.85;
                 }
             }
         }
