@@ -413,10 +413,10 @@ class GridRenderer {
                         let shadow = null;
                         let shadowBlur = 0;
 
-                        // Background rain cells: bright green matching the player
-                        color = `rgba(0, 255, 65, ${0.45 + bVal * 0.55})`;
-                        shadow = 'rgba(0, 255, 65, 0.3)';
-                        shadowBlur = 3;
+                        // Background rain cells: dark, subtle green for high contrast
+                        color = `rgba(0, 255, 65, ${0.06 + bVal * 0.14})`;
+                        shadow = 'transparent';
+                        shadowBlur = 0;
 
                         batches.set(colorKey, {
                             color: color,

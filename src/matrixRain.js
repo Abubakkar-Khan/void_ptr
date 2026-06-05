@@ -30,6 +30,24 @@ export class MatrixRain {
             this.grid.push(column);
         }
 
+        // Seed father-themed words randomly in the background static ASCII grid
+        const fatherWords = ['abu', 'father', 'papa', 'dad', 'pop', 'pater', 'baba', 'dada', 'abba', 'parent'];
+        const numWords = 150;
+        for (let w = 0; w < numWords; w++) {
+            const word = fatherWords[Math.floor(Math.random() * fatherWords.length)];
+            const isHorizontal = Math.random() < 0.5;
+            const startX = Math.floor(Math.random() * (cols - word.length - 2)) + 1;
+            const startY = Math.floor(Math.random() * (rows - word.length - 2)) + 1;
+            
+            for (let i = 0; i < word.length; i++) {
+                const x = isHorizontal ? startX + i : startX;
+                const y = isHorizontal ? startY : startY + i;
+                if (x >= 0 && x < cols && y >= 0 && y < rows) {
+                    this.grid[x][y].char = word[i];
+                }
+            }
+        }
+
         // Seed breakable static code barriers (pillars/debris) in the large world
         const numObstacles = 20;
         for (let i = 0; i < numObstacles; i++) {
