@@ -1,0 +1,126 @@
+/* --- Custom Design System --- */
+:root {
+    --bg-color: #000000;
+    --matrix-green: #00ff41;
+    --matrix-dark: #003300;
+    --matrix-glow: rgba(0, 255, 65, 0.45);
+    
+    --void-amber: #00ff41;
+    --void-amber-glow: rgba(0, 255, 65, 0.6);
+    
+    --warn-crimson: #00ff41;
+    --warn-crimson-glow: rgba(0, 255, 65, 0.6);
+    
+    --ui-white: #ffffff;
+    --ui-white-glow: rgba(255, 255, 255, 0.4);
+
+    --font-monospace: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-retro: 'VT323', monospace;
+}
+
+/* --- Base Setup --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--matrix-green);
+    font-family: var(--font-monospace);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- CRT & Terminal Screen Overlays --- */
+.crt-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, transparent 55%, rgba(0, 0, 0, 0.8) 100%);
+    pointer-events: none;
+    z-index: 100;
+}
+
+.crt-scanlines {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.3) 50%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 99;
+}
+
+/* Subtle CRT screen flicker */
+@keyframes flicker {
+    0% { opacity: 0.985; }
+    50% { opacity: 1.0; }
+    100% { opacity: 0.99; }
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: flicker 0.15s infinite;
+    cursor: default;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-color: var(--bg-color);
+}
+
+/* --- Audio Toggle UI --- */
+#audio-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 105;
+}
+
+.audio-btn {
+    background: transparent;
+    border: 1px solid var(--matrix-dark);
+    color: var(--matrix-green);
+    font-size: 1.2rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.audio-btn:hover {
+    border-color: var(--matrix-green);
+    box-shadow: 0 0 10px var(--matrix-glow);
+    background-color: rgba(0, 255, 65, 0.05);
+}
+
+.audio-btn.muted {
+    color: #ff3366;
+    border-color: rgba(255, 51, 102, 0.6);
+}
