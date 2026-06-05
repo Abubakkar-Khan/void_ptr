@@ -103,6 +103,7 @@ export class Player {
 
         this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
         this.weaponType = 'auto_blaster';
+        this.aimAngle = -Math.PI / 2; // Default facing UP
         this.currentPattern = PLAYER_PATTERNS.UP;
     }
 
@@ -110,6 +111,7 @@ export class Player {
         this.x = gridCols / 2;
         this.y = gridRows / 2;
         this.vx = 0; this.vy = 0;
+        this.aimAngle = -Math.PI / 2; // Default facing UP
         this.hp = this.maxHp;
         this.score = 0;
         this.xp = 0;
@@ -207,12 +209,15 @@ export class Player {
             let dx = moveVec.x;
             let dy = moveVec.y;
             if (dx === 0 && dy === 0) {
-                // Dash towards cursor
-                const targetX_grid = (input.mouse.x / 8) + Math.floor(this.x - 30); // estimated camera
-                const targetY_grid = (input.mouse.y / 14) + Math.floor(this.y - 20);
-                const angle = Math.atan2(targetY_grid - (this.y + 1.5), targetX_grid - (this.x + 1.5));
-                dx = Math.cos(angle);
-                dy = Math.sin(angle);
+                // Dash in shooting direction or facing direction
+                const shootVec = input.getShootingVector();
+                if (shootVec) {
+                    dx = shootVec.x;
+                    dy = shootVec.y;
+                } else {
+                    dx = Math.cos(this.aimAngle);
+                    dy = Math.sin(this.aimAngle);
+                }
             }
             this.vx = dx * this.dashSpeed;
             this.vy = dy * this.dashSpeed;
@@ -437,11 +442,15 @@ export class Player {
         const px = this.x + this.width / 2;
         const py = this.y + this.height / 2;
 
-        // Calculate aiming angle to mouse target in grid units
-        const targetX_grid = (input.mouse.x / rendererInstance.cellWidth) + rendererInstance.camX;
-        const targetY_grid = (input.mouse.y / rendererInstance.cellHeight) + rendererInstance.camY;
-        
-        let angle = Math.atan2(targetY_grid - py, targetX_grid - px);
+        const shootVec = input.getShootingVector();
+        let angle = this.aimAngle;
+        if (shootVec) {
+            angle = Math.atan2(shootVec.y, shootVec.x);
+        }
+        if (isNaN(angle)) {
+            angle = -Math.PI / 2;
+        }
+        this.aimAngle = angle;
         if (angle < 0) angle += Math.PI * 2;
 
         const step = Math.PI / 4;

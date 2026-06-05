@@ -157,7 +157,7 @@ class WeaponSystem {
         else if (type === 'null_laser') {
             const maxRange = 55; // max length of laser
             for (let i = 0; i < streams; i++) {
-                const spread = (Math.random() - 0.5) * 0.08 * streams;
+                const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams
                 const angle = Math.atan2(uy, ux) + spread;
                 const lux = Math.cos(angle);
                 const luy = Math.sin(angle);

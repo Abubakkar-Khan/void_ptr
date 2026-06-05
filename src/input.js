@@ -41,8 +41,14 @@ class InputManager {
     updateMousePos(e) {
         if (!this.canvas) return;
         const rect = this.canvas.getBoundingClientRect();
-        this.mouse.x = ((e.clientX - rect.left) / rect.width) * this.canvas.width;
-        this.mouse.y = ((e.clientY - rect.top) / rect.height) * this.canvas.height;
+        if (rect.width > 0 && rect.height > 0) {
+            const mx = ((e.clientX - rect.left) / rect.width) * this.canvas.width;
+            const my = ((e.clientY - rect.top) / rect.height) * this.canvas.height;
+            if (!isNaN(mx) && !isNaN(my)) {
+                this.mouse.x = mx;
+                this.mouse.y = my;
+            }
+        }
     }
 
     tick() {
@@ -55,10 +61,10 @@ class InputManager {
 
     getMovementVector() {
         let dx = 0; let dy = 0;
-        if (this.isDown('a') || this.isDown('ArrowLeft')) dx -= 1;
-        if (this.isDown('d') || this.isDown('ArrowRight')) dx += 1;
-        if (this.isDown('w') || this.isDown('ArrowUp')) dy -= 1;
-        if (this.isDown('s') || this.isDown('ArrowDown')) dy += 1;
+        if (this.isDown('a')) dx -= 1;
+        if (this.isDown('d')) dx += 1;
+        if (this.isDown('w')) dy -= 1;
+        if (this.isDown('s')) dy += 1;
         
         if (dx !== 0 && dy !== 0) {
             const length = Math.sqrt(dx*dx + dy*dy);
@@ -68,8 +74,24 @@ class InputManager {
         return { x: dx, y: dy };
     }
 
+    getShootingVector() {
+        let dx = 0; let dy = 0;
+        if (this.isDown('ArrowLeft')) dx -= 1;
+        if (this.isDown('ArrowRight')) dx += 1;
+        if (this.isDown('ArrowUp')) dy -= 1;
+        if (this.isDown('ArrowDown')) dy += 1;
+        
+        if (dx !== 0 || dy !== 0) {
+            const length = Math.sqrt(dx*dx + dy*dy);
+            dx /= length;
+            dy /= length;
+            return { x: dx, y: dy };
+        }
+        return null;
+    }
+
     isFiring() {
-        return this.mouse.isDown;
+        return this.isDown('ArrowLeft') || this.isDown('ArrowRight') || this.isDown('ArrowUp') || this.isDown('ArrowDown');
     }
 
     justPressedDash() {

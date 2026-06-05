@@ -143,11 +143,12 @@ class GameEngine {
         // Update camera to follow player
         renderer.updateCamera(player.x + player.width / 2, player.y + player.height / 2);
 
-        // Convert mouse screen position to world grid position using camera offset
-        const targetX_grid = (input.mouse.x / renderer.cellWidth) + renderer.camX;
-        const targetY_grid = (input.mouse.y / renderer.cellHeight) + renderer.camY;
-
-        if (input.isFiring()) {
+        const shootVec = input.getShootingVector();
+        if (shootVec) {
+            const px = player.x + player.width / 2;
+            const py = player.y + player.height / 2;
+            const targetX_grid = px + shootVec.x * 50;
+            const targetY_grid = py + shootVec.y * 50;
             const fired = weapons.fire(player, targetX_grid, targetY_grid);
             if (fired) audio.playShoot(player.weaponType);
         }
@@ -260,7 +261,7 @@ class GameEngine {
         const canvas = renderer.canvas;
         if (canvas) {
             if (this.state === GAME_STATES.PLAYING) {
-                canvas.style.cursor = 'crosshair';
+                canvas.style.cursor = 'none';
             } else {
                 canvas.style.cursor = 'default';
             }
@@ -298,9 +299,7 @@ class GameEngine {
             this.drawHUD(ctx);
         }
 
-        if (this.state === GAME_STATES.PLAYING) {
-            ui.drawCrosshair(renderer, mx, my);
-        }
+        // Keyboard aiming does not require a mouse crosshair during gameplay
     }
 
     drawHUD(ctx) {

@@ -414,7 +414,7 @@ class GridRenderer {
                         let shadowBlur = 0;
 
                         if (bVal >= 0.95) {
-                            color = '#ffffff';
+                            color = '#00ff41';
                             shadow = 'rgba(0, 255, 65, 0.6)';
                             shadowBlur = 6;
                         } else {
