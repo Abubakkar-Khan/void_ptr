@@ -3,6 +3,8 @@ class AudioManager {
         this.ctx = null;
         this.enabled = true;
         this.drone = null;
+        this.musicInterval = null;
+        this.musicStep = 0;
     }
 
     init() {
@@ -12,6 +14,7 @@ class AudioManager {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             this.ctx = new AudioContextClass();
             this.startBackgroundDrone();
+            this.startMusic();
         } catch (e) {
             console.warn("Web Audio API not supported or blocked: ", e);
         }
@@ -28,6 +31,7 @@ class AudioManager {
                 if (!this.drone) {
                     this.startBackgroundDrone();
                 }
+                this.startMusic();
             }
         }
         return this.enabled;
@@ -101,7 +105,7 @@ class AudioManager {
 
         const now = ctx.currentTime;
 
-        if (type === 'laser') {
+        if (type === 'laser' || type === 'null_laser') {
             // High frequency buzz sweep
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(900, now);
@@ -337,6 +341,77 @@ class AudioManager {
 
         osc.start(now);
         osc.stop(now + 0.15);
+    }
+
+    startMusic() {
+        if (!this.ctx || !this.enabled) return;
+        if (this.musicInterval) return;
+
+        const tempo = 120; // BPM
+        const stepTime = 60 / tempo / 2; // 8th notes (0.25 seconds per step)
+
+        // Melodic loop in A minor / Pentatonic (retro space vibe)
+        const bassLine = [
+            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 82.41, // A1, A1, C2, C2, D2, D2, G2, E2
+            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 110.00 // A1, A1, C2, C2, D2, D2, G2, A2
+        ];
+
+        const melodyLine = [
+            220.00, 0,      261.63, 293.66, 329.63, 0,      293.66, 220.00, // A3, -, C4, D4, E4, -, D4, A3
+            220.00, 0,      261.63, 293.66, 392.00, 329.63, 293.66, 0,      // A3, -, C4, D4, G4, E4, D4, -
+            220.00, 0,      261.63, 293.66, 329.63, 392.00, 440.00, 0,      // A3, -, C4, D4, E4, G4, A4, -
+            392.00, 329.63, 293.66, 261.63, 293.66, 0,      220.00, 0       // G4, E4, D4, C4, D4, -, A3, -
+        ];
+
+        let lastScheduledTime = this.ctx.currentTime;
+
+        const scheduleNextNotes = () => {
+            const lookAhead = 0.4; // schedule notes 400ms ahead
+            const now = this.ctx.currentTime;
+
+            while (lastScheduledTime < now + lookAhead) {
+                const bassFreq = bassLine[this.musicStep % bassLine.length];
+                const melodyFreq = melodyLine[this.musicStep % melodyLine.length];
+
+                // Play Bass (Square wave, low pass filtered, quiet background)
+                if (bassFreq > 0) {
+                    this.playSynthNote(bassFreq, lastScheduledTime, stepTime * 0.9, 'square', 0.04);
+                }
+
+                // Play Melody (Triangle or pulse wave, slight echo)
+                if (melodyFreq > 0) {
+                    this.playSynthNote(melodyFreq, lastScheduledTime, stepTime * 0.6, 'triangle', 0.035);
+                    // Add a quiet echo step
+                    this.playSynthNote(melodyFreq, lastScheduledTime + stepTime * 0.5, stepTime * 0.3, 'sine', 0.015);
+                }
+
+                lastScheduledTime += stepTime;
+                this.musicStep++;
+            }
+        };
+
+        this.musicInterval = setInterval(scheduleNextNotes, 200);
+    }
+
+    playSynthNote(freq, startTime, duration, type = 'square', volume = 0.05) {
+        if (!this.ctx || !this.enabled) return;
+        const ctx = this.ctx;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(startTime);
+        osc.stop(startTime + duration);
     }
 }
 

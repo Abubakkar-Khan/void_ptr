@@ -5,8 +5,9 @@ export const UPGRADES = [
     { id: 'heal', icon: '♥', title: 'REPAIR SECTOR', description: 'Restore 2 Integrity points.', tier: 'common' },
     { id: 'drone', icon: '+', title: 'HELPER DRONE', description: 'Spawn a helper drone that auto-fires homing missiles.', tier: 'epic' },
     { id: 'electric', icon: '☇', title: 'TESLA OVERLOAD', description: 'Shock nearby enemies with passive lightning discharges.', tier: 'rare' },
-    { id: 'w_laser', icon: '═', title: 'NULL LASER', description: 'Equip a continuous piercing laser beam.', tier: 'epic' },
-    { id: 'w_rocket', icon: '⌖', title: 'SEEKER ROCKETS', description: 'Equip tracking rockets that home in on targets.', tier: 'epic' }
+    { id: 'shield', icon: '🛡', title: 'SHIELD MATRIX', description: 'Deploy a shield that blocks one hit (recharges).', tier: 'epic' },
+    { id: 'freeze', icon: '❅', title: 'SYSTEM FREEZE', description: 'Periodically freeze all enemies for 3 seconds.', tier: 'epic' },
+    { id: 'bomb', icon: '※', title: 'STACK FLUSH', description: 'Trigger a shockwave clearing bullets and damaging enemies.', tier: 'epic' }
 ];
 
 export const upgrades = {

@@ -25,8 +25,7 @@ class GameEngine {
     constructor() {
         this.state = GAME_STATES.MENU;
         this.lastTime = 0;
-        this.accumulator = 0;
-        this.tickRate = 1000 / 30; // Locked to 30 FPS snappy terminal feel
+        this.tickRate = 1000 / 60; // 60 FPS update rate for smooth movement
         this.activeUpgradesSelection = [];
         this.selectedMinutes = 999;
     }

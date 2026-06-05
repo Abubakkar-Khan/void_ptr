@@ -77,7 +77,32 @@ export class EnemyProjectile {
         }
     }
 
-    getHitbox() { return { x: this.x, y: this.y, width: 1, height: 1, isCircle: false }; }
+    getHitbox() {
+        if (this.type === 'boss_snake') {
+            const boxes = [
+                { x: this.x - 0.5, y: this.y - 0.5, width: this.width + 1.0, height: this.height + 1.0 }
+            ];
+            for (let i = 0; i < this.trail.length; i += 5) {
+                const pos = this.trail[i];
+                const size = Math.max(2, 5 - (i / this.trail.length) * 3);
+                boxes.push({
+                    x: pos.x - 0.5,
+                    y: pos.y - 0.5,
+                    width: size + 1.0,
+                    height: size + 1.0
+                });
+            }
+            return { isMultiBox: true, boxes };
+        }
+        // General enlarged hitbox for other enemies
+        return {
+            x: this.x - 0.5,
+            y: this.y - 0.5,
+            width: this.width + 1.0,
+            height: this.height + 1.0,
+            isCircle: false
+        };
+    }
 }
 
 export class Enemy {
@@ -94,11 +119,12 @@ export class Enemy {
 
         // Physics
         this.mass = 1.0;
-        this.friction = 0.85;
+        this.friction = 0.92; // 60 FPS scaling
 
         this.trail = [];
         this.waveTime = Math.random() * 10;
-        this.replicateTimer = 180 + Math.random() * 90;
+        this.replicateTimer = 360 + Math.random() * 180; // 60 FPS scaling
+        this.frozenTimer = 0;
 
         this.initType();
     }
@@ -135,6 +161,11 @@ export class Enemy {
                 this.width = 3; this.height = 3;
                 this.mass = 1.2;
                 break;
+            case 'boss_snake': // Massive mothership snake
+                this.hp = 250; this.xpValue = 1000;
+                this.width = 5; this.height = 5;
+                this.mass = 15.0;
+                break;
         }
         this.maxHp = this.hp;
     }
@@ -145,11 +176,20 @@ export class Enemy {
     }
 
     update(playerX, playerY, gridCols, gridRows, spawnedProjectiles, enemyManager) {
+        if (this.frozenTimer > 0) {
+            this.frozenTimer--;
+            // Shift trail history even when frozen
+            this.trail.unshift({ x: this.x, y: this.y, vx: 0, vy: 0 });
+            const maxTrail = this.type === 'boss_snake' ? 60 : (this.type === 'worm' ? 12 : 8);
+            if (this.trail.length > maxTrail) this.trail.pop();
+            return;
+        }
+
         this.fireCooldown--;
 
-        // Track trail history for glitch tails/worms
+        // Track trail history for glitch tails/worms/boss
         this.trail.unshift({ x: this.x, y: this.y, vx: this.vx, vy: this.vy });
-        const maxTrail = this.type === 'worm' ? 12 : 8;
+        const maxTrail = this.type === 'boss_snake' ? 60 : (this.type === 'worm' ? 12 : 8);
         if (this.trail.length > maxTrail) this.trail.pop();
 
         // Player center (now 3x3, center is playerX + 1.5, playerY + 1.5)
@@ -164,20 +204,20 @@ export class Enemy {
         let moveY = 0;
 
         if (this.type === 'drone') {
-            moveX = (dx / dist) * 0.14;
-            moveY = (dy / dist) * 0.14;
+            moveX = (dx / dist) * 0.07;
+            moveY = (dy / dist) * 0.07;
         } 
         else if (this.type === 'brute' || this.type === 'brute_medium') {
-            moveX = (dx / dist) * 0.05;
-            moveY = (dy / dist) * 0.05;
+            moveX = (dx / dist) * 0.025;
+            moveY = (dy / dist) * 0.025;
         }
         else if (this.type === 'shooter') {
             if (dist > 22) {
-                moveX = (dx / dist) * 0.08;
-                moveY = (dy / dist) * 0.08;
+                moveX = (dx / dist) * 0.04;
+                moveY = (dy / dist) * 0.04;
             } else if (dist < 12) {
-                moveX = -(dx / dist) * 0.05;
-                moveY = -(dy / dist) * 0.05;
+                moveX = -(dx / dist) * 0.025;
+                moveY = -(dy / dist) * 0.025;
             }
 
             // Bullet Hell Firing: Radial ring of 6 bullets
@@ -185,19 +225,19 @@ export class Enemy {
                 for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
                     spawnedProjectiles.push(new EnemyProjectile(
                         this.x + this.width/2, this.y + this.height/2, 
-                        Math.cos(a) * 0.4, Math.sin(a) * 0.4
+                        Math.cos(a) * 0.2, Math.sin(a) * 0.2
                     ));
                 }
-                this.fireCooldown = 110 + Math.random() * 50;
+                this.fireCooldown = 220 + Math.random() * 100;
             }
         }
         else if (this.type === 'worm') {
             // Slithers in a sinewave path chasing the player
-            this.waveTime += 0.15;
+            this.waveTime += 0.07;
             const baseAngle = Math.atan2(dy, dx);
             const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.6;
-            moveX = Math.cos(slitherAngle) * 0.15;
-            moveY = Math.sin(slitherAngle) * 0.15;
+            moveX = Math.cos(slitherAngle) * 0.075;
+            moveY = Math.sin(slitherAngle) * 0.075;
 
             // Bullet Hell Firing: 3-bullet spread towards player
             if (this.fireCooldown <= 0 && dist < 25) {
@@ -205,21 +245,21 @@ export class Enemy {
                 for (let sp of spreadAngles) {
                     spawnedProjectiles.push(new EnemyProjectile(
                         this.x + this.width/2, this.y + this.height/2,
-                        Math.cos(baseAngle + sp) * 0.45, Math.sin(baseAngle + sp) * 0.45
+                        Math.cos(baseAngle + sp) * 0.22, Math.sin(baseAngle + sp) * 0.22
                     ));
                 }
-                this.fireCooldown = 90 + Math.random() * 40;
+                this.fireCooldown = 180 + Math.random() * 80;
             }
         }
         else if (this.type === 'virus') {
             // Erratic teleporter and replicator
-            if (Math.random() < 0.02) {
+            if (Math.random() < 0.01) {
                 this.x += (Math.random() - 0.5) * 5;
                 this.y += (Math.random() - 0.5) * 5;
             }
 
-            moveX = (dx / dist) * 0.09;
-            moveY = (dy / dist) * 0.09;
+            moveX = (dx / dist) * 0.045;
+            moveY = (dy / dist) * 0.045;
 
             // Bullet Hell Firing: Diagonal 4-bullet cross
             if (this.fireCooldown <= 0 && dist < 28) {
@@ -227,20 +267,53 @@ export class Enemy {
                 for (let a of diagAngles) {
                     spawnedProjectiles.push(new EnemyProjectile(
                         this.x + this.width/2, this.y + this.height/2,
-                        Math.cos(a) * 0.38, Math.sin(a) * 0.38
+                        Math.cos(a) * 0.19, Math.sin(a) * 0.19
                     ));
                 }
-                this.fireCooldown = 100 + Math.random() * 40;
+                this.fireCooldown = 200 + Math.random() * 80;
             }
 
             // Replicate clone
             this.replicateTimer--;
             if (this.replicateTimer <= 0) {
-                this.replicateTimer = 180 + Math.random() * 90;
+                this.replicateTimer = 360 + Math.random() * 180;
                 if (enemyManager && enemyManager.enemies.filter(e => e.type === 'virus').length < 15) {
                     enemyManager.spawn(this.x + (Math.random() - 0.5) * 6, this.y + (Math.random() - 0.5) * 6, 'virus');
                     effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#ff3366', 10);
                 }
+            }
+        }
+        else if (this.type === 'boss_snake') {
+            this.waveTime += 0.04;
+            const baseAngle = Math.atan2(dy, dx);
+            const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8;
+            moveX = Math.cos(slitherAngle) * 0.04;
+            moveY = Math.sin(slitherAngle) * 0.04;
+
+            // Firing logic
+            if (this.fireCooldown <= 0) {
+                // 1. Radial ring of 16 bullets
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+                    spawnedProjectiles.push(new EnemyProjectile(
+                        this.x + 2.5, this.y + 2.5,
+                        Math.cos(a) * 0.18, Math.sin(a) * 0.18
+                    ));
+                }
+                // 2. Targeted stream of 5 bullets
+                const baseA = Math.atan2(dy, dx);
+                for (let spread = -0.3; spread <= 0.3; spread += 0.15) {
+                    spawnedProjectiles.push(new EnemyProjectile(
+                        this.x + 2.5, this.y + 2.5,
+                        Math.cos(baseA + spread) * 0.25, Math.sin(baseA + spread) * 0.25
+                    ));
+                }
+                this.fireCooldown = 90 + Math.random() * 50; // Every 1.5 - 2.3 seconds
+            }
+
+            // Spawn minion drone from tail occasionally
+            if (Math.random() < 0.008 && enemyManager.enemies.length < 35) {
+                const tailPos = this.trail[this.trail.length - 1] || this;
+                enemyManager.spawn(tailPos.x, tailPos.y, 'drone');
             }
         }
 
@@ -290,40 +363,55 @@ export class Enemy {
     }
 
     stampToGrid(rendererInstance) {
+        const brightMult = this.frozenTimer > 0 ? 0.35 : 1.0;
+        
         if (this.type === 'drone') {
             // Glitch Snake trail (chain of wobbly organic blobs)
             for (let i = 0; i < this.trail.length; i++) {
                 const pos = this.trail[i];
                 const radius = 1.0 - (i / this.trail.length) * 0.7;
-                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, radius, GLYPHS, 0.7 * (1 - i / this.trail.length));
+                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, radius, GLYPHS, 0.7 * (1 - i / this.trail.length) * brightMult);
             }
             // Head
-            stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, GLYPHS, 1.0, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, GLYPHS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         } 
         else if (this.type === 'brute') {
             // Large wobbly organic blob
-            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 2.8, BRUTE_GLYPHS, 1.0);
+            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 2.8, BRUTE_GLYPHS, 1.0 * brightMult);
         }
         else if (this.type === 'brute_medium') {
             // Medium wobbly organic blob
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.8, BRUTE_GLYPHS, 0.9);
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.8, BRUTE_GLYPHS, 0.9 * brightMult);
         }
         else if (this.type === 'shooter') {
             // Shooter teardrop shape blob pointing towards movement
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.5, GLYPHS, 0.9, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, 1.5, GLYPHS, 0.9 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
         else if (this.type === 'worm') {
             // Slitherer chain of wobbly blobs
             for (let i = 0; i < this.trail.length; i++) {
                 const pos = this.trail[i];
                 const char = (i % 2 === 0) ? ['O'] : ['0'];
-                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, 1.1, char, 0.9 * (1 - i / this.trail.length));
+                stampOrganicBlob(rendererInstance, pos.x + 0.5, pos.y + 0.5, 1.1, char, 0.9 * (1 - i / this.trail.length) * brightMult);
             }
         }
         else if (this.type === 'virus') {
             // Pulsating virus blob
             const scale = 1.4 + Math.sin(Date.now() * 0.02) * 0.2;
-            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, scale, ['§', '*', '#'], 0.85);
+            stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, scale, ['§', '*', '#'], 0.85 * brightMult);
+        }
+        else if (this.type === 'boss_snake') {
+            // Draw wobbly trailing segments
+            for (let i = 0; i < this.trail.length; i++) {
+                if (i % 4 === 0) {
+                    const pos = this.trail[i];
+                    const radius = 2.2 - (i / this.trail.length) * 1.2;
+                    const charSet = (i % 8 === 0) ? ['O', '0', '#'] : ['░', '▒', '▓'];
+                    stampOrganicBlob(rendererInstance, pos.x + 2.5, pos.y + 2.5, radius, charSet, 0.7 * (1 - i / this.trail.length) * brightMult);
+                }
+            }
+            // Draw head
+            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.6, ['█', '▓', '▒', '░', '#'], 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
     }
 

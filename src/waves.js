@@ -2,20 +2,20 @@ import { enemies } from './enemies.js';
 
 class Director {
     constructor() {
-        this.timeElapsed = 0; // in ticks (30 per second)
-        this.modeTimeLimit = 10 * 60 * 30; // 10 minutes default
+        this.timeElapsed = 0; // in ticks (60 per second)
+        this.modeTimeLimit = 10 * 60 * 60; // 10 minutes default
         this.inProgress = false;
         
         this.spawnTimer = 0;
-        this.baseSpawnRate = 30; // spawn every 1 second initially (30 ticks)
+        this.baseSpawnRate = 60; // spawn every 1 second initially (60 ticks)
     }
 
     reset(minutes = 10) {
         this.timeElapsed = 0;
-        this.modeTimeLimit = minutes * 60 * 30; // 30 ticks per second
+        this.modeTimeLimit = minutes * 60 * 60; // 60 ticks per second
         this.inProgress = false;
         this.spawnTimer = 0;
-        this.baseSpawnRate = 30;
+        this.baseSpawnRate = 60;
     }
 
     startGame() {
@@ -28,11 +28,16 @@ class Director {
         this.timeElapsed++;
         this.spawnTimer--;
 
+        // Periodically spawn boss (first boss at 1.5 mins / 5400 ticks, then every 2.5 mins / 9000 ticks)
+        if (this.timeElapsed > 0 && (this.timeElapsed === 5400 || (this.timeElapsed > 5400 && (this.timeElapsed - 5400) % 9000 === 0))) {
+            this.spawnBoss(worldCols, worldRows);
+        }
+
         // Difficulty ramping based on time passed
         const progressRatio = this.timeElapsed / this.modeTimeLimit;
         
         // As time progresses, spawn faster
-        const currentSpawnRate = Math.max(3, this.baseSpawnRate - (progressRatio * 25));
+        const currentSpawnRate = Math.max(6, this.baseSpawnRate - (progressRatio * 50));
 
         if (this.spawnTimer <= 0) {
             this.spawnEnemy(worldCols, worldRows, progressRatio);
@@ -72,10 +77,23 @@ class Director {
         }
     }
 
+    spawnBoss(cols, rows) {
+        const edge = Math.floor(Math.random() * 4);
+        let x, y;
+        const padding = 10;
+        if (edge === 0) { x = cols / 2; y = -padding; }
+        else if (edge === 1) { x = cols / 2; y = rows + padding; }
+        else if (edge === 2) { x = -padding; y = rows / 2; }
+        else { x = cols + padding; y = rows / 2; }
+        
+        enemies.spawn(x, y, 'boss_snake');
+        effects.triggerFlash();
+    }
+
     getTimeRemainingFormatted() {
         const remainingTicks = Math.max(0, this.modeTimeLimit - this.timeElapsed);
-        const seconds = Math.floor((remainingTicks / 30) % 60);
-        const minutes = Math.floor((remainingTicks / 30) / 60);
+        const seconds = Math.floor((remainingTicks / 60) % 60);
+        const minutes = Math.floor((remainingTicks / 60) / 60);
         return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     }
 

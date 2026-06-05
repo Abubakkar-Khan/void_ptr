@@ -20,7 +20,7 @@ export class MatrixRain {
         for (let x = 0; x < cols; x++) {
             const column = [];
             for (let y = 0; y < rows; y++) {
-                const baseBrightness = 0.08 + Math.random() * 0.17;
+                const baseBrightness = 0.15 + Math.random() * 0.15;
                 column.push({
                     char: GLYPHS[Math.floor(Math.random() * GLYPHS.length)],
                     brightness: baseBrightness,

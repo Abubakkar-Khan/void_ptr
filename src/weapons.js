@@ -9,7 +9,7 @@ export class Projectile {
         this.width = options.width || 1;
         this.height = options.height || 1;
         this.damage = options.damage || 1;
-        this.life = options.life || 120; 
+        this.life = options.life || 240; 
         this.type = options.type || 'bullet';
         this.piercing = options.piercing || false;
         this.targetEnemy = null; // For rockets
@@ -54,15 +54,15 @@ export class Projectile {
                 const dy = this.targetEnemy.y + this.targetEnemy.height/2 - this.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 0) {
-                    this.vx += (dx / dist) * 0.2;
-                    this.vy += (dy / dist) * 0.2;
+                    this.vx += (dx / dist) * 0.1;
+                    this.vy += (dy / dist) * 0.1;
                 }
             }
             
             const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-            if (speed > 1.8) {
-                this.vx = (this.vx / speed) * 1.8;
-                this.vy = (this.vy / speed) * 1.8;
+            if (speed > 0.9) {
+                this.vx = (this.vx / speed) * 0.9;
+                this.vy = (this.vy / speed) * 0.9;
             }
             
             const angle = Math.atan2(this.vy, this.vx) * (180 / Math.PI);
@@ -146,11 +146,11 @@ class WeaponSystem {
         const type = playerInstance.weaponType;
 
         if (type === 'auto_blaster') {
-            const speed = 2.0;
+            const speed = 1.0;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 1.5, type: 'bullet', life: 60 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 1.5, type: 'bullet', life: 120 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
@@ -210,11 +210,11 @@ class WeaponSystem {
             }
         }
         else if (type === 'seeker_rockets') {
-            const speed = 0.5;
+            const speed = 0.25;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.8;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 4.0, type: 'rocket', life: 120, width: 2, height: 2 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 4.0, type: 'rocket', life: 240, width: 2, height: 2 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate * 3.0; 
         }

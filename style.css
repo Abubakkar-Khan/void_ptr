@@ -91,36 +91,4 @@ body {
     background-color: var(--bg-color);
 }
 
-/* --- Audio Toggle UI --- */
-#audio-controls {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 105;
-}
 
-.audio-btn {
-    background: transparent;
-    border: 1px solid var(--matrix-dark);
-    color: var(--matrix-green);
-    font-size: 1.2rem;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-}
-
-.audio-btn:hover {
-    border-color: var(--matrix-green);
-    box-shadow: 0 0 10px var(--matrix-glow);
-    background-color: rgba(0, 255, 65, 0.05);
-}
-
-.audio-btn.muted {
-    color: #ff3366;
-    border-color: rgba(255, 51, 102, 0.6);
-}

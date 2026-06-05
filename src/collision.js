@@ -3,6 +3,13 @@ export class CollisionSystem {
     checkOverlap(boxA, boxB) {
         if (!boxA || !boxB) return false;
 
+        if (boxA.isMultiBox) {
+            return boxA.boxes.some(b => this.checkOverlap(b, boxB));
+        }
+        if (boxB.isMultiBox) {
+            return boxB.boxes.some(b => this.checkOverlap(boxA, b));
+        }
+
         const aCircle = boxA.isCircle;
         const bCircle = boxB.isCircle;
         const aLaser = boxA.isLaser;

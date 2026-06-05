@@ -4,12 +4,12 @@ import { RENDER_CELL_TYPES } from './renderer.js';
 const TITLE_LINES = [
     '╭──────────────────────────────────────────────╮',
     '│                                              │',
-    '│   ██╗   ██╗ ██████╗ ██╗██████╗  ██╗         │',
-    '│   ██║   ██║██╔═══██╗██║██╔══██╗██╔╝         │',
-    '│   ██║   ██║██║   ██║██║██║  ██║██║           │',
-    '│   ╚██╗ ██╔╝██║   ██║██║██║  ██║╚██╗         │',
-    '│    ╚████╔╝ ╚██████╔╝██║██████╔╝ ╚██╗        │',
-    '│     ╚═══╝   ╚═════╝ ╚═╝╚═════╝   ╚═╝        │',
+    '│   ██╗   ██╗ ██████╗ ██╗██████╗               │',
+    '│   ██║   ██║██╔═══██╗██║██╔══██╗              │',
+    '│   ██║   ██║██║   ██║██║██║  ██║              │',
+    '│   ╚██╗ ██╔╝██║   ██║██║██║  ██║              │',
+    '│    ╚████╔╝ ╚██████╔╝██║██████╔╝              │',
+    '│     ╚═══╝   ╚═════╝ ╚═╝╚═════╝               │',
     '│                                              │',
     '│              ██████╗ ████████╗██████╗         │',
     '│              ██╔══██╗╚══██╔══╝██╔══██╗        │',
@@ -91,6 +91,24 @@ class UIManager {
     }
 
     stampPanel(renderer, px, py, w, h, t, parentCc, parentCr) {
+        // Draw shadow first (shifted by 2 cells horizontally, 1 cell vertically)
+        if (t >= 0.8) {
+            for (let dy = 1; dy < h + 1; dy++) {
+                for (let dx = 2; dx < w + 2; dx++) {
+                    if (dx >= 2 && dx < w && dy >= 1 && dy < h) continue;
+                    
+                    const targetX = px + dx;
+                    const targetY = py + dy;
+                    const mx = Math.round(parentCc + (targetX - parentCc) * t);
+                    const my = Math.round(parentCr + (targetY - parentCr) * t);
+                    
+                    // Shadow character with very dim glow
+                    this.stampCell(renderer, mx, my, '░', RENDER_CELL_TYPES.UI_BORDER, 0.15);
+                }
+            }
+        }
+
+        // Draw panel content
         for (let dy = 0; dy < h; dy++) {
             for (let dx = 0; dx < w; dx++) {
                 const targetX = px + dx;
@@ -152,9 +170,9 @@ class UIManager {
                         else char = '─';
                     }
                 } else if (isHovered) {
-                    char = '░';
-                    type = RENDER_CELL_TYPES.UI_TEXT;
-                    brightness = 0.2;
+                    char = '·';
+                    type = RENDER_CELL_TYPES.UI_BORDER;
+                    brightness = 0.45;
                 }
 
                 char = this.getUIChar(char, t);
@@ -225,9 +243,9 @@ class UIManager {
                         else char = '─';
                     }
                 } else if (isHovered) {
-                    char = '░';
-                    type = RENDER_CELL_TYPES.UI_TEXT;
-                    brightness = 0.25;
+                    char = ' ';
+                    type = RENDER_CELL_TYPES.UI_BORDER;
+                    brightness = 0.6;
                 }
 
                 char = this.getUIChar(char, t);

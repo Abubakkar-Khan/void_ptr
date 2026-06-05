@@ -1,9 +1,12 @@
-import { RENDER_CELL_TYPES } from './renderer.js';
+import { renderer, RENDER_CELL_TYPES } from './renderer.js';
 import { input } from './input.js';
 import { matrixRain } from './matrixRain.js';
 import { audio } from './audio.js';
 import { ProjectileBase } from './weapons.js';
 import { effects } from './effects.js';
+import { enemies } from './enemies.js';
+
+const GLYPHS = '01.:;|/\\-_';
 
 const SHIP_WIDTH = 3;
 const SHIP_HEIGHT = 3;
@@ -65,17 +68,17 @@ export class Player {
         this.xpToNextLevel = 100;
         
         this.invincibilityTimer = 0;
-        this.invincibilityDuration = 90;
+        this.invincibilityDuration = 180; // 60 FPS scaling
         
         this.fireCooldown = 0;
-        this.baseFireRate = 12;
-        this.fireRate = 12;
+        this.baseFireRate = 24; // 60 FPS scaling
+        this.fireRate = 24;
         
         // Dash settings
         this.dashTimer = 0;
-        this.dashDuration = 10;
+        this.dashDuration = 20; // 60 FPS scaling
         this.dashCooldown = 0;
-        this.dashSpeed = 3.6;
+        this.dashSpeed = 1.8; // 60 FPS scaling
         this.dashGhosts = []; // ghost smear frames
 
         // Upgrades
@@ -85,9 +88,18 @@ export class Player {
         this.droneCooldown = 0;
 
         // Floating physics
-        this.speed = 1.2;
-        this.friction = 0.92;
-        this.acceleration = 0.08;
+        this.speed = 0.6; // 60 FPS scaling
+        this.friction = 0.96; // 60 FPS scaling
+        this.acceleration = 0.045; // 60 FPS scaling
+
+        // Better Upgrades
+        this.shieldLevel = 0;
+        this.shieldActive = false;
+        this.shieldCooldown = 0;
+        this.freezeLevel = 0;
+        this.freezeCooldown = 0;
+        this.bombLevel = 0;
+        this.bombCooldown = 0;
 
         this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
         this.weaponType = 'auto_blaster';
@@ -111,13 +123,20 @@ export class Player {
         this.hasElectricDischarge = 0;
         this.electricCooldown = 0;
         this.droneCooldown = 0;
+        this.shieldLevel = 0;
+        this.shieldActive = false;
+        this.shieldCooldown = 0;
+        this.freezeLevel = 0;
+        this.freezeCooldown = 0;
+        this.bombLevel = 0;
+        this.bombCooldown = 0;
         this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
         this.recalculateStats();
     }
 
     recalculateStats() {
-        this.speed = 1.2 + this.upgrades.speedBoost * 0.2;
-        this.fireRate = Math.max(3, this.baseFireRate - this.upgrades.fireRateBoost * 2.0);
+        this.speed = 0.6 + this.upgrades.speedBoost * 0.1;
+        this.fireRate = Math.max(6, this.baseFireRate - this.upgrades.fireRateBoost * 4.0);
     }
 
     applyUpgrade(upgradeId) {
@@ -127,8 +146,20 @@ export class Player {
         else if (upgradeId === 'heal') this.hp = Math.min(this.maxHp, this.hp + 2);
         else if (upgradeId === 'drone') this.hasHelperDrones++;
         else if (upgradeId === 'electric') this.hasElectricDischarge++;
-        else if (upgradeId === 'w_laser') this.weaponType = 'null_laser';
-        else if (upgradeId === 'w_rocket') this.weaponType = 'seeker_rockets';
+        else if (upgradeId === 'shield') {
+            this.shieldLevel++;
+            if (!this.shieldActive && this.shieldCooldown <= 0) {
+                this.shieldActive = true;
+            }
+        }
+        else if (upgradeId === 'freeze') {
+            this.freezeLevel++;
+            this.freezeCooldown = Math.max(60, 720 - (this.freezeLevel - 1) * 120);
+        }
+        else if (upgradeId === 'bomb') {
+            this.bombLevel++;
+            this.bombCooldown = Math.max(60, 600 - (this.bombLevel - 1) * 100);
+        }
         this.recalculateStats();
     }
 
@@ -148,6 +179,14 @@ export class Player {
     }
 
     takeDamage(amount) {
+        if (this.shieldActive) {
+            this.shieldActive = false;
+            this.shieldCooldown = Math.max(120, 600 - (this.shieldLevel - 1) * 120);
+            this.invincibilityTimer = 40; // short invincibility frame
+            audio.playUpgradeSelect();
+            effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#00ff41', 15);
+            return false; // blocks damage
+        }
         if (this.invincibilityTimer > 0) return false;
         this.hp -= amount;
         this.invincibilityTimer = this.invincibilityDuration;
@@ -162,7 +201,7 @@ export class Player {
         // Trigger Dash
         if (input.justPressedDash() && this.dashCooldown === 0 && this.dashTimer === 0) {
             this.dashTimer = this.dashDuration;
-            this.dashCooldown = 45;
+            this.dashCooldown = 90; // 60 FPS scaling
             audio.playDash();
 
             let dx = moveVec.x;
@@ -275,7 +314,7 @@ export class Player {
                         closest = e;
                     }
                 }
-
+ 
                 if (closest) {
                     // Fire a seeker rocket from each drone
                     const px = this.x + this.width/2;
@@ -286,20 +325,20 @@ export class Player {
                         const dy = Math.sin(droneAngle) * 4;
                         const droneX = px + dx;
                         const droneY = py + dy;
-
+ 
                         const aimAngle = Math.atan2(closest.y + closest.height/2 - droneY, closest.x + closest.width/2 - droneX);
                         weaponsInstance.projectiles.push(new ProjectileBase(
                             droneX, droneY, 
-                            Math.cos(aimAngle) * 0.6, Math.sin(aimAngle) * 0.6, 
-                            { damage: 1.5, type: 'rocket', life: 90 }
+                            Math.cos(aimAngle) * 0.3, Math.sin(aimAngle) * 0.3, 
+                            { damage: 1.5, type: 'rocket', life: 180 }
                         ));
                     }
                     audio.playShoot('bullet');
-                    this.droneCooldown = 45;
+                    this.droneCooldown = 90; // 60 FPS scaling
                 }
             }
         }
-
+ 
         // Electric discharge Tesla passive shocking
         if (this.hasElectricDischarge > 0 && enemiesList && enemiesList.length > 0) {
             if (this.electricCooldown > 0) this.electricCooldown--;
@@ -323,8 +362,73 @@ export class Player {
                 }
                 if (zapped > 0) {
                     audio.playHit();
-                    this.electricCooldown = 60;
+                    this.electricCooldown = 120; // 60 FPS scaling
                 }
+            }
+        }
+
+        // 1. Shield Matrix Recharge
+        if (this.shieldLevel > 0 && !this.shieldActive) {
+            this.shieldCooldown--;
+            if (this.shieldCooldown <= 0) {
+                this.shieldActive = true;
+                effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#00ff41', 8);
+            }
+        }
+
+        // 2. System Freeze Active check
+        if (this.freezeLevel > 0) {
+            this.freezeCooldown--;
+            if (this.freezeCooldown <= 0) {
+                for (const e of enemiesList) {
+                    e.frozenTimer = 180; // 3 seconds freeze
+                    effects.spawnGlitchExplosion(e.x + e.width / 2, e.y + e.height / 2, '#00ff41', 6);
+                }
+                effects.triggerFlash();
+                audio.playUpgradeSelect();
+                this.freezeCooldown = Math.max(120, 720 - (this.freezeLevel - 1) * 120);
+            }
+        }
+
+        // 3. Stack Flush Bomb shockwave check
+        if (this.bombLevel > 0) {
+            this.bombCooldown--;
+            if (this.bombCooldown <= 0) {
+                const px = this.x + this.width / 2;
+                const py = this.y + this.height / 2;
+                
+                // Clear enemy projectiles within radius 20
+                if (enemies && enemies.projectiles) {
+                    for (let i = enemies.projectiles.length - 1; i >= 0; i--) {
+                        const proj = enemies.projectiles[i];
+                        const dx = proj.x - px;
+                        const dy = proj.y - py;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist <= 20) {
+                            effects.spawnImpactSparks(proj.x, proj.y);
+                            enemies.projectiles.splice(i, 1);
+                        }
+                    }
+                }
+                
+                // Deal damage and knockback to enemies within radius 20
+                for (const e of enemiesList) {
+                    const dx = (e.x + e.width / 2) - px;
+                    const dy = (e.y + e.height / 2) - py;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist <= 20) {
+                        e.takeDamage(5);
+                        e.applyKnockback(dx * 0.15, dy * 0.15);
+                        effects.spawnGlitchExplosion(e.x + e.width / 2, e.y + e.height / 2, '#ff3366', 8);
+                    }
+                }
+                
+                // Visual boom shockwave particles
+                effects.spawnGlitchExplosion(px, py, '#00ff41', 25);
+                renderer.triggerShake(12, 4);
+                audio.playShoot('cannon');
+                
+                this.bombCooldown = Math.max(120, 600 - (this.bombLevel - 1) * 100);
             }
         }
     }
@@ -403,6 +507,37 @@ export class Player {
                     rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.GLITCH;
                     rendererInstance.chars[gx][gy] = char;
                     rendererInstance.brightness[gx][gy] = 1.0;
+                }
+            }
+        }
+
+        // 4. Stamp animated engine fire trail
+        const isMoving = Math.sqrt(this.vx * this.vx + this.vy * this.vy) > 0.05;
+        const numFireParticles = isMoving ? 3 : 1;
+        for (let i = 0; i < numFireParticles; i++) {
+            const dist = 1.2 + Math.random() * (isMoving ? 1.5 : 0.5);
+            const fx = Math.floor(px - Math.cos(angle) * dist + (Math.random() - 0.5) * 1.0);
+            const fy = Math.floor(py - Math.sin(angle) * dist + (Math.random() - 0.5) * 1.0);
+            
+            if (fx >= 0 && fx < rendererInstance.cols && fy >= 0 && fy < rendererInstance.rows) {
+                rendererInstance.types[fx][fy] = RENDER_CELL_TYPES.GLITCH;
+                rendererInstance.chars[fx][fy] = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+                rendererInstance.brightness[fx][fy] = isMoving ? (0.6 + Math.random() * 0.4) : (0.2 + Math.random() * 0.2);
+            }
+        }
+
+        // 5. Stamp rotating Shield Matrix circular outline
+        if (this.shieldActive) {
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+                // Slight spin offset using current time
+                const rotAngle = a + (Date.now() * 0.0015);
+                const sx = Math.floor(ix + 1.5 + Math.cos(rotAngle) * 2.3);
+                const sy = Math.floor(iy + 1.5 + Math.sin(rotAngle) * 2.3);
+                
+                if (sx >= 0 && sx < rendererInstance.cols && sy >= 0 && sy < rendererInstance.rows) {
+                    rendererInstance.types[sx][sy] = RENDER_CELL_TYPES.GLITCH;
+                    rendererInstance.chars[sx][sy] = '⌗';
+                    rendererInstance.brightness[sx][sy] = 0.75;
                 }
             }
         }

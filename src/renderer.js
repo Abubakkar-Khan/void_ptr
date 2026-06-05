@@ -320,7 +320,7 @@ class GridRenderer {
                     const batchKey = 'dull_dot';
                     if (!batches.has(batchKey)) {
                         batches.set(batchKey, {
-                            color: 'rgba(0, 70, 20, 0.14)',
+                            color: 'rgba(0, 255, 65, 0.12)',
                             shadow: 'transparent',
                             shadowBlur: 0,
                             cells: []
