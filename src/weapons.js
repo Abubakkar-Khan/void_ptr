@@ -155,7 +155,7 @@ class WeaponSystem {
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
         else if (type === 'null_laser') {
-            const maxRange = 55; // laser range set to 55
+            const maxRange = 90; // extended laser range to 90
             for (let i = 0; i < streams; i++) {
                 const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams
                 const angle = Math.atan2(uy, ux) + spread;
@@ -190,7 +190,7 @@ class WeaponSystem {
                     }
                     
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 1.0, // laser damage balanced to 1.0
+                        damage: 0.25, // laser damage reduced drastically to 0.25
                         type: 'laser',
                         life: 8, // keep beam visible across fire ticks
                         piercing: true

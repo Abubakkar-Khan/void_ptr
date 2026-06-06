@@ -362,7 +362,7 @@ class UIManager {
         const ships = [
             { id: 'ship_seeker', title: 'Homing Pods', icon: '◈', desc: 'Fires seeker missiles that automatically target enemies. (Dmg: 5)' },
             { id: 'ship_normal', title: 'Auto-Blaster', icon: '▲', desc: 'Standard fire. Upgrades: double shot, spread. (Dmg: 5)' },
-            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 3)' }
+            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 0.25)' }
         ];
 
         for (let i = 0; i < ships.length; i++) {
