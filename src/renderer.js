@@ -96,18 +96,46 @@ class GridRenderer {
         // World grid and matrixRain stay the same size — no re-init
     }
 
-    clearGrid() {
+    clearGrid(brightnessFactor = 1.0, playerInstance = null) {
         // Only copy from matrixRain for the visible portion (with a small margin)
         const startX = Math.max(0, Math.floor(this.camX) - 1);
         const endX = Math.min(this.worldCols - 1, Math.floor(this.camX) + this.viewCols + 1);
         const startY = Math.max(0, Math.floor(this.camY) - 1);
         const endY = Math.min(this.worldRows - 1, Math.floor(this.camY) + this.viewRows + 1);
 
+        let pcx = 0;
+        let pcy = 0;
+        if (playerInstance) {
+            pcx = playerInstance.x + 1.5;
+            pcy = playerInstance.y + 1.5;
+        }
+
         for (let x = startX; x <= endX; x++) {
             for (let y = startY; y <= endY; y++) {
+                if (brightnessFactor <= 0) {
+                    this.chars[x][y] = ' ';
+                    this.brightness[x][y] = 0;
+                    this.types[x][y] = CELL_TYPES.RAIN;
+                    this.customColors[x][y] = null;
+                    this.dispX[x][y] = 0;
+                    this.dispY[x][y] = 0;
+                    continue;
+                }
+
+                // Legibility Culling: Clear cells near the player's ship
+                if (playerInstance && Math.sqrt((x - pcx) * (x - pcx) + (y - pcy) * (y - pcy)) < 4.0) {
+                    this.chars[x][y] = ' ';
+                    this.brightness[x][y] = 0;
+                    this.types[x][y] = CELL_TYPES.RAIN;
+                    this.customColors[x][y] = null;
+                    this.dispX[x][y] = 0;
+                    this.dispY[x][y] = 0;
+                    continue;
+                }
+
                 if (matrixRain.obstacles && matrixRain.obstacles[x][y]) {
                     this.chars[x][y] = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-                    this.brightness[x][y] = 0.5 + Math.random() * 0.5;
+                    this.brightness[x][y] = (0.5 + Math.random() * 0.5) * brightnessFactor;
                     this.types[x][y] = CELL_TYPES.GLITCH;
                     this.customColors[x][y] = null;
                     this.dispX[x][y] = 0;
@@ -118,7 +146,7 @@ class GridRenderer {
                 const rainCell = matrixRain.grid[x][y];
 
                 this.chars[x][y] = rainCell.char;
-                this.brightness[x][y] = rainCell.brightness;
+                this.brightness[x][y] = rainCell.brightness * brightnessFactor;
                 this.types[x][y] = CELL_TYPES.RAIN;
                 this.customColors[x][y] = null;
 

@@ -99,16 +99,16 @@ class EffectSystem {
         const screenX = (gridX - renderer.camX) * renderer.cellWidth;
         const screenY = (gridY - renderer.camY) * renderer.cellHeight;
         
-        for (let i = 0; i < 6; i++) {
-            const vx = (Math.random() - 0.5) * 3;
-            const vy = Math.random() * -3 - 1; 
+        for (let i = 0; i < 2; i++) {
+            const vx = (Math.random() - 0.5) * 1.5;
+            const vy = (Math.random() - 0.5) * 1.5; 
             
             this.particles.push(new Particle(screenX, screenY, vx, vy, {
-                char: Math.random() < 0.5 ? '.' : '*',
+                char: '.',
                 color: color,
-                life: 10 + Math.random() * 15,
-                size: 10,
-                glow: true
+                life: 6 + Math.random() * 8,
+                size: 8,
+                glow: false
             }));
         }
     }

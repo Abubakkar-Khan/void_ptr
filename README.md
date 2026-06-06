@@ -21,9 +21,9 @@
 ## 🚀 Weapons & Upgrades
 
 ### Ship Configurations (Starting Weapons)
-1. **Seeker Homing Pods** (Left Card) - Launches target-acquiring homing rockets. (Damage: `5`)
-2. **Auto-Blaster** (Middle Card) - Fires high-frequency forward bullet streams. (Damage: `5`)
-3. **Null Laser** (Right Card) - Casts an instant, piercing beam of light with an extended `90-cell` range. (Damage: `3`)
+1. **Seeker Homing Pods** (Left Card) - Launches target-acquiring homing rockets. (Damage: `5.0` + explodes in a `6-cell` radius dealing splash damage on hit).
+2. **Auto-Blaster** (Middle Card) - Fires forward bullet streams. (Damage: `5.0`).
+3. **Null Laser** (Right Card) - Fires an instant, raycasted piercing beam of light with a `90-cell` range. Damage is processed once per frame per enemy (zero lag). (Damage: `0.5`).
 
 ### Upgrade Pool
 Level up by collecting XP dropped from deleted anomalies. Each module has a strict level cap and is filtered out once fully upgraded:
@@ -36,6 +36,12 @@ Level up by collecting XP dropped from deleted anomalies. Each module has a stri
 *   **SYSTEM FREEZE** `[Max LVL 3]`: Periodically freeze all enemies for 3 seconds.
 *   **STACK FLUSH** `[Max LVL 3]`: Triggers a periodic shockwave clearing enemy bullets and damaging hostiles.
 *   **DASH CORRUPTION** `[Max LVL 3]`: Dashing directly through anomalies deals heavy corruption damage (`6/12/18` HP).
+*   **BLASTER AMPLIFIER** `[Max LVL 4]`: Increase blaster projectile damage by +2.0 per level.
+*   **SEEKER PROPULSION** `[Max LVL 4]`: Increase seeker rocket damage by +2.5 per level.
+*   **LASER WIDENER** `[Max LVL 4]`: Increase Null Laser damage by +0.25 per level.
+*   **L1 CACHE OVERCLOCK** `[Max LVL 1]`: Expand level-up upgrade choices from 3 to 4.
+*   **KERNEL OVERCLOCK** `[Max LVL 2]`: Overclock base engine speed & acceleration by 10% per level.
+*   **SWAP PARTITION** `[Max LVL 2]`: Fully restore ship integrity points and clear all standard anomalies.
 *   **REPAIR SECTOR** `[Unlimited]`: Restores `2` integrity points (only offered if damaged).
 
 ---

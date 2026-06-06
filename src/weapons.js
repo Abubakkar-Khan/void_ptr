@@ -1,6 +1,9 @@
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { matrixRain } from './matrixRain.js';
 import { effects } from './effects.js';
+import { enemies } from './enemies.js';
+import { audio } from './audio.js';
+import { collision } from './collision.js';
 
 export class Projectile {
     constructor(x, y, vx, vy, options = {}) {
@@ -13,6 +16,7 @@ export class Projectile {
         this.type = options.type || 'bullet';
         this.piercing = options.piercing || false;
         this.targetEnemy = null; // For rockets
+        this.hasDied = false;
         
         // Calculate shape based on velocity angle
         const angle = Math.atan2(this.vy, this.vx) * (180 / Math.PI);
@@ -36,10 +40,11 @@ export class Projectile {
         this.life--;
 
         if (this.type === 'rocket') {
-            if (!this.targetEnemy || this.targetEnemy.hp <= 0) {
+            if (!this.targetEnemy || !enemiesList.includes(this.targetEnemy) || this.targetEnemy.hp <= 0) {
                 let minDist = 40; 
                 this.targetEnemy = null;
                 for (const e of enemiesList) {
+                    if (!e || e.x === undefined || e.y === undefined) continue;
                     const dx = e.x - this.x;
                     const dy = e.y - this.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -49,9 +54,11 @@ export class Projectile {
                     }
                 }
             }
-            if (this.targetEnemy) {
-                const dx = this.targetEnemy.x + this.targetEnemy.width/2 - this.x;
-                const dy = this.targetEnemy.y + this.targetEnemy.height/2 - this.y;
+            if (this.targetEnemy && this.targetEnemy.x !== undefined && this.targetEnemy.y !== undefined) {
+                const ew = this.targetEnemy.width !== undefined ? this.targetEnemy.width : 1;
+                const eh = this.targetEnemy.height !== undefined ? this.targetEnemy.height : 1;
+                const dx = this.targetEnemy.x + ew/2 - this.x;
+                const dy = this.targetEnemy.y + eh/2 - this.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 if (dist > 0) {
                     this.vx += (dx / dist) * 0.15; // increased steering force
@@ -91,7 +98,29 @@ export class Projectile {
             }
         }
     }
-
+    onDeath() {
+        if (this.hasDied) return;
+        this.hasDied = true;
+        if (this.type === 'rocket') {
+            effects.spawnGlitchExplosion(this.x, this.y, '#33ccff', 15);
+            audio.playEnemyDeath();
+            const blastRadius = 6.0;
+            const blastDmg = this.damage * 0.8;
+            if (enemies && enemies.enemies) {
+                for (const e of enemies.enemies) {
+                    if (e && e.hp > 0 && e.x !== undefined && e.y !== undefined) {
+                        const odx = e.x + e.width/2 - this.x;
+                        const ody = e.y + e.height/2 - this.y;
+                        const odist = Math.sqrt(odx*odx + ody*ody);
+                        if (odist < blastRadius) {
+                            e.takeDamage(blastDmg);
+                            e.applyKnockback(odx / (odist || 1) * 1.5, ody / (odist || 1) * 1.5);
+                        }
+                    }
+                }
+            }
+        }
+    }
     getHitbox() {
         return { x: this.x - this.width/2, y: this.y - this.height/2, width: this.width, height: this.height };
     }
@@ -112,13 +141,12 @@ class WeaponSystem {
             const p = this.projectiles[i];
             p.update(enemiesList);
 
-            // Obstacle collision check
-            if (p.type !== 'laser') {
+            // Obstacle collision check (for non-laser bullets)
+            if (p.type !== 'visual_laser') {
                 const ix = Math.floor(p.x);
                 const iy = Math.floor(p.y);
                 if (ix >= 0 && ix < matrixRain.cols && iy >= 0 && iy < matrixRain.rows) {
                     if (matrixRain.obstacles && matrixRain.obstacles[ix][iy]) {
-                        // Damage obstacle, trigger impact spark, destroy projectile
                         matrixRain.damageObstacle(ix, iy, p.damage);
                         effects.spawnImpactSparks(p.x, p.y);
                         p.life = 0;
@@ -126,7 +154,10 @@ class WeaponSystem {
                 }
             }
 
-            if (p.life <= 0) this.projectiles.splice(i, 1);
+            if (p.life <= 0) {
+                p.onDeath();
+                this.projectiles.splice(i, 1);
+            }
         }
     }
 
@@ -147,15 +178,18 @@ class WeaponSystem {
 
         if (type === 'auto_blaster') {
             const speed = 1.0;
+            const dmg = 5.0 + (playerInstance.upgrades.blasterDmg || 0) * 2.0;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 5.0, type: 'bullet', life: 120 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'bullet', life: 120 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
         else if (type === 'null_laser') {
-            const maxRange = 90; // extended laser range to 90
+            const maxRange = 90;
+            const dmg = 0.5 + (playerInstance.upgrades.laserDmg || 0) * 0.25;
+            
             for (let i = 0; i < streams; i++) {
                 const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams
                 const angle = Math.atan2(uy, ux) + spread;
@@ -173,7 +207,9 @@ class WeaponSystem {
                     char = '/';
                 }
 
-                for (let d = 0.5; d < maxRange; d += 0.5) {
+                const hitEnemies = new Set();
+
+                for (let d = 1.0; d < maxRange; d += 1.0) {
                     const tx = px + lux * d;
                     const ty = py + luy * d;
                     const ix = Math.floor(tx);
@@ -188,33 +224,45 @@ class WeaponSystem {
                         effects.spawnImpactSparks(tx, ty);
                         break;
                     }
+
+                    // Instant collision check against enemies
+                    if (enemies && enemies.enemies) {
+                        const cellHitbox = { x: tx - 0.5, y: ty - 0.5, width: 1.0, height: 1.0 };
+                        for (const enemy of enemies.enemies) {
+                            if (enemy && enemy.hp > 0 && !hitEnemies.has(enemy)) {
+                                const eBox = enemy.getHitbox();
+                                if (collision.checkOverlap(cellHitbox, eBox)) {
+                                    hitEnemies.add(enemy);
+                                    enemy.applyKnockback(lux * 1.5, luy * 1.5);
+                                    enemy.takeDamage(dmg);
+                                    effects.spawnImpactSparks(tx, ty);
+                                    audio.playHit();
+                                }
+                            }
+                        }
+                    }
                     
+                    // Visual laser projectile (deals no collision damage, short duration)
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 0.2, // laser damage balanced to 0.2 (1/5 of standard 1.0)
-                        type: 'laser',
-                        life: 8, // keep beam visible across fire ticks
+                        damage: 0,
+                        type: 'visual_laser',
+                        life: 6,
                         piercing: true
                     });
                     laserProj.char = char;
                     this.projectiles.push(laserProj);
                 }
             }
-            playerInstance.fireCooldown = 8; // even slower fire rate for laser (cooldown 8 ticks)
-
-            if (this.laserSoundCooldown <= 0) {
-                this.laserSoundCooldown = 6;
-                return true;
-            } else {
-                this.laserSoundCooldown--;
-                return false;
-            }
+            playerInstance.fireCooldown = Math.max(8, playerInstance.fireRate * 1.2);
+            return true;
         }
         else if (type === 'seeker_rockets') {
-            const speed = 0.45; // increased launch speed from 0.25
+            const speed = 0.45;
+            const dmg = 5.0 + (playerInstance.upgrades.seekerDmg || 0) * 2.5;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.8;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: 5.0, type: 'rocket', life: 240, width: 2, height: 2 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'rocket', life: 240, width: 2, height: 2 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate * 3.0; 
         }

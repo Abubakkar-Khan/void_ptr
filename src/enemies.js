@@ -1,6 +1,7 @@
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { effects } from './effects.js';
 import { matrixRain } from './matrixRain.js';
+import { audio } from './audio.js';
 
 const GLYPHS = '01.:;|/\\-_';
 const BRUTE_GLYPHS = ['█', '▓', '▒', '░', '#', '■', '▪', ' ', '█', '█'];
@@ -225,7 +226,7 @@ export class Enemy {
         // Blackhole gravitational pull on this enemy
         if (enemyManager && enemyManager.enemies) {
             for (const other of enemyManager.enemies) {
-                if (other.type === 'blackhole' && other !== this) {
+                if (other && other.type === 'blackhole' && other !== this && other.x !== undefined && other.y !== undefined) {
                     const bdx = (other.x + 2.5) - (this.x + this.width / 2);
                     const bdy = (other.y + 2.5) - (this.y + this.height / 2);
                     const bdist = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
@@ -434,9 +435,11 @@ export class Enemy {
                 const px = this.x + 1.5;
                 const py = this.y + 1.5;
                 for (const other of enemyManager.enemies) {
-                    if (other !== this && other.type !== 'shield_projector' && other.type !== 'blackhole') {
-                        const odx = (other.x + other.width/2) - px;
-                        const ody = (other.y + other.height/2) - py;
+                    if (other && other !== this && other.type !== 'shield_projector' && other.type !== 'blackhole') {
+                        const ow = other.width !== undefined ? other.width : 1;
+                        const oh = other.height !== undefined ? other.height : 1;
+                        const odx = (other.x + ow/2) - px;
+                        const ody = (other.y + oh/2) - py;
                         const odist = Math.sqrt(odx*odx + ody*ody);
                         if (odist < 16) {
                             other.shielded = true;
@@ -613,14 +616,16 @@ export class Enemy {
             }
 
             // Draw shield rays connecting to shielded enemies
-            if (enemyManager && enemyManager.enemies) {
+            if (enemies && enemies.enemies) {
                 const px = this.x + 1.5;
                 const py = this.y + 1.5;
-                for (const other of enemyManager.enemies) {
-                    if (other !== this && other.shielded && other.type !== 'blackhole') {
+                for (const other of enemies.enemies) {
+                    if (other && other !== this && other.shielded && other.type !== 'blackhole') {
                         // Draw a simple dotted line between projector and other
-                        const tx = other.x + other.width/2;
-                        const ty = other.y + other.height/2;
+                        const ow = other.width !== undefined ? other.width : 1;
+                        const oh = other.height !== undefined ? other.height : 1;
+                        const tx = other.x + ow/2;
+                        const ty = other.y + oh/2;
                         const ldx = tx - px;
                         const ldy = ty - py;
                         const ldist = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
@@ -633,8 +638,8 @@ export class Enemy {
                                 // Only draw on blank/rain cells to keep it clean
                                 if (rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.RAIN || rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.UI_VOID) {
                                     rendererInstance.types[lx][ly] = RENDER_CELL_TYPES.ENEMY_GLITCH;
-                                    rendererInstance.chars[lx][ly] = '·';
-                                    rendererInstance.brightness[lx][ly] = 0.5 * brightMult;
+                                    rendererInstance.chars[lx][ly] = '≈';
+                                    rendererInstance.brightness[lx][ly] = 0.8 * brightMult;
                                 }
                             }
                         }
@@ -746,6 +751,16 @@ class EnemyManager {
     }
 
     spawn(x, y, type) {
+        const normalTypes = ['drone', 'brute', 'brute_medium', 'shooter', 'worm', 'virus', 'kamikaze', 'shield_projector'];
+        if (normalTypes.includes(type)) {
+            let normalCount = 0;
+            for (const e of this.enemies) {
+                if (e && normalTypes.includes(e.type)) {
+                    normalCount++;
+                }
+            }
+            if (normalCount >= 45) return;
+        }
         this.enemies.push(new Enemy(x, y, type));
     }
 
@@ -754,11 +769,17 @@ class EnemyManager {
 
         // Reset shielded flag for all enemies at start of update frame
         for (const enemy of this.enemies) {
-            enemy.shielded = false;
+            if (enemy) {
+                enemy.shielded = false;
+            }
         }
 
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];
+            if (!enemy) {
+                this.enemies.splice(i, 1);
+                continue;
+            }
 
             enemy.update(playerInstance.x, playerInstance.y, gridCols, gridRows, spawnedProjectiles, this);
 
@@ -780,8 +801,12 @@ class EnemyManager {
     }
 
     stampToGrid(rendererInstance) {
-        for (const enemy of this.enemies) enemy.stampToGrid(rendererInstance);
-        for (const p of this.projectiles) p.stampToGrid(rendererInstance);
+        for (const enemy of this.enemies) {
+            if (enemy) enemy.stampToGrid(rendererInstance);
+        }
+        for (const p of this.projectiles) {
+            if (p) p.stampToGrid(rendererInstance);
+        }
     }
 }
 

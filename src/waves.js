@@ -54,6 +54,7 @@ class Director {
     }
 
     spawnEnemy(cols, rows, progress) {
+        if (enemies.enemies.length >= 45) return;
         // Spawn around the edges of the screen
         let x, y;
         const edge = Math.floor(Math.random() * 4);

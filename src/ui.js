@@ -241,6 +241,93 @@ class UIManager {
         }
     }
 
+    stampGlitchyText(renderer, text, x, y, type, t, align = 'left', parentCc, parentCr) {
+        let startX = x;
+        if (align === 'center') {
+            startX = x - Math.floor(text.length / 2);
+        } else if (align === 'right') {
+            startX = x - text.length;
+        }
+
+        // Creepy glitch effects
+        const timeFactor = Date.now() * 0.01;
+        
+        // Random line-level horizontal displacement (screen glitch)
+        let lineShift = 0;
+        if (Math.random() < 0.06) {
+            lineShift = Math.floor(Math.sin(timeFactor) * 2.0);
+        }
+        
+        // Random character corruption rate
+        const corruptionChance = 0.015 + Math.sin(timeFactor * 0.5) * 0.01;
+
+        for (let i = 0; i < text.length; i++) {
+            const targetX = startX + i + lineShift;
+            const targetY = y;
+
+            const mx = Math.round(parentCc + (targetX - parentCc) * t);
+            const my = Math.round(parentCr + (targetY - parentCr) * t);
+
+            let char = text[i];
+            
+            // Randomly corrupt the character with creepy glitch symbols
+            if (t >= 1.0 && Math.random() < corruptionChance && char !== ' ' && char !== '│' && char !== '╰' && char !== '╯' && char !== '╭' && char !== '╮') {
+                const GLITCH_GLYPHS = '01☠☣✖†‡§¶?*@#%&';
+                char = GLITCH_GLYPHS[Math.floor(Math.random() * GLITCH_GLYPHS.length)];
+            } else {
+                char = this.getUIChar(char, t);
+            }
+
+            this.stampCell(renderer, mx, my, char, type, 1.0);
+        }
+    }
+
+    stampBootScreen(renderer, bootTicks) {
+        const viewCols = renderer.viewCols;
+        const viewRows = renderer.viewRows;
+
+        // Render boot lines step-by-step
+        const messages = [
+            "> INITIALIZING SYSTEM BOOT...",
+            "> MOUNTING CORE STORAGE [/dev/null]... SUCCESS.",
+            "> CONNECTING TO NEURAL PTR NETWORK... ERROR: HE IS WATCHING.",
+            "> RE-ESTABLISHING SECURE STACK SYSTEM... FAILED.",
+            "> WARNING: CORRUPTED MEMORY ADDRESS DETECTED.",
+            "> FORCE INJECTING VOID_PTR.EXE... GO."
+        ];
+
+        let visibleCount = 0;
+        if (bootTicks > 20) visibleCount = 1;
+        if (bootTicks > 50) visibleCount = 2;
+        if (bootTicks > 85) visibleCount = 3;
+        if (bootTicks > 115) visibleCount = 4;
+        if (bootTicks > 145) visibleCount = 5;
+        if (bootTicks > 175) visibleCount = 6;
+
+        const startY = Math.floor(viewRows / 2) - 5;
+        const startX = Math.floor(viewCols / 2) - 30;
+
+        for (let i = 0; i < visibleCount; i++) {
+            this.stampText(renderer, messages[i], startX, startY + i * 2, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
+        }
+
+        // Blinking terminal cursor
+        const cursorBlink = Math.floor(Date.now() / 250) % 2 === 0;
+        if (cursorBlink && bootTicks < 180) {
+            let cursorX = startX;
+            let cursorY = startY;
+            if (visibleCount > 0 && visibleCount <= messages.length) {
+                cursorX = startX + messages[visibleCount - 1].length;
+                cursorY = startY + (visibleCount - 1) * 2;
+            }
+            if (cursorX >= 0 && cursorX < viewCols && cursorY >= 0 && cursorY < viewRows) {
+                renderer.types[cursorX][cursorY] = RENDER_CELL_TYPES.UI_TEXT;
+                renderer.chars[cursorX][cursorY] = '█';
+                renderer.brightness[cursorX][cursorY] = 1.0;
+            }
+        }
+    }
+
     stampButton(renderer, id, label, x, y, w, h, t, mx, my, parentCc, parentCr) {
         const mouseCol = Math.floor(mx / renderer.cellWidth);
         const mouseRow = Math.floor(my / renderer.cellHeight);
@@ -319,7 +406,7 @@ class UIManager {
 
         const titleX = px + Math.floor((panelW - 48) / 2);
         for (let i = 0; i < TITLE_LINES.length; i++) {
-            this.stampText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            this.stampGlitchyText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
         }
 
         const playBtnY = py + 20;
@@ -362,7 +449,7 @@ class UIManager {
         const ships = [
             { id: 'ship_seeker', title: 'Homing Pods', icon: '◈', desc: 'Fires seeker missiles that automatically target enemies. (Dmg: 5)' },
             { id: 'ship_normal', title: 'Auto-Blaster', icon: '▲', desc: 'Standard fire. Upgrades: double shot, spread. (Dmg: 5)' },
-            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 0.2)' }
+            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 0.02)' }
         ];
 
         for (let i = 0; i < ships.length; i++) {
@@ -429,7 +516,7 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 84;
+        const panelW = cards.length === 4 ? 116 : 84;
         const panelH = 34;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
@@ -503,7 +590,7 @@ class UIManager {
             // Draw victory block ASCII art
             const victoryX = px + Math.floor((panelW - 57) / 2);
             for (let i = 0; i < VICTORY_LINES.length; i++) {
-                this.stampText(renderer, VICTORY_LINES[i], victoryX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+                this.stampGlitchyText(renderer, VICTORY_LINES[i], victoryX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
             }
             
             const victoryText = "System successfully cleared all hostile autonomous threads. Memory integrity preserved.";
@@ -518,7 +605,7 @@ class UIManager {
             // Draw game over block ASCII art
             const gameOverX = px + Math.floor((panelW - 42) / 2);
             for (let i = 0; i < GAME_OVER_LINES.length; i++) {
-                this.stampText(renderer, GAME_OVER_LINES[i], gameOverX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+                this.stampGlitchyText(renderer, GAME_OVER_LINES[i], gameOverX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
             }
 
             const crashText = "Fatal collision detected. Stack overflow in local buffer. Purging memory sectors...";

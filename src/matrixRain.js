@@ -30,11 +30,11 @@ export class MatrixRain {
             this.grid.push(column);
         }
 
-        // Seed father-themed words randomly in the background static ASCII grid
-        const fatherWords = ['abu', 'father', 'papa', 'dad', 'pop', 'pater', 'baba', 'dada', 'abba', 'parent'];
+        // Seed creepy/corrupt system terms randomly in the background static ASCII grid
+        const creepyWords = ['abu', 'father', 'papa', 'dad', 'void', 'null', 'ptr', 'fatal', 'error', 'lost', 'alone', 'fear', 'dark', 'help', 'dead', 'kill', 'ghost', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn'];
         const numWords = 150;
         for (let w = 0; w < numWords; w++) {
-            const word = fatherWords[Math.floor(Math.random() * fatherWords.length)];
+            const word = creepyWords[Math.floor(Math.random() * creepyWords.length)];
             const isHorizontal = Math.random() < 0.5;
             const startX = Math.floor(Math.random() * (cols - word.length - 2)) + 1;
             const startY = Math.floor(Math.random() * (rows - word.length - 2)) + 1;

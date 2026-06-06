@@ -61,11 +61,12 @@ export class Player {
         this.width = SHIP_WIDTH;
         this.height = SHIP_HEIGHT;
         
-        this.maxHp = 8; this.hp = 8;
+        this.maxHp = 12; this.hp = 12;
         this.score = 0;
         this.xp = 0;
         this.level = 1;
         this.xpToNextLevel = 100;
+        this.pendingLevelUp = false;
         
         this.invincibilityTimer = 0;
         this.invincibilityDuration = 60; // 60 FPS scaling (1 second invincibility)
@@ -87,10 +88,10 @@ export class Player {
         this.electricCooldown = 0;
         this.droneCooldown = 0;
 
-        // Floating physics
-        this.speed = 0.6; // 60 FPS scaling
-        this.friction = 0.96; // 60 FPS scaling
-        this.acceleration = 0.045; // 60 FPS scaling
+        // Snappy physics
+        this.speed = 1.2; // 60 FPS scaling
+        this.friction = 0.88; // snappy stopping
+        this.acceleration = 0.12; // instant pickup
 
         // Better Upgrades
         this.shieldLevel = 0;
@@ -101,11 +102,12 @@ export class Player {
         this.bombLevel = 0;
         this.bombCooldown = 0;
 
-        this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
+        this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0, cacheOverclock: 0, kernelOverclock: 0, swapPartition: 0, blasterDmg: 0, seekerDmg: 0, laserDmg: 0 };
         this.weaponType = 'auto_blaster';
         this.aimAngle = -Math.PI / 2; // Default facing UP
         this.dashDmgLevel = 0; // Initialize dash corruption damage level
         this.currentPattern = PLAYER_PATTERNS.UP;
+        this.dashInputBuffer = 0;
     }
 
     reset(gridCols, gridRows) {
@@ -114,11 +116,13 @@ export class Player {
         this.vx = 0; this.vy = 0;
         this.aimAngle = -Math.PI / 2; // Default facing UP
         this.dashDmgLevel = 0; // Reset dash corruption damage level
+        this.maxHp = 12;
         this.hp = this.maxHp;
         this.score = 0;
         this.xp = 0;
         this.level = 1;
         this.xpToNextLevel = 100;
+        this.pendingLevelUp = false;
         this.fireCooldown = 0;
         this.dashTimer = 0;
         this.dashCooldown = 0;
@@ -134,12 +138,15 @@ export class Player {
         this.freezeCooldown = 0;
         this.bombLevel = 0;
         this.bombCooldown = 0;
-        this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0 };
+        this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0, cacheOverclock: 0, kernelOverclock: 0, swapPartition: 0, blasterDmg: 0, seekerDmg: 0, laserDmg: 0 };
+        this.dashInputBuffer = 0;
         this.recalculateStats();
     }
 
     recalculateStats() {
-        this.speed = 0.6 + this.upgrades.speedBoost * 0.1;
+        const kernelMult = 1.0 + (this.upgrades.kernelOverclock || 0) * 0.1;
+        this.speed = (1.2 + this.upgrades.speedBoost * 0.15) * kernelMult;
+        this.acceleration = 0.12 * kernelMult;
         this.fireRate = Math.max(6, this.baseFireRate - this.upgrades.fireRateBoost * 4.0);
     }
 
@@ -167,6 +174,33 @@ export class Player {
         else if (upgradeId === 'dash_dmg') {
             this.dashDmgLevel++;
         }
+        else if (upgradeId === 'upg_blaster_dmg') {
+            this.upgrades.blasterDmg = (this.upgrades.blasterDmg || 0) + 1;
+        }
+        else if (upgradeId === 'upg_seeker_dmg') {
+            this.upgrades.seekerDmg = (this.upgrades.seekerDmg || 0) + 1;
+        }
+        else if (upgradeId === 'upg_laser_dmg') {
+            this.upgrades.laserDmg = (this.upgrades.laserDmg || 0) + 1;
+        }
+        else if (upgradeId === 'bios_cache') {
+            this.upgrades.cacheOverclock = 1;
+        }
+        else if (upgradeId === 'bios_kernel') {
+            this.upgrades.kernelOverclock = (this.upgrades.kernelOverclock || 0) + 1;
+        }
+        else if (upgradeId === 'bios_swap') {
+            this.upgrades.swapPartition = (this.upgrades.swapPartition || 0) + 1;
+            this.hp = this.maxHp;
+            effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#00ff41', 40);
+            if (enemies && enemies.enemies) {
+                for (const e of enemies.enemies) {
+                    if (e && e.x !== undefined && e.type !== 'boss_snake' && e.type !== 'boss_eye' && e.type !== 'boss_carrier') {
+                        e.hp = 0; // kill standard enemies nearby
+                    }
+                }
+            }
+        }
         this.recalculateStats();
     }
 
@@ -176,6 +210,7 @@ export class Player {
             this.xp -= this.xpToNextLevel;
             this.level++;
             this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5);
+            this.pendingLevelUp = true;
             return true;
         }
         return false;
@@ -206,8 +241,13 @@ export class Player {
         if (this.fireCooldown > 0) this.fireCooldown--;
         if (this.dashCooldown > 0) this.dashCooldown--;
 
+        if (input.justPressedDash()) {
+            this.dashInputBuffer = 6; // buffer for 6 frames (100ms)
+        }
+
         // Trigger Dash
-        if (input.justPressedDash() && this.dashCooldown === 0 && this.dashTimer === 0) {
+        if (this.dashInputBuffer > 0 && this.dashCooldown === 0 && this.dashTimer === 0) {
+            this.dashInputBuffer = 0;
             this.dashTimer = this.dashDuration;
             this.dashCooldown = 90; // 60 FPS scaling
             audio.playDash();
@@ -227,6 +267,10 @@ export class Player {
             }
             this.vx = dx * this.dashSpeed;
             this.vy = dy * this.dashSpeed;
+        }
+
+        if (this.dashInputBuffer > 0) {
+            this.dashInputBuffer--;
         }
 
         // Check if inside a static glitch obstacle field (slowing penalty!)
@@ -253,11 +297,13 @@ export class Player {
                 const py = this.y + 1.5;
                 const dashRadius = 2.8;
                 for (const e of enemiesList) {
+                    if (!e || e.x === undefined || e.y === undefined || e.type === undefined) continue;
                     if (e.type === 'blackhole') continue;
-                    const ex = e.x + e.width / 2;
-                    const ey = e.y + e.height / 2;
+                    const ew = e.width !== undefined ? e.width : 1;
+                    const ex = e.x + ew / 2;
+                    const ey = e.y + (e.height !== undefined ? e.height : 1) / 2;
                     const dist = Math.sqrt((ex - px) * (ex - px) + (ey - py) * (ey - py));
-                    if (dist <= dashRadius + (e.width / 2)) {
+                    if (dist <= dashRadius + (ew / 2)) {
                         e.takeDamage(this.dashDmgLevel * 6.0); // 6 / 12 / 18 damage
                         effects.spawnImpactSparks(ex, ey);
                     }
@@ -267,20 +313,20 @@ export class Player {
             let accel = this.acceleration;
             let maxSpd = this.speed;
             let fric = this.friction;
-
+ 
             if (insideGlitchField) {
                 accel *= 0.4;
                 maxSpd *= 0.5;
                 fric *= 0.7; // stronger friction inside glitch field
             }
-
+ 
             this.vx += moveVec.x * accel;
             this.vy += moveVec.y * accel;
-
+ 
             // Blackhole gravitational pull on player velocity
             if (enemiesList) {
                 for (const e of enemiesList) {
-                    if (e.type === 'blackhole') {
+                    if (e && e.type === 'blackhole' && e.x !== undefined && e.y !== undefined) {
                         const bdx = (e.x + 2.5) - (this.x + 1.5);
                         const bdy = (e.y + 2.5) - (this.y + 1.5);
                         const bdist = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
@@ -355,6 +401,7 @@ export class Player {
                 let closest = null;
                 let minDist = 40;
                 for (const e of enemiesList) {
+                    if (!e || e.x === undefined || e.y === undefined) continue;
                     const dx = e.x - this.x;
                     const dy = e.y - this.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -375,7 +422,9 @@ export class Player {
                         const droneX = px + dx;
                         const droneY = py + dy;
  
-                        const aimAngle = Math.atan2(closest.y + closest.height/2 - droneY, closest.x + closest.width/2 - droneX);
+                        const ew = closest.width !== undefined ? closest.width : 1;
+                        const eh = closest.height !== undefined ? closest.height : 1;
+                        const aimAngle = Math.atan2(closest.y + eh/2 - droneY, closest.x + ew/2 - droneX);
                         weaponsInstance.projectiles.push(new ProjectileBase(
                             droneX, droneY, 
                             Math.cos(aimAngle) * 0.5, Math.sin(aimAngle) * 0.5, // increased launch speed
@@ -397,14 +446,17 @@ export class Player {
                 const py = this.y + this.height/2;
                 let zapped = 0;
                 for (const e of enemiesList) {
-                    const dx = e.x + e.width/2 - px;
-                    const dy = e.y + e.height/2 - py;
+                    if (!e || e.x === undefined || e.y === undefined) continue;
+                    const ew = e.width !== undefined ? e.width : 1;
+                    const eh = e.height !== undefined ? e.height : 1;
+                    const dx = e.x + ew/2 - px;
+                    const dy = e.y + eh/2 - py;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist < 20) {
                         // Apply damage
                         e.takeDamage(1.5 * this.hasElectricDischarge);
                         // Trigger lightning effect in canvas
-                        effects.spawnLightningArc(px, py, e.x + e.width/2, e.y + e.height/2);
+                        effects.spawnLightningArc(px, py, e.x + ew/2, e.y + eh/2);
                         zapped++;
                         if (zapped >= 3) break;
                     }
@@ -415,7 +467,7 @@ export class Player {
                 }
             }
         }
-
+ 
         // 1. Shield Matrix Recharge
         if (this.shieldLevel > 0 && !this.shieldActive) {
             this.shieldCooldown--;
@@ -424,21 +476,24 @@ export class Player {
                 effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#00ff41', 8);
             }
         }
-
+ 
         // 2. System Freeze Active check
         if (this.freezeLevel > 0) {
             this.freezeCooldown--;
             if (this.freezeCooldown <= 0) {
                 for (const e of enemiesList) {
+                    if (!e) continue;
                     e.frozenTimer = 180; // 3 seconds freeze
-                    effects.spawnGlitchExplosion(e.x + e.width / 2, e.y + e.height / 2, '#00ff41', 6);
+                    const ew = e.width !== undefined ? e.width : 1;
+                    const eh = e.height !== undefined ? e.height : 1;
+                    effects.spawnGlitchExplosion(e.x + ew / 2, e.y + eh / 2, '#00ff41', 6);
                 }
                 effects.triggerFlash();
                 audio.playUpgradeSelect();
                 this.freezeCooldown = Math.max(120, 720 - (this.freezeLevel - 1) * 120);
             }
         }
-
+ 
         // 3. Stack Flush Bomb shockwave check
         if (this.bombLevel > 0) {
             this.bombCooldown--;
@@ -450,6 +505,7 @@ export class Player {
                 if (enemies && enemies.projectiles) {
                     for (let i = enemies.projectiles.length - 1; i >= 0; i--) {
                         const proj = enemies.projectiles[i];
+                        if (!proj || proj.x === undefined || proj.y === undefined) continue;
                         const dx = proj.x - px;
                         const dy = proj.y - py;
                         const dist = Math.sqrt(dx*dx + dy*dy);
@@ -462,13 +518,16 @@ export class Player {
                 
                 // Deal damage and knockback to enemies within radius 20
                 for (const e of enemiesList) {
-                    const dx = (e.x + e.width / 2) - px;
-                    const dy = (e.y + e.height / 2) - py;
+                    if (!e || e.x === undefined || e.y === undefined) continue;
+                    const ew = e.width !== undefined ? e.width : 1;
+                    const eh = e.height !== undefined ? e.height : 1;
+                    const dx = (e.x + ew / 2) - px;
+                    const dy = (e.y + eh / 2) - py;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist <= 20) {
                         e.takeDamage(5);
                         e.applyKnockback(dx * 0.15, dy * 0.15);
-                        effects.spawnGlitchExplosion(e.x + e.width / 2, e.y + e.height / 2, '#ff3366', 8);
+                        effects.spawnGlitchExplosion(e.x + ew / 2, e.y + eh / 2, '#ff3366', 8);
                     }
                 }
                 

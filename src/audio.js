@@ -5,8 +5,12 @@ class AudioManager {
         this.musicEnabled = true;
         this.sfxEnabled = true;
         this.drone = null;
-        this.musicInterval = null;
-        this.musicStep = 0;
+        this.noiseBuffer = null;
+        this.lastHitTime = 0;
+        this.lastDeathTime = 0;
+        this.bgmBuffer = null;
+        this.bgmSource = null;
+        this.bgmGain = null;
     }
 
     init() {
@@ -15,8 +19,17 @@ class AudioManager {
         try {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             this.ctx = new AudioContextClass();
+            
+            // Pre-allocate 1-second of white noise to avoid garbage collection/lag spikes during gameplay
+            const sampleRate = this.ctx.sampleRate;
+            this.noiseBuffer = this.ctx.createBuffer(1, sampleRate, sampleRate);
+            const data = this.noiseBuffer.getChannelData(0);
+            for (let i = 0; i < sampleRate; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+
             this.startBackgroundDrone();
-            this.startMusic();
+            this.loadBGM();
         } catch (e) {
             console.warn("Web Audio API not supported or blocked: ", e);
         }
@@ -166,18 +179,14 @@ class AudioManager {
     }
 
     playHit() {
-        if (!this.ctx || !this.sfxEnabled) return;
+        if (!this.ctx || !this.sfxEnabled || !this.noiseBuffer) return;
         const ctx = this.ctx;
+        const now = ctx.currentTime;
+        if (now - this.lastHitTime < 0.05) return;
+        this.lastHitTime = now;
         
-        const bufferSize = ctx.sampleRate * 0.05; // 50ms
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
         const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
+        noise.buffer = this.noiseBuffer;
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'bandpass';
@@ -191,23 +200,19 @@ class AudioManager {
         filter.connect(gain);
         gain.connect(ctx.destination);
 
-        noise.start();
+        const offset = Math.random() * 0.9;
+        noise.start(0, offset, 0.05);
     }
 
     playEnemyDeath() {
-        if (!this.ctx || !this.sfxEnabled) return;
+        if (!this.ctx || !this.sfxEnabled || !this.noiseBuffer) return;
         const ctx = this.ctx;
         const now = ctx.currentTime;
+        if (now - this.lastDeathTime < 0.05) return;
+        this.lastDeathTime = now;
         
-        const bufferSize = ctx.sampleRate * 0.15; // 150ms
-        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-
         const noise = ctx.createBufferSource();
-        noise.buffer = buffer;
+        noise.buffer = this.noiseBuffer;
 
         const filter = ctx.createBiquadFilter();
         filter.type = 'lowpass';
@@ -221,7 +226,8 @@ class AudioManager {
         filter.connect(gain);
         gain.connect(ctx.destination);
 
-        noise.start();
+        const offset = Math.random() * 0.8;
+        noise.start(0, offset, 0.15);
 
         const osc = ctx.createOscillator();
         osc.type = 'sawtooth';
@@ -349,71 +355,53 @@ class AudioManager {
         osc.stop(now + 0.15);
     }
 
-    startMusic() {
-        if (!this.ctx || !this.musicEnabled) return;
-        if (this.musicInterval) return;
-
-        const tempo = 120; // BPM
-        const stepTime = 60 / tempo / 2; // 8th notes
-
-        const bassLine = [
-            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 82.41,
-            55.00, 55.00, 65.41, 65.41, 73.42, 73.42, 98.00, 110.00
-        ];
-
-        const melodyLine = [
-            220.00, 0,      261.63, 293.66, 329.63, 0,      293.66, 220.00,
-            220.00, 0,      261.63, 293.66, 392.00, 329.63, 293.66, 0,      
-            220.00, 0,      261.63, 293.66, 329.63, 392.00, 440.00, 0,      
-            392.00, 329.63, 293.66, 261.63, 293.66, 0,      220.00, 0       
-        ];
-
-        let lastScheduledTime = this.ctx.currentTime;
-
-        const scheduleNextNotes = () => {
-            const lookAhead = 0.4;
-            const now = this.ctx.currentTime;
-
-            while (lastScheduledTime < now + lookAhead) {
-                const bassFreq = bassLine[this.musicStep % bassLine.length];
-                const melodyFreq = melodyLine[this.musicStep % melodyLine.length];
-
-                if (bassFreq > 0) {
-                    this.playSynthNote(bassFreq, lastScheduledTime, stepTime * 0.9, 'square', 0.04);
-                }
-
-                if (melodyFreq > 0) {
-                    this.playSynthNote(melodyFreq, lastScheduledTime, stepTime * 0.6, 'triangle', 0.035);
-                    this.playSynthNote(melodyFreq, lastScheduledTime + stepTime * 0.5, stepTime * 0.3, 'sine', 0.015);
-                }
-
-                lastScheduledTime += stepTime;
-                this.musicStep++;
+    async loadBGM() {
+        if (!this.ctx) return;
+        try {
+            const response = await fetch('/audio/bgm.mp3');
+            const arrayBuffer = await response.arrayBuffer();
+            this.bgmBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            if (this.musicEnabled) {
+                this.startMusic();
             }
-        };
-
-        this.musicInterval = setInterval(scheduleNextNotes, 200);
+        } catch (e) {
+            console.error("Failed to load/decode BGM file: ", e);
+        }
     }
 
-    playSynthNote(freq, startTime, duration, type = 'square', volume = 0.05) {
-        if (!this.ctx || !this.musicEnabled) return;
-        const ctx = this.ctx;
+    startMusic() {
+        if (!this.ctx || !this.musicEnabled || !this.bgmBuffer) return;
+        if (this.bgmSource) return;
 
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        try {
+            this.bgmSource = this.ctx.createBufferSource();
+            this.bgmSource.buffer = this.bgmBuffer;
+            this.bgmSource.loop = true;
 
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, startTime);
+            this.bgmGain = this.ctx.createGain();
+            this.bgmGain.gain.setValueAtTime(0.25, this.ctx.currentTime); // 25% volume for ambient/bgm
 
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            this.bgmSource.connect(this.bgmGain);
+            this.bgmGain.connect(this.ctx.destination);
+            
+            this.bgmSource.start(0);
+        } catch (e) {
+            console.error("Failed to play BGM source: ", e);
+        }
+    }
 
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(startTime);
-        osc.stop(startTime + duration);
+    stopMusic() {
+        if (this.bgmSource) {
+            try {
+                this.bgmSource.stop();
+            } catch (e) {}
+            this.bgmSource.disconnect();
+            this.bgmSource = null;
+        }
+        if (this.bgmGain) {
+            this.bgmGain.disconnect();
+            this.bgmGain = null;
+        }
     }
 }
 
