@@ -61,7 +61,7 @@ export class Player {
         this.width = SHIP_WIDTH;
         this.height = SHIP_HEIGHT;
         
-        this.maxHp = 5; this.hp = 5;
+        this.maxHp = 8; this.hp = 8;
         this.score = 0;
         this.xp = 0;
         this.level = 1;

@@ -69,10 +69,12 @@ class Director {
         const roll = Math.random();
         
         if (progress > 0.05) {
-            if (roll < 0.25) type = 'drone';
-            else if (roll < 0.50) type = 'shooter';
-            else if (roll < 0.65) type = 'worm';
-            else if (roll < 0.80) type = 'virus';
+            if (roll < 0.20) type = 'drone';
+            else if (roll < 0.35) type = 'shooter';
+            else if (roll < 0.50) type = 'worm';
+            else if (roll < 0.65) type = 'virus';
+            else if (roll < 0.78) type = 'kamikaze'; // kamikaze bombs!
+            else if (roll < 0.88) type = 'shield_projector'; // shield projectors!
             else type = 'brute';
         }
 

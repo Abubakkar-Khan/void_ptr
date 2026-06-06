@@ -117,6 +117,7 @@ export class Enemy {
         this.waveTime = Math.random() * 10;
         this.replicateTimer = 360 + Math.random() * 180; // 60 FPS scaling
         this.frozenTimer = 0;
+        this.shielded = false;
 
         this.initType();
     }
@@ -153,6 +154,18 @@ export class Enemy {
                 this.hp = 25; this.xpValue = 35;
                 this.width = 3; this.height = 3;
                 this.mass = 1.2;
+                break;
+            case 'kamikaze': // Fast self-destructing anomaly bomb
+                this.hp = 10; this.xpValue = 20;
+                this.width = 1; this.height = 1;
+                this.mass = 0.6;
+                this.color = '#ff3333';
+                break;
+            case 'shield_projector': // Projects shields to other entities
+                this.hp = 35; this.xpValue = 40;
+                this.width = 3; this.height = 3;
+                this.mass = 2.0;
+                this.color = '#33ffaa';
                 break;
             case 'boss_snake': // Massive mothership snake
                 this.hp = 600; this.xpValue = 1000;
@@ -396,6 +409,42 @@ export class Enemy {
                 this.fireCooldown = 130 + Math.random() * 70;
             }
         }
+        else if (this.type === 'kamikaze') {
+            // Chase player quickly
+            moveX = (dx / dist) * 0.12;
+            moveY = (dy / dist) * 0.12;
+
+            // Blow up if very close to player
+            if (dist < 4.0 && this.hp > 0) {
+                this.hp = 0; // trigger death detonation
+            }
+        }
+        else if (this.type === 'shield_projector') {
+            // Stay at a tactical distance from the player
+            if (dist > 20) {
+                moveX = (dx / dist) * 0.035;
+                moveY = (dy / dist) * 0.035;
+            } else if (dist < 14) {
+                moveX = -(dx / dist) * 0.025;
+                moveY = -(dy / dist) * 0.025;
+            }
+
+            // Project shields to other enemies within 16 units
+            if (enemyManager && enemyManager.enemies) {
+                const px = this.x + 1.5;
+                const py = this.y + 1.5;
+                for (const other of enemyManager.enemies) {
+                    if (other !== this && other.type !== 'shield_projector' && other.type !== 'blackhole') {
+                        const odx = (other.x + other.width/2) - px;
+                        const ody = (other.y + other.height/2) - py;
+                        const odist = Math.sqrt(odx*odx + ody*ody);
+                        if (odist < 16) {
+                            other.shielded = true;
+                        }
+                    }
+                }
+            }
+        }
         else if (this.type === 'blackhole') {
             this.life--;
             if (this.life <= 0) {
@@ -536,6 +585,63 @@ export class Enemy {
                 }
             }
         }
+        else if (this.type === 'kamikaze') {
+            // Draw a wobbly blinking hazard symbol
+            const isBlink = Math.floor(Date.now() / 150) % 2 === 0;
+            const char = isBlink ? '⚠' : '!';
+            stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, [char], 1.0 * brightMult);
+        }
+        else if (this.type === 'shield_projector') {
+            // Draw a neat structured triangle outline
+            const ix = Math.floor(this.x);
+            const iy = Math.floor(this.y);
+            const patterns = [
+                ['╔', '♦', '╗'],
+                ['♦', '⚙', '♦'],
+                ['╚', '♦', '╝']
+            ];
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) {
+                    const gx = ix + col;
+                    const gy = iy + row;
+                    if (gx >= 0 && gx < rendererInstance.cols && gy >= 0 && gy < rendererInstance.rows) {
+                        rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+                        rendererInstance.chars[gx][gy] = patterns[row][col];
+                        rendererInstance.brightness[gx][gy] = 1.0 * brightMult;
+                    }
+                }
+            }
+
+            // Draw shield rays connecting to shielded enemies
+            if (enemyManager && enemyManager.enemies) {
+                const px = this.x + 1.5;
+                const py = this.y + 1.5;
+                for (const other of enemyManager.enemies) {
+                    if (other !== this && other.shielded && other.type !== 'blackhole') {
+                        // Draw a simple dotted line between projector and other
+                        const tx = other.x + other.width/2;
+                        const ty = other.y + other.height/2;
+                        const ldx = tx - px;
+                        const ldy = ty - py;
+                        const ldist = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
+                        
+                        // Sample points along the line
+                        for (let d = 1; d < ldist; d += 1.5) {
+                            const lx = Math.floor(px + (ldx / ldist) * d);
+                            const ly = Math.floor(py + (ldy / ldist) * d);
+                            if (lx >= 0 && lx < rendererInstance.cols && ly >= 0 && ly < rendererInstance.rows) {
+                                // Only draw on blank/rain cells to keep it clean
+                                if (rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.RAIN || rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.UI_VOID) {
+                                    rendererInstance.types[lx][ly] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+                                    rendererInstance.chars[lx][ly] = '·';
+                                    rendererInstance.brightness[lx][ly] = 0.5 * brightMult;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         else if (this.type === 'blackhole') {
             const angleOffset = (Date.now() * 0.005);
             for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
@@ -588,12 +694,28 @@ export class Enemy {
     }
 
     takeDamage(amount) {
+        if (this.shielded && this.type !== 'shield_projector') {
+            effects.spawnImpactSparks(this.x + this.width/2, this.y + this.height/2);
+            audio.playHit();
+            return false; // shielded from damage
+        }
         this.hp -= amount;
         return this.hp <= 0;
     }
 
     onDeath(enemyManager, spawnedProjectiles = []) {
         effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 35 : 15);
+
+        if (this.type === 'kamikaze') {
+            effects.spawnGlitchExplosion(this.x + 0.5, this.y + 0.5, '#ff3333', 25);
+            // Spawn circular ring of 10 projectiles
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 5) {
+                spawnedProjectiles.push(new EnemyProjectile(
+                    this.x + 0.5, this.y + 0.5,
+                    Math.cos(a) * 0.35, Math.sin(a) * 0.35
+                ));
+            }
+        }
         
         // Bullet Hell: Brute releases a massive 8-bullet ring when killed/splitting!
         if (this.type === 'brute') {
@@ -629,6 +751,11 @@ class EnemyManager {
 
     update(playerInstance, gridCols, gridRows) {
         const spawnedProjectiles = [];
+
+        // Reset shielded flag for all enemies at start of update frame
+        for (const enemy of this.enemies) {
+            enemy.shielded = false;
+        }
 
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const enemy = this.enemies[i];

@@ -190,7 +190,7 @@ class WeaponSystem {
                     }
                     
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 0.25, // laser damage reduced drastically to 0.25
+                        damage: 0.2, // laser damage balanced to 0.2 (1/5 of standard 1.0)
                         type: 'laser',
                         life: 8, // keep beam visible across fire ticks
                         piercing: true
