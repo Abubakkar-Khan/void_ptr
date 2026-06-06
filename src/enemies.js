@@ -173,10 +173,10 @@ export class Enemy {
                 this.width = 5; this.height = 5;
                 this.mass = 15.0;
                 break;
-            case 'boss_eye': // Eye boss (creates blackholes)
+            case 'boss_eye': // Eye boss (creates blackholes) - nerfed & resized!
                 this.hp = 500; this.xpValue = 800;
-                this.width = 5; this.height = 5;
-                this.mass = 10.0;
+                this.width = 9; this.height = 9;
+                this.mass = 12.0;
                 break;
             case 'boss_carrier': // Carrier boss (spawns drones/viruses)
                 this.hp = 500; this.xpValue = 800;
@@ -357,32 +357,32 @@ export class Enemy {
         }
         else if (this.type === 'boss_eye') {
             this.waveTime += 0.03;
-            if (dist > 24) {
-                moveX = (dx / dist) * 0.045;
-                moveY = (dy / dist) * 0.045;
-            } else if (dist < 14) {
-                moveX = -(dx / dist) * 0.03;
-                moveY = -(dy / dist) * 0.03;
+            if (dist > 28) {
+                moveX = (dx / dist) * 0.04;
+                moveY = (dy / dist) * 0.04;
+            } else if (dist < 18) {
+                moveX = -(dx / dist) * 0.025;
+                moveY = -(dy / dist) * 0.025;
             }
 
             if (this.fireCooldown <= 0) {
-                // Spawn a blackhole near player (radius 5-12 cells away)
-                if (enemyManager && enemyManager.enemies.filter(e => e.type === 'blackhole').length < 3) {
+                // Spawn a blackhole in a distance (18-30 cells away) - nerfed!
+                if (enemyManager && enemyManager.enemies.filter(e => e.type === 'blackhole').length < 2) {
                     const angleBh = Math.random() * Math.PI * 2;
-                    const distBh = 6 + Math.random() * 8;
+                    const distBh = 18 + Math.random() * 12;
                     const bhX = playerX + Math.cos(angleBh) * distBh;
                     const bhY = playerY + Math.sin(angleBh) * distBh;
                     enemyManager.spawn(bhX, bhY, 'blackhole');
                 }
 
-                // Ring sweep
+                // Ring sweep from center
                 for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
                     spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 2.5, this.y + 2.5,
+                        this.x + 4.5, this.y + 4.5,
                         Math.cos(a) * 0.22, Math.sin(a) * 0.22
                     ));
                 }
-                this.fireCooldown = 150 + Math.random() * 80;
+                this.fireCooldown = 180 + Math.random() * 80;
             }
         }
         else if (this.type === 'boss_carrier') {
@@ -552,16 +552,37 @@ export class Enemy {
             stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.6, BOSS_HEAD_CHARS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
         else if (this.type === 'boss_eye') {
-            // Organic eye shape (outer sclera + inner pupil)
-            const angleOffset = Date.now() * 0.003;
-            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.8, ['O', '0', '#', '▒', '░'], 0.95 * brightMult);
+            // Organic eye shape (outer sclera + inner pupil) - now bigger!
+            const cx = this.x + 4.5;
+            const cy = this.y + 4.5;
+            stampOrganicBlob(rendererInstance, cx, cy, 5.8, ['O', '0', '#', '▒', '░'], 0.95 * brightMult);
             
-            const px_eye = Math.floor(this.x + 2.5 + Math.cos(angleOffset) * 0.8);
-            const py_eye = Math.floor(this.y + 2.5 + Math.sin(angleOffset) * 0.8);
-            if (px_eye >= 0 && px_eye < rendererInstance.cols && py_eye >= 0 && py_eye < rendererInstance.rows) {
-                rendererInstance.types[px_eye][py_eye] = RENDER_CELL_TYPES.ENEMY_GLITCH;
-                rendererInstance.chars[px_eye][py_eye] = '◉';
-                rendererInstance.brightness[px_eye][py_eye] = 1.0 * brightMult;
+            // Draw a much larger and visible central eye pupil/iris!
+            const angleOffset = Date.now() * 0.003;
+            const ix = Math.floor(cx + Math.cos(angleOffset) * 1.2);
+            const iy = Math.floor(cy + Math.sin(angleOffset) * 1.2);
+            
+            for (let dy = -2; dy <= 2; dy++) {
+                for (let dx = -2; dx <= 2; dx++) {
+                    const gx = ix + dx;
+                    const gy = iy + dy;
+                    if (gx >= 0 && gx < rendererInstance.cols && gy >= 0 && gy < rendererInstance.rows) {
+                        const distFromCenter = Math.sqrt(dx*dx + dy*dy);
+                        if (distFromCenter < 1.0) {
+                            rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+                            rendererInstance.chars[gx][gy] = '█'; // Solid pupil center
+                            rendererInstance.brightness[gx][gy] = 1.0 * brightMult;
+                        } else if (distFromCenter < 2.0) {
+                            rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+                            rendererInstance.chars[gx][gy] = '◉'; // Iris ring
+                            rendererInstance.brightness[gx][gy] = 0.95 * brightMult;
+                        } else if (distFromCenter < 2.5) {
+                            rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+                            rendererInstance.chars[gx][gy] = '░'; // Outer iris border
+                            rendererInstance.brightness[gx][gy] = 0.8 * brightMult;
+                        }
+                    }
+                }
             }
         }
         else if (this.type === 'boss_carrier') {

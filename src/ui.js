@@ -252,14 +252,14 @@ class UIManager {
         // Creepy glitch effects
         const timeFactor = Date.now() * 0.01;
         
-        // Random line-level horizontal displacement (screen glitch)
+        // Random line-level horizontal displacement (screen glitch) - reduced glitching!
         let lineShift = 0;
-        if (Math.random() < 0.06) {
-            lineShift = Math.floor(Math.sin(timeFactor) * 2.0);
+        if (Math.random() < 0.02) {
+            lineShift = Math.floor(Math.sin(timeFactor) * 1.0);
         }
         
-        // Random character corruption rate
-        const corruptionChance = 0.015 + Math.sin(timeFactor * 0.5) * 0.01;
+        // Random character corruption rate - reduced glitching!
+        const corruptionChance = 0.005 + Math.sin(timeFactor * 0.5) * 0.003;
 
         for (let i = 0; i < text.length; i++) {
             const targetX = startX + i + lineShift;

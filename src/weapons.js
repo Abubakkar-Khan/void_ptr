@@ -102,7 +102,7 @@ export class Projectile {
         if (this.hasDied) return;
         this.hasDied = true;
         if (this.type === 'rocket') {
-            effects.spawnGlitchExplosion(this.x, this.y, '#33ccff', 15);
+            effects.spawnGlitchExplosion(this.x, this.y, '#00ff41', 15);
             audio.playEnemyDeath();
             const blastRadius = 6.0;
             const blastDmg = this.damage * 0.8;
@@ -177,7 +177,7 @@ class WeaponSystem {
         const type = playerInstance.weaponType;
 
         if (type === 'auto_blaster') {
-            const speed = 1.0;
+            const speed = 1.6;
             const dmg = 5.0 + (playerInstance.upgrades.blasterDmg || 0) * 2.0;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
@@ -188,7 +188,7 @@ class WeaponSystem {
         } 
         else if (type === 'null_laser') {
             const maxRange = 90;
-            const dmg = 0.5 + (playerInstance.upgrades.laserDmg || 0) * 0.25;
+            const dmg = 4.0 + (playerInstance.upgrades.laserDmg || 0) * 1.5;
             
             for (let i = 0; i < streams; i++) {
                 const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams

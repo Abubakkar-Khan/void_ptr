@@ -72,14 +72,14 @@ export class Player {
         this.invincibilityDuration = 60; // 60 FPS scaling (1 second invincibility)
         
         this.fireCooldown = 0;
-        this.baseFireRate = 24; // 60 FPS scaling
-        this.fireRate = 24;
+        this.baseFireRate = 18; // base fire rate boosted (lower delay)
+        this.fireRate = 18;
         
         // Dash settings
         this.dashTimer = 0;
         this.dashDuration = 20; // 60 FPS scaling
         this.dashCooldown = 0;
-        this.dashSpeed = 1.8; // 60 FPS scaling
+        this.dashSpeed = 5.0; // colossal warp speed!
         this.dashGhosts = []; // ghost smear frames
 
         // Upgrades
@@ -88,10 +88,12 @@ export class Player {
         this.electricCooldown = 0;
         this.droneCooldown = 0;
 
-        // Snappy physics
-        this.speed = 1.2; // 60 FPS scaling
-        this.friction = 0.88; // snappy stopping
-        this.acceleration = 0.12; // instant pickup
+        // Smooth physics - speed slightly reduced for control
+        this.speed = 1.4; // 60 FPS scaling
+        this.friction = 0.94; // smooth gliding friction
+        this.acceleration = 0.10; // instant pickup
+        this.dashDx = 0;
+        this.dashDy = 0;
 
         // Better Upgrades
         this.shieldLevel = 0;
@@ -108,6 +110,8 @@ export class Player {
         this.dashDmgLevel = 0; // Initialize dash corruption damage level
         this.currentPattern = PLAYER_PATTERNS.UP;
         this.dashInputBuffer = 0;
+        this.dashDx = 0;
+        this.dashDy = 0;
     }
 
     reset(gridCols, gridRows) {
@@ -140,14 +144,16 @@ export class Player {
         this.bombCooldown = 0;
         this.upgrades = { extraThreads: 0, speedBoost: 0, fireRateBoost: 0, cacheOverclock: 0, kernelOverclock: 0, swapPartition: 0, blasterDmg: 0, seekerDmg: 0, laserDmg: 0 };
         this.dashInputBuffer = 0;
+        this.dashDx = 0;
+        this.dashDy = 0;
         this.recalculateStats();
     }
 
     recalculateStats() {
         const kernelMult = 1.0 + (this.upgrades.kernelOverclock || 0) * 0.1;
-        this.speed = (1.2 + this.upgrades.speedBoost * 0.15) * kernelMult;
-        this.acceleration = 0.12 * kernelMult;
-        this.fireRate = Math.max(6, this.baseFireRate - this.upgrades.fireRateBoost * 4.0);
+        this.speed = (1.4 + this.upgrades.speedBoost * 0.2) * kernelMult;
+        this.acceleration = 0.10 * kernelMult;
+        this.fireRate = Math.max(5, this.baseFireRate - this.upgrades.fireRateBoost * 3.0);
     }
 
     applyUpgrade(upgradeId) {
@@ -267,6 +273,8 @@ export class Player {
             }
             this.vx = dx * this.dashSpeed;
             this.vy = dy * this.dashSpeed;
+            this.dashDx = dx;
+            this.dashDy = dy;
         }
 
         if (this.dashInputBuffer > 0) {
@@ -290,6 +298,12 @@ export class Player {
             this.invincibilityTimer = Math.max(this.invincibilityTimer, 2);
             // Spawn smear frames
             this.dashGhosts.push({ x: this.x, y: this.y, pattern: this.currentPattern, life: 8 });
+
+            // Apply smooth dash deceleration (decay curve)
+            const progress = this.dashTimer / this.dashDuration;
+            const currentDashSpd = this.dashSpeed * (0.4 + 0.6 * progress);
+            this.vx = (this.dashDx || 0) * currentDashSpd;
+            this.vy = (this.dashDy || 0) * currentDashSpd;
 
             // Dash corruption damage check
             if (this.dashDmgLevel > 0 && enemiesList) {
