@@ -46,12 +46,14 @@ class Particle {
 class EffectSystem {
     constructor() {
         this.particles = [];
+        this.damageTexts = [];
         this.scanlineFlash = 0; 
         this.lightningArcs = [];
     }
 
     reset() {
         this.particles = [];
+        this.damageTexts = [];
         this.scanlineFlash = 0;
         this.lightningArcs = [];
     }
@@ -121,6 +123,12 @@ class EffectSystem {
         this.lightningArcs.push({ x1, y1, x2, y2, life: 12 });
     }
 
+    spawnDamageText(gridX, gridY, text, color = '#00ff41') {
+        const screenX = (gridX - renderer.camX) * renderer.cellWidth;
+        const screenY = (gridY - renderer.camY) * renderer.cellHeight;
+        this.damageTexts.push(new DamageText(screenX, screenY, text, color));
+    }
+
     triggerFlash(duration = 10) {
         this.scanlineFlash = 0.3; 
     }
@@ -131,6 +139,14 @@ class EffectSystem {
             p.update();
             if (p.life <= 0) {
                 this.particles.splice(i, 1);
+            }
+        }
+
+        for (let i = this.damageTexts.length - 1; i >= 0; i--) {
+            const dt = this.damageTexts[i];
+            dt.update();
+            if (dt.life <= 0) {
+                this.damageTexts.splice(i, 1);
             }
         }
 
@@ -150,6 +166,10 @@ class EffectSystem {
     draw(ctx) {
         for (const p of this.particles) {
             p.draw(ctx);
+        }
+
+        for (const dt of this.damageTexts) {
+            dt.draw(ctx);
         }
 
         // Draw Tesla lightning discharges

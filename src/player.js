@@ -77,9 +77,9 @@ export class Player {
         
         // Dash settings
         this.dashTimer = 0;
-        this.dashDuration = 20; // 60 FPS scaling
+        this.dashDuration = 10; // 60 FPS scaling
         this.dashCooldown = 0;
-        this.dashSpeed = 5.0; // colossal warp speed!
+        this.dashSpeed = 12.0; // colossal warp speed!
         this.dashGhosts = []; // ghost smear frames
 
         // Upgrades
@@ -89,9 +89,9 @@ export class Player {
         this.droneCooldown = 0;
 
         // Smooth physics - speed slightly reduced for control
-        this.speed = 1.4; // 60 FPS scaling
+        this.speed = 1.1; // 60 FPS scaling
         this.friction = 0.94; // smooth gliding friction
-        this.acceleration = 0.10; // instant pickup
+        this.acceleration = 0.08; // instant pickup
         this.dashDx = 0;
         this.dashDy = 0;
 
@@ -151,8 +151,8 @@ export class Player {
 
     recalculateStats() {
         const kernelMult = 1.0 + (this.upgrades.kernelOverclock || 0) * 0.1;
-        this.speed = (1.4 + this.upgrades.speedBoost * 0.2) * kernelMult;
-        this.acceleration = 0.10 * kernelMult;
+        this.speed = (1.1 + this.upgrades.speedBoost * 0.15) * kernelMult;
+        this.acceleration = 0.08 * kernelMult;
         this.fireRate = Math.max(5, this.baseFireRate - this.upgrades.fireRateBoost * 3.0);
     }
 
@@ -297,7 +297,9 @@ export class Player {
             // Invincibility during dash
             this.invincibilityTimer = Math.max(this.invincibilityTimer, 2);
             // Spawn smear frames
-            this.dashGhosts.push({ x: this.x, y: this.y, pattern: this.currentPattern, life: 8 });
+            this.dashGhosts.push({ x: this.x, y: this.y, pattern: this.currentPattern, life: 12 });
+            // Flashy spark particle trail
+            effects.spawnImpactSparks(this.x + 1.5, this.y + 1.5, '#00ff41');
 
             // Apply smooth dash deceleration (decay curve)
             const progress = this.dashTimer / this.dashDuration;

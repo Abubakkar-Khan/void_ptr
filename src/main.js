@@ -423,6 +423,79 @@ class GameEngine {
         // Level top center
         ui.drawText(ctx, `LVL ${player.level}`, ctx.canvas.width / 2, 30, 18, '#00ff41', 'center');
 
+        // Boss health bar
+        const boss = enemies.enemies.find(e => e && e.hp > 0 && (e.type === 'boss_snake' || e.type === 'boss_eye' || e.type === 'boss_carrier'));
+        if (boss) {
+            const ratio = Math.max(0, boss.hp / boss.maxHp);
+            const screenW = ctx.canvas.width;
+
+            // Blinking red alert warning ticker
+            const warningTicks = Math.floor(Date.now() / 150) % 2;
+            const warningColor = warningTicks === 0 ? '#ff0033' : '#aa0011';
+
+            // Pulse warning banner at the top
+            ctx.fillStyle = 'rgba(255, 0, 51, 0.08)';
+            ctx.fillRect(0, 50, screenW, 40);
+
+            // Warning text with random character glitches
+            const warningTexts = [
+                "⚠️ CRITICAL SYSTEM INSTABILITY DETECTED ⚠️",
+                "⚠️ FATAL PROCESS EXCEPTION AT ADDR_0x4F8E ⚠️",
+                "⚠️ UNAUTHORIZED OVERLORD THREAT DETECTED ⚠️",
+                "⚠️ EXECUTING SYSTEM PURGE COMMAND: DESTRUCT ⚠️"
+            ];
+            const warningIndex = Math.floor(Date.now() / 2000) % warningTexts.length;
+            let warningText = warningTexts[warningIndex];
+            if (Math.random() < 0.15) {
+                const idx = Math.floor(Math.random() * warningText.length);
+                warningText = warningText.substring(0, idx) + String.fromCharCode(33 + Math.floor(Math.random() * 93)) + warningText.substring(idx + 1);
+            }
+
+            ui.drawText(ctx, warningText, screenW / 2, 60, 14, warningColor, 'center');
+
+            // Bar dimensions
+            const barW = Math.floor(screenW * 0.65);
+            const barH = 14;
+            const barX = Math.floor((screenW - barW) / 2);
+            const barY = 74;
+
+            // Background
+            ctx.fillStyle = 'rgba(40, 0, 0, 0.7)';
+            ctx.fillRect(barX, barY, barW, barH);
+
+            // Shake effect if boss is low or random twitch
+            let glitchOffsetX = 0;
+            if ((ratio < 0.35 || Math.random() < 0.08)) {
+                glitchOffsetX = (Math.random() - 0.5) * 6;
+            }
+
+            // Fill
+            ctx.fillStyle = '#ff0033';
+            ctx.shadowColor = 'rgba(255, 0, 51, 0.8)';
+            ctx.shadowBlur = 8;
+            ctx.fillRect(barX + glitchOffsetX, barY, barW * ratio, barH);
+            ctx.shadowBlur = 0;
+
+            // Border
+            ctx.strokeStyle = '#ff0033';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX + glitchOffsetX, barY, barW, barH);
+
+            // Determine boss executable system name
+            let bossName = "SYSTEM_CORRUPTION.EXE";
+            if (boss.type === 'boss_snake') {
+                bossName = "SEGMENTED_VOID_DEVOURER [FATAL_SNAKE.EXE]";
+            } else if (boss.type === 'boss_eye') {
+                bossName = "INTRUSION_DETECTION_CORE [SYS_OBSERVER.BAT]";
+            } else if (boss.type === 'boss_carrier') {
+                bossName = "MAINFRAME_REPLICATOR_MOTHER [SPAM_INJECTOR.SYS]";
+            }
+
+            // Draw title below bar
+            const percentText = `${Math.ceil(ratio * 100)}%`;
+            ui.drawText(ctx, `${bossName} - CORRUPTION LEVEL: ${percentText}`, screenW / 2, barY + barH + 12, 12, '#ff0033', 'center');
+        }
+
         // XP Bar bottom
         const xpRatio = player.xp / player.xpToNextLevel;
         const barW = ctx.canvas.width - 40;

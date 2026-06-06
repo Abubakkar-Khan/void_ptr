@@ -1,4 +1,4 @@
-import { RENDER_CELL_TYPES } from './renderer.js';
+import { renderer, RENDER_CELL_TYPES } from './renderer.js';
 import { effects } from './effects.js';
 import { matrixRain } from './matrixRain.js';
 import { audio } from './audio.js';
@@ -64,15 +64,29 @@ function stampOrganicBlob(rendererInstance, cx, cy, baseRadius, charSet = GLYPHS
 }
 
 export class EnemyProjectile {
-    constructor(x, y, vx, vy) {
+    constructor(x, y, vx, vy, isHoming = false) {
         this.x = x; this.y = y;
         this.vx = vx; this.vy = vy;
         this.color = '#ff3366'; // red bullets
         this.damage = 1;
         this.life = 120;
+        this.isHoming = isHoming;
     }
 
-    update() {
+    update(playerInstance) {
+        if (this.isHoming && playerInstance) {
+            const targetX = playerInstance.x + 1.5;
+            const targetY = playerInstance.y + 1.5;
+            const dx = targetX - this.x;
+            const dy = targetY - this.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist > 0.1) {
+                const targetVx = (dx / dist) * 0.28;
+                const targetVy = (dy / dist) * 0.28;
+                this.vx = this.vx * 0.95 + targetVx * 0.05;
+                this.vy = this.vy * 0.95 + targetVy * 0.05;
+            }
+        }
         this.x += this.vx; this.y += this.vy;
         this.life--;
     }
@@ -169,18 +183,18 @@ export class Enemy {
                 this.color = '#33ffaa';
                 break;
             case 'boss_snake': // Massive mothership snake
-                this.hp = 600; this.xpValue = 1000;
-                this.width = 5; this.height = 5;
+                this.hp = 800; this.xpValue = 1000;
+                this.width = 11; this.height = 11;
                 this.mass = 15.0;
                 break;
-            case 'boss_eye': // Eye boss (creates blackholes) - nerfed & resized!
-                this.hp = 500; this.xpValue = 800;
-                this.width = 9; this.height = 9;
+            case 'boss_eye': // Eye boss (creates blackholes)
+                this.hp = 800; this.xpValue = 800;
+                this.width = 15; this.height = 15;
                 this.mass = 12.0;
                 break;
             case 'boss_carrier': // Carrier boss (spawns drones/viruses)
-                this.hp = 500; this.xpValue = 800;
-                this.width = 6; this.height = 5;
+                this.hp = 900; this.xpValue = 800;
+                this.width = 16; this.height = 10;
                 this.mass = 12.0;
                 break;
             case 'blackhole': // Gravitational vacuum hazard
@@ -199,11 +213,14 @@ export class Enemy {
     }
 
     update(playerX, playerY, gridCols, gridRows, spawnedProjectiles, enemyManager) {
+        this.lastPlayerX = playerX;
+        this.lastPlayerY = playerY;
+
         if (this.frozenTimer > 0) {
             this.frozenTimer--;
             // Shift trail history even when frozen
             this.trail.unshift({ x: this.x, y: this.y, vx: 0, vy: 0 });
-            const maxTrail = this.type === 'boss_snake' ? 60 : (this.type === 'worm' ? 12 : 8);
+            const maxTrail = this.type === 'boss_snake' ? 80 : (this.type === 'worm' ? 12 : 8);
             if (this.trail.length > maxTrail) this.trail.pop();
             return;
         }
@@ -212,7 +229,7 @@ export class Enemy {
 
         // Track trail history for glitch tails/worms/boss
         this.trail.unshift({ x: this.x, y: this.y, vx: this.vx, vy: this.vy });
-        const maxTrail = this.type === 'boss_snake' ? 60 : (this.type === 'worm' ? 12 : 8);
+        const maxTrail = this.type === 'boss_snake' ? 80 : (this.type === 'worm' ? 12 : 8);
         if (this.trail.length > maxTrail) this.trail.pop();
 
         // Player center (now 3x3, center is playerX + 1.5, playerY + 1.5)
@@ -324,29 +341,50 @@ export class Enemy {
         }
         else if (this.type === 'boss_snake') {
             this.waveTime += 0.04;
+            const ratio = this.hp / this.maxHp;
             const baseAngle = Math.atan2(dy, dx);
             const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8;
-            moveX = Math.cos(slitherAngle) * 0.04;
-            moveY = Math.sin(slitherAngle) * 0.04;
+            const speedMult = 1.0 + (1.0 - ratio) * 0.8;
+            moveX = Math.cos(slitherAngle) * 0.04 * speedMult;
+            moveY = Math.sin(slitherAngle) * 0.04 * speedMult;
 
             // Firing logic
             if (this.fireCooldown <= 0) {
-                // 1. Radial ring of 16 bullets
-                for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
-                    spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 2.5, this.y + 2.5,
-                        Math.cos(a) * 0.18, Math.sin(a) * 0.18
-                    ));
+                if (ratio < 0.5) {
+                    // 24 bullets ring
+                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+                        spawnedProjectiles.push(new EnemyProjectile(
+                            this.x + 5.5, this.y + 5.5,
+                            Math.cos(a) * 0.20, Math.sin(a) * 0.20
+                        ));
+                    }
+                    // Targeted homing barrage
+                    const baseA = Math.atan2(dy, dx);
+                    for (let spread = -0.25; spread <= 0.25; spread += 0.25) {
+                        spawnedProjectiles.push(new EnemyProjectile(
+                            this.x + 5.5, this.y + 5.5,
+                            Math.cos(baseA + spread) * 0.26, Math.sin(baseA + spread) * 0.26,
+                            true
+                        ));
+                    }
+                } else {
+                    // 16 bullets ring
+                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+                        spawnedProjectiles.push(new EnemyProjectile(
+                            this.x + 5.5, this.y + 5.5,
+                            Math.cos(a) * 0.18, Math.sin(a) * 0.18
+                        ));
+                    }
+                    // Targeted stream of 5 bullets
+                    const baseA = Math.atan2(dy, dx);
+                    for (let spread = -0.3; spread <= 0.3; spread += 0.15) {
+                        spawnedProjectiles.push(new EnemyProjectile(
+                            this.x + 5.5, this.y + 5.5,
+                            Math.cos(baseA + spread) * 0.25, Math.sin(baseA + spread) * 0.25
+                        ));
+                    }
                 }
-                // 2. Targeted stream of 5 bullets
-                const baseA = Math.atan2(dy, dx);
-                for (let spread = -0.3; spread <= 0.3; spread += 0.15) {
-                    spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 2.5, this.y + 2.5,
-                        Math.cos(baseA + spread) * 0.25, Math.sin(baseA + spread) * 0.25
-                    ));
-                }
-                this.fireCooldown = 90 + Math.random() * 50; // Every 1.5 - 2.3 seconds
+                this.fireCooldown = 80 + Math.random() * 40; // Every 1.3 - 2.0 seconds
             }
 
             // Spawn minion drone from tail occasionally
@@ -366,7 +404,10 @@ export class Enemy {
             }
 
             if (this.fireCooldown <= 0) {
-                // Spawn a blackhole in a distance (18-30 cells away) - nerfed!
+                const cx = this.x + 7.5;
+                const cy = this.y + 7.5;
+                
+                // Spawn a blackhole in a distance
                 if (enemyManager && enemyManager.enemies.filter(e => e.type === 'blackhole').length < 2) {
                     const angleBh = Math.random() * Math.PI * 2;
                     const distBh = 18 + Math.random() * 12;
@@ -376,13 +417,18 @@ export class Enemy {
                 }
 
                 // Ring sweep from center
-                for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+                for (let a = 0; a < Math.PI * 2; a += Math.PI / 9) {
                     spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 4.5, this.y + 4.5,
-                        Math.cos(a) * 0.22, Math.sin(a) * 0.22
+                        cx, cy,
+                        Math.cos(a) * 0.24, Math.sin(a) * 0.24
                     ));
                 }
-                this.fireCooldown = 180 + Math.random() * 80;
+                
+                // Homing stream
+                const toPlayerA = Math.atan2(dy, dx);
+                spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(toPlayerA) * 0.28, Math.sin(toPlayerA) * 0.28, true));
+                
+                this.fireCooldown = 150 + Math.random() * 60;
             }
         }
         else if (this.type === 'boss_carrier') {
@@ -394,17 +440,18 @@ export class Enemy {
                 // Spawn minions (drones/viruses)
                 if (enemyManager && enemyManager.enemies.length < 40) {
                     const spawnType = Math.random() < 0.65 ? 'drone' : 'virus';
-                    enemyManager.spawn(this.x - 2, this.y + 2, spawnType);
-                    enemyManager.spawn(this.x + 8, this.y + 2, spawnType);
+                    enemyManager.spawn(this.x - 2, this.y + 4, spawnType);
+                    enemyManager.spawn(this.x + 16, this.y + 4, spawnType);
                 }
 
-                // Triple target spread
+                // 5-way spread target barrage (with homing chance)
                 const baseA = Math.atan2(dy, dx);
-                const angles = [baseA - 0.25, baseA, baseA + 0.25];
+                const angles = [baseA - 0.4, baseA - 0.2, baseA, baseA + 0.2, baseA + 0.4];
                 for (let a of angles) {
                     spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 3.0, this.y + 2.5,
-                        Math.cos(a) * 0.26, Math.sin(a) * 0.26
+                        this.x + 8.0, this.y + 5.0,
+                        Math.cos(a) * 0.26, Math.sin(a) * 0.26,
+                        Math.random() < 0.3
                     ));
                 }
                 this.fireCooldown = 130 + Math.random() * 70;
@@ -544,39 +591,50 @@ export class Enemy {
             for (let i = 0; i < this.trail.length; i++) {
                 if (i % 4 === 0) {
                     const pos = this.trail[i];
-                    const radius = 2.2 - (i / this.trail.length) * 1.2;
-                    stampOrganicBlob(rendererInstance, pos.x + 2.5, pos.y + 2.5, radius, BOSS_SEG_CHARS, 0.7 * (1 - i / this.trail.length) * brightMult);
+                    const radius = 4.2 - (i / this.trail.length) * 2.8;
+                    stampOrganicBlob(rendererInstance, pos.x + 5.5, pos.y + 5.5, radius, BOSS_SEG_CHARS, 0.7 * (1 - i / this.trail.length) * brightMult);
                 }
             }
             // Draw head
-            stampOrganicBlob(rendererInstance, this.x + 2.5, this.y + 2.5, 3.6, BOSS_HEAD_CHARS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
+            stampOrganicBlob(rendererInstance, this.x + 5.5, this.y + 5.5, 5.6, BOSS_HEAD_CHARS, 1.0 * brightMult, { x: this.vx || 0.1, y: this.vy || 0.1 });
         }
         else if (this.type === 'boss_eye') {
-            // Organic eye shape (outer sclera + inner pupil) - now bigger!
-            const cx = this.x + 4.5;
-            const cy = this.y + 4.5;
-            stampOrganicBlob(rendererInstance, cx, cy, 5.8, ['O', '0', '#', '▒', '░'], 0.95 * brightMult);
+            const cx = this.x + 7.5;
+            const cy = this.y + 7.5;
+            stampOrganicBlob(rendererInstance, cx, cy, 8.5, ['O', '0', '#', '▒', '░'], 0.95 * brightMult);
             
-            // Draw a much larger and visible central eye pupil/iris!
-            const angleOffset = Date.now() * 0.003;
-            const ix = Math.floor(cx + Math.cos(angleOffset) * 1.2);
-            const iy = Math.floor(cy + Math.sin(angleOffset) * 1.2);
+            // Stare at player coordinates
+            const px = this.lastPlayerX !== undefined ? this.lastPlayerX + 1.5 : cx;
+            const py = this.lastPlayerY !== undefined ? this.lastPlayerY + 1.5 : cy;
+            const dx = px - cx;
+            const dy = py - cy;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            let offsetScale = 3.2;
+            let ox = 0;
+            let oy = 0;
+            if (dist > 0.1) {
+                ox = (dx / dist) * offsetScale;
+                oy = (dy / dist) * offsetScale;
+            }
+            const ix = Math.floor(cx + ox);
+            const iy = Math.floor(cy + oy);
             
-            for (let dy = -2; dy <= 2; dy++) {
-                for (let dx = -2; dx <= 2; dx++) {
-                    const gx = ix + dx;
-                    const gy = iy + dy;
+            // Draw pupil iris tracking player
+            for (let dy_p = -4; dy_p <= 4; dy_p++) {
+                for (let dx_p = -4; dx_p <= 4; dx_p++) {
+                    const gx = ix + dx_p;
+                    const gy = iy + dy_p;
                     if (gx >= 0 && gx < rendererInstance.cols && gy >= 0 && gy < rendererInstance.rows) {
-                        const distFromCenter = Math.sqrt(dx*dx + dy*dy);
-                        if (distFromCenter < 1.0) {
+                        const distFromCenter = Math.sqrt(dx_p*dx_p + dy_p*dy_p);
+                        if (distFromCenter < 1.8) {
                             rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                             rendererInstance.chars[gx][gy] = '█'; // Solid pupil center
                             rendererInstance.brightness[gx][gy] = 1.0 * brightMult;
-                        } else if (distFromCenter < 2.0) {
+                        } else if (distFromCenter < 3.2) {
                             rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                             rendererInstance.chars[gx][gy] = '◉'; // Iris ring
                             rendererInstance.brightness[gx][gy] = 0.95 * brightMult;
-                        } else if (distFromCenter < 2.5) {
+                        } else if (distFromCenter < 4.2) {
                             rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                             rendererInstance.chars[gx][gy] = '░'; // Outer iris border
                             rendererInstance.brightness[gx][gy] = 0.8 * brightMult;
@@ -586,25 +644,36 @@ export class Enemy {
             }
         }
         else if (this.type === 'boss_carrier') {
-            // Draw large spaceship structure
             const CARRIER_PATTERNS = [
-                ['╔', '═', '╦', '╦', '═', '╗'],
-                ['║', '█', '░', '░', '█', '║'],
-                ['╠', '█', '█', '█', '█', '╣'],
-                ['║', '█', '░', '░', '█', '║'],
-                ['╚', '═', '╩', '╩', '═', '╝']
+                ['╔', '═', '═', '╦', '═', '╦', '╦', '╦', '╦', '╦', '╦', '═', '╦', '═', '═', '╗'],
+                ['║', '█', '█', '║', ' ', '║', '░', '░', '░', '░', '║', ' ', '║', '█', '█', '║'],
+                ['║', '█', '█', '╠', '═', '╬', '█', '█', '█', '█', '╬', '═', '╣', '█', '█', '║'],
+                ['╠', '═', '═', '╣', ' ', '║', '█', '☣', '☣', '█', '║', ' ', '╠', '═', '═', '╣'],
+                ['║', '░', '░', '║', ' ', '╚', '╦', '═', '═', '╦', '╝', ' ', '║', '░', '░', '║'],
+                ['║', '█', '█', '╠', '═', '═', '╬', '░', '░', '╬', '═', '═', '╣', '█', '█', '║'],
+                ['║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║'],
+                ['║', '░', '░', '║', ' ', ' ', '╚', '╦', '╦', '╝', ' ', ' ', '║', '░', '░', '║'],
+                ['╚', '╦', '╦', '╝', ' ', ' ', ' ', '║', '║', ' ', ' ', ' ', '╚', '╦', '╦', '╝'],
+                [' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ']
             ];
             const ix = Math.floor(this.x);
             const iy = Math.floor(this.y);
-            for (let row = 0; row < 5; row++) {
-                for (let col = 0; col < 6; col++) {
-                    const char = CARRIER_PATTERNS[row][col];
+            for (let row = 0; row < 10; row++) {
+                for (let col = 0; col < 16; col++) {
+                    let char = CARRIER_PATTERNS[row][col];
+                    if (row === 9 && char === '▼') {
+                        const rand = Math.random();
+                        if (rand < 0.25) char = '░';
+                        else if (rand < 0.5) char = '▒';
+                        else if (rand < 0.75) char = ' ';
+                    }
                     const gx = ix + col;
                     const gy = iy + row;
                     if (gx >= 0 && gx < rendererInstance.cols && gy >= 0 && gy < rendererInstance.rows) {
                         rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                         rendererInstance.chars[gx][gy] = char;
-                        rendererInstance.brightness[gx][gy] = 1.0 * brightMult;
+                        const isFlame = row === 9 && char !== ' ';
+                        rendererInstance.brightness[gx][gy] = (isFlame ? 1.0 : 0.85 + Math.random() * 0.15) * brightMult;
                     }
                 }
             }
@@ -699,7 +768,7 @@ export class Enemy {
             ];
             for (let i = 0; i < this.trail.length; i += 4) { // check every 4th segment
                 const pos = this.trail[i];
-                const size = Math.max(2, 5 - (i / this.trail.length) * 3);
+                const size = Math.max(3, 8 - (i / this.trail.length) * 5);
                 boxes.push({
                     x: pos.x - padding,
                     y: pos.y - padding,
@@ -726,11 +795,22 @@ export class Enemy {
             return false; // shielded from damage
         }
         this.hp -= amount;
+
+        // Screen shake if boss is damaged!
+        if (this.type === 'boss_snake' || this.type === 'boss_eye' || this.type === 'boss_carrier') {
+            renderer.triggerShake(5, 1.2);
+        }
+
         return this.hp <= 0;
     }
 
     onDeath(enemyManager, spawnedProjectiles = []) {
-        effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 35 : 15);
+        if (this.type === 'boss_snake' || this.type === 'boss_eye' || this.type === 'boss_carrier') {
+            renderer.triggerShake(35, 6.0); // HUGE boss death shake!
+            effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, '#ff3366', 80); // Massive explosion
+        } else {
+            effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 35 : 15);
+        }
 
         if (this.type === 'kamikaze') {
             effects.spawnGlitchExplosion(this.x + 0.5, this.y + 0.5, '#ff3333', 25);
@@ -814,7 +894,7 @@ class EnemyManager {
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const p = this.projectiles[i];
-            p.update();
+            p.update(playerInstance);
             if (p.life <= 0 || p.x < 0 || p.x > gridCols || p.y < 0 || p.y > gridRows) {
                 this.projectiles.splice(i, 1);
             }

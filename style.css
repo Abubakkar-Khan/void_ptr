@@ -64,6 +64,12 @@ body {
     background-size: 100% 4px;
     pointer-events: none;
     z-index: 99;
+    animation: scroll-scanline 25s linear infinite;
+}
+
+@keyframes scroll-scanline {
+    from { background-position: 0 0; }
+    to { background-position: 0 100%; }
 }
 
 /* Subtle CRT screen flicker */
