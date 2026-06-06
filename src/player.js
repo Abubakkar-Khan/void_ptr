@@ -68,7 +68,7 @@ export class Player {
         this.xpToNextLevel = 100;
         
         this.invincibilityTimer = 0;
-        this.invincibilityDuration = 180; // 60 FPS scaling
+        this.invincibilityDuration = 60; // 60 FPS scaling (1 second invincibility)
         
         this.fireCooldown = 0;
         this.baseFireRate = 24; // 60 FPS scaling
@@ -182,7 +182,8 @@ export class Player {
     }
 
     getHitbox() {
-        return { x: this.x + 1, y: this.y + 1, width: 1, height: 1 };
+        // Generous hitbox covering the 3x3 ship body so hits register properly
+        return { x: this.x + 0.2, y: this.y + 0.2, width: 2.6, height: 2.6 };
     }
 
     takeDamage(amount) {

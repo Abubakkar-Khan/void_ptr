@@ -190,16 +190,16 @@ class WeaponSystem {
                     }
                     
                     const laserProj = new Projectile(tx, ty, 0, 0, {
-                        damage: 2.0, // laser damage set to 2.0
+                        damage: 1.0, // laser damage balanced to 1.0
                         type: 'laser',
-                        life: 2, // 2 frames to ensure drawing and collision check
+                        life: 5, // keep beam visible across fire ticks
                         piercing: true
                     });
                     laserProj.char = char;
                     this.projectiles.push(laserProj);
                 }
             }
-            playerInstance.fireCooldown = 2; // quick cooldown for continuous firing
+            playerInstance.fireCooldown = 5; // decreased fire rate for laser (cooldown 5 ticks)
 
             if (this.laserSoundCooldown <= 0) {
                 this.laserSoundCooldown = 6;
