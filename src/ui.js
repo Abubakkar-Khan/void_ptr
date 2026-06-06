@@ -323,8 +323,8 @@ class UIManager {
         }
 
         const playBtnY = py + 20;
-        this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
-        this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
 
         const optBtnY = py + 24;
         this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
@@ -340,8 +340,8 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 78;
-        const panelH = 32;
+        const panelW = 84;
+        const panelH = 34;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -353,8 +353,8 @@ class UIManager {
         this.stampText(renderer, "═ CHOOSE YOUR VEHICLE ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select a hull configuration to initialize", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 23;
-        const cardH = 20;
+        const cardW = 25;
+        const cardH = 22;
         const cardY = py + 7;
         const startX = px + Math.floor((panelW - (3 * cardW + 6)) / 2);
 
@@ -429,8 +429,8 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 78;
-        const panelH = 32;
+        const panelW = 84;
+        const panelH = 34;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -442,8 +442,8 @@ class UIManager {
         this.stampText(renderer, "═ LEVEL UP ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select an upgrade module to install", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 23;
-        const cardH = 20;
+        const cardW = 25;
+        const cardH = 22;
         const cardY = py + 7;
         const startX = px + Math.floor((panelW - (cards.length * cardW + (cards.length - 1) * 3)) / 2);
 

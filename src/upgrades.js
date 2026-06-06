@@ -27,6 +27,61 @@ export const upgrades = {
             default: return 0;
         }
     },
+    getUpgradeDetails: (playerInstance, uId) => {
+        const nextLvl = upgrades.getPlayerUpgradeLevel(playerInstance, uId) + 1;
+        let title = '';
+        let description = '';
+        let icon = '';
+
+        const baseUpgrade = UPGRADES.find(u => u.id === uId);
+        if (baseUpgrade) {
+            title = baseUpgrade.title;
+            icon = baseUpgrade.icon;
+        }
+
+        switch (uId) {
+            case 'thread':
+                description = `Add +1 extra bullet stream (Total: ${nextLvl + 1} streams)`;
+                break;
+            case 'speed':
+                description = `Increase movement speed by +15% (Total: +${nextLvl * 15}% speed)`;
+                break;
+            case 'fire_rate':
+                description = `Increase weapon firing rate by +20% (Total: +${nextLvl * 20}% rate)`;
+                break;
+            case 'heal':
+                description = 'Restore 40% Integrity points (+2 HP)';
+                break;
+            case 'drone':
+                description = `Spawn ${nextLvl} helper drone(s) firing auto homing rockets`;
+                break;
+            case 'electric':
+                description = `Zap up to 3 nearby enemies dealing ${nextLvl * 1.5} electric damage`;
+                break;
+            case 'shield':
+                if (nextLvl === 1) {
+                    description = 'Deploy active shield matrix blocking 1 hit';
+                } else {
+                    description = `Deploy active shield (recharges ${(nextLvl - 1) * 20}% faster)`;
+                }
+                break;
+            case 'freeze':
+                description = `Periodically freeze all enemies for 3 seconds every ${12 - nextLvl * 2}s`;
+                break;
+            case 'bomb':
+                if (nextLvl === 1) {
+                    description = 'Trigger shockwave clearing bullets & dealing 5 damage';
+                } else {
+                    description = `Trigger shockwave with +${(nextLvl - 1) * 20}% wider range`;
+                }
+                break;
+            case 'dash_dmg':
+                description = `Dashing through enemies deals ${nextLvl * 6} corruption damage`;
+                break;
+        }
+
+        return { id: uId, icon, title, description };
+    },
     getRandomSelection: (playerInstance, count) => {
         // Filter out fully upgraded ones
         const available = UPGRADES.filter(u => {
@@ -43,14 +98,7 @@ export const upgrades = {
 
         const shuffled = [...pool].sort(() => 0.5 - Math.random());
         return shuffled.slice(0, count).map(u => {
-            const nextLvl = upgrades.getPlayerUpgradeLevel(playerInstance, u.id) + 1;
-            const lvlSuffix = u.maxLevel < 999 ? ` [LVL ${nextLvl}/${u.maxLevel}]` : '';
-            return {
-                id: u.id,
-                icon: u.icon,
-                title: `${u.title}${lvlSuffix}`,
-                description: u.description
-            };
+            return upgrades.getUpgradeDetails(playerInstance, u.id);
         });
     }
 };
