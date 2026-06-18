@@ -4,6 +4,48 @@ import { effects } from './effects.js';
 import { enemies } from './enemies.js';
 import { audio } from './audio.js';
 import { collision } from './collision.js';
+import { COMBAT_CONFIG, PALETTE, WEAPON_DEFS } from './config.js';
+
+export function findNearestTarget(originX, originY, enemiesList, maxRadius = COMBAT_CONFIG.autoTargetRadius) {
+    let target = null;
+    let bestDistance = maxRadius;
+    for (const enemy of enemiesList || []) {
+        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0) continue;
+        const ex = enemy.x + (enemy.width || 1) / 2;
+        const ey = enemy.y + (enemy.height || 1) / 2;
+        const distance = Math.hypot(ex - originX, ey - originY);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            target = enemy;
+        }
+    }
+    return target;
+}
+
+export function resolveAssistedAim(originX, originY, manualVector, enemiesList, weaponType = 'auto_blaster') {
+    const fallback = { x: manualVector.x, y: manualVector.y, target: null };
+    let best = null;
+    let bestAngle = COMBAT_CONFIG.manualAssistConeRadians;
+    for (const enemy of enemiesList || []) {
+        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0) continue;
+        const dx = enemy.x + (enemy.width || 1) / 2 - originX;
+        const dy = enemy.y + (enemy.height || 1) / 2 - originY;
+        const distance = Math.hypot(dx, dy);
+        if (!distance || distance > COMBAT_CONFIG.autoTargetRadius * 1.5) continue;
+        const dot = Math.max(-1, Math.min(1, (manualVector.x * dx + manualVector.y * dy) / distance));
+        const angle = Math.acos(dot);
+        if (angle < bestAngle) {
+            bestAngle = angle;
+            best = { enemy, x: dx / distance, y: dy / distance };
+        }
+    }
+    if (!best) return fallback;
+    const strength = weaponType === 'null_laser' ? 0.55 : COMBAT_CONFIG.manualAssistStrength;
+    const x = manualVector.x * (1 - strength) + best.x * strength;
+    const y = manualVector.y * (1 - strength) + best.y * strength;
+    const length = Math.hypot(x, y) || 1;
+    return { x: x / length, y: y / length, target: best.enemy };
+}
 
 export class Projectile {
     constructor(x, y, vx, vy, options = {}) {
@@ -17,6 +59,10 @@ export class Projectile {
         this.piercing = options.piercing || false;
         this.targetEnemy = null; // For rockets
         this.hasDied = false;
+        this.canFork = options.canFork !== false;
+        this.blastRadius = options.blastRadius || WEAPON_DEFS.seeker_rockets.blastRadius;
+        this.blastMultiplier = options.blastMultiplier || WEAPON_DEFS.seeker_rockets.blastMultiplier;
+        this.hitEnemies = new Set();
         
         // Calculate shape based on velocity angle
         const angle = Math.atan2(this.vy, this.vx) * (180 / Math.PI);
@@ -38,6 +84,18 @@ export class Projectile {
 
     update(enemiesList) {
         this.life--;
+
+        if (this.type === 'bullet') {
+            const target = findNearestTarget(this.x, this.y, enemiesList, 6);
+            if (target) {
+                const dx = target.x + target.width / 2 - this.x;
+                const dy = target.y + target.height / 2 - this.y;
+                const distance = Math.hypot(dx, dy) || 1;
+                const speed = Math.hypot(this.vx, this.vy) || WEAPON_DEFS.auto_blaster.projectileSpeed;
+                this.vx = this.vx * 0.94 + (dx / distance) * speed * 0.06;
+                this.vy = this.vy * 0.94 + (dy / distance) * speed * 0.06;
+            }
+        }
 
         if (this.type === 'rocket') {
             if (!this.targetEnemy || !enemiesList.includes(this.targetEnemy) || this.targetEnemy.hp <= 0) {
@@ -87,6 +145,7 @@ export class Projectile {
         if (ix >= 0 && ix < rendererInstance.cols && iy >= 0 && iy < rendererInstance.rows) {
             rendererInstance.types[ix][iy] = RENDER_CELL_TYPES.BULLET_VOID;
             rendererInstance.chars[ix][iy] = this.char;
+            rendererInstance.customColors[ix][iy] = PALETTE.playerShot;
             
             if (this.type === 'laser') {
                 rendererInstance.brightness[ix][iy] = 1.0;
@@ -103,9 +162,9 @@ export class Projectile {
         this.hasDied = true;
         if (this.type === 'rocket') {
             effects.spawnGlitchExplosion(this.x, this.y, '#00ff41', 15);
-            audio.playEnemyDeath();
-            const blastRadius = 6.0;
-            const blastDmg = this.damage * 0.8;
+            audio.playExplosion();
+            const blastRadius = this.blastRadius;
+            const blastDmg = this.damage * this.blastMultiplier;
             if (enemies && enemies.enemies) {
                 for (const e of enemies.enemies) {
                     if (e && e.hp > 0 && e.x !== undefined && e.y !== undefined) {
@@ -161,8 +220,27 @@ class WeaponSystem {
         }
     }
 
+    resolveTarget(playerInstance, manualVector, enemiesList, idleTicks) {
+        const px = playerInstance.x + playerInstance.width / 2;
+        const py = playerInstance.y + playerInstance.height / 2;
+        if (manualVector) {
+            const assisted = resolveAssistedAim(px, py, manualVector, enemiesList, playerInstance.weaponType);
+            return { x: px + assisted.x * 50, y: py + assisted.y * 50, target: assisted.target, automatic: false };
+        }
+        if (idleTicks < COMBAT_CONFIG.autoTargetDelayTicks) return null;
+        const target = findNearestTarget(px, py, enemiesList);
+        if (!target) return null;
+        return {
+            x: target.x + target.width / 2,
+            y: target.y + target.height / 2,
+            target,
+            automatic: true
+        };
+    }
+
     fire(playerInstance, targetX, targetY) {
         if (playerInstance.fireCooldown > 0) return false;
+        if (playerInstance.weaponType === 'null_laser' && playerInstance.overheated) return false;
         
         const px = playerInstance.x + playerInstance.width / 2;
         const py = playerInstance.y + playerInstance.height / 2;
@@ -175,26 +253,31 @@ class WeaponSystem {
         
         const streams = 1 + playerInstance.upgrades.extraThreads;
         const type = playerInstance.weaponType;
+        const chaosDamage = 1 + (playerInstance.upgrades.chaosDamage || 0);
 
         if (type === 'auto_blaster') {
-            const speed = 1.6;
-            const dmg = 5.0 + (playerInstance.upgrades.blasterDmg || 0) * 2.0;
+            const speed = WEAPON_DEFS.auto_blaster.projectileSpeed;
+            const dmg = (WEAPON_DEFS.auto_blaster.baseDamage + (playerInstance.upgrades.blasterDmg || 0) * WEAPON_DEFS.auto_blaster.damagePerLevel) * chaosDamage;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'bullet', life: 120 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'bullet', life: 120, width: 1.4, height: 1.4, piercing: (playerInstance.upgrades.blasterDmg || 0) >= 4 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
         else if (type === 'null_laser') {
-            const maxRange = 90;
-            const dmg = 4.0 + (playerInstance.upgrades.laserDmg || 0) * 1.5;
+            const maxRange = WEAPON_DEFS.null_laser.range;
+            const evolved = (playerInstance.upgrades.laserDmg || 0) >= 4;
+            const dmg = (WEAPON_DEFS.null_laser.baseDamage + (playerInstance.upgrades.laserDmg || 0) * WEAPON_DEFS.null_laser.damagePerLevel) * chaosDamage * (evolved ? 1.25 : 1);
             
             for (let i = 0; i < streams; i++) {
                 const spread = (i - (streams - 1) / 2) * 0.02; // tight parallel streams
                 const angle = Math.atan2(uy, ux) + spread;
-                const lux = Math.cos(angle);
-                const luy = Math.sin(angle);
+                let lux = Math.cos(angle);
+                let luy = Math.sin(angle);
+                let originX = px;
+                let originY = py;
+                let reflected = false;
                 
                 let char = '═';
                 if (Math.abs(lux) > Math.abs(luy) * 1.5) {
@@ -209,9 +292,9 @@ class WeaponSystem {
 
                 const hitEnemies = new Set();
 
-                for (let d = 1.0; d < maxRange; d += 1.0) {
-                    const tx = px + lux * d;
-                    const ty = py + luy * d;
+                for (let step = 1, d = 1.0; step < maxRange; step++, d += 1.0) {
+                    const tx = originX + lux * d;
+                    const ty = originY + luy * d;
                     const ix = Math.floor(tx);
                     const iy = Math.floor(ty);
                     
@@ -222,6 +305,18 @@ class WeaponSystem {
                     if (matrixRain.obstacles && matrixRain.obstacles[ix][iy]) {
                         matrixRain.damageObstacle(ix, iy, 0.5);
                         effects.spawnImpactSparks(tx, ty);
+                        if (playerInstance.upgrades.pointerArithmetic && !reflected) {
+                            const prevX = Math.floor(tx - lux);
+                            const prevY = Math.floor(ty - luy);
+                            const hitVerticalFace = matrixRain.obstacles[ix]?.[prevY] && !matrixRain.obstacles[prevX]?.[iy];
+                            if (hitVerticalFace) lux *= -1;
+                            else luy *= -1;
+                            originX = tx - lux;
+                            originY = ty - luy;
+                            reflected = true;
+                            d = 0;
+                            continue;
+                        }
                         break;
                     }
 
@@ -234,7 +329,7 @@ class WeaponSystem {
                                 if (collision.checkOverlap(cellHitbox, eBox)) {
                                     hitEnemies.add(enemy);
                                     enemy.applyKnockback(lux * 1.5, luy * 1.5);
-                                    enemy.takeDamage(dmg);
+                                    enemy.takeDamage(dmg, tx, ty);
                                     effects.spawnImpactSparks(tx, ty);
                                     audio.playHit();
                                 }
@@ -254,19 +349,41 @@ class WeaponSystem {
                 }
             }
             playerInstance.fireCooldown = Math.max(8, playerInstance.fireRate * 1.2);
+            playerInstance.heat += WEAPON_DEFS.null_laser.heatPerShot * (evolved ? 0.55 : 1) * (1 + (streams - 1) * 0.25);
+            if (playerInstance.heat >= WEAPON_DEFS.null_laser.maxHeat) {
+                playerInstance.heat = WEAPON_DEFS.null_laser.maxHeat;
+                playerInstance.overheated = true;
+            }
             return true;
         }
         else if (type === 'seeker_rockets') {
-            const speed = 0.45;
-            const dmg = 5.0 + (playerInstance.upgrades.seekerDmg || 0) * 2.5;
+            const speed = WEAPON_DEFS.seeker_rockets.projectileSpeed;
+            const dmg = (WEAPON_DEFS.seeker_rockets.baseDamage + (playerInstance.upgrades.seekerDmg || 0) * WEAPON_DEFS.seeker_rockets.damagePerLevel) * chaosDamage;
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.8;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'rocket', life: 240, width: 2, height: 2 }));
+                const evolved = (playerInstance.upgrades.seekerDmg || 0) >= 4;
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'rocket', life: 240, width: 2, height: 2, blastRadius: evolved ? 9 : WEAPON_DEFS.seeker_rockets.blastRadius, blastMultiplier: evolved ? 1 : WEAPON_DEFS.seeker_rockets.blastMultiplier }));
             }
-            playerInstance.fireCooldown = playerInstance.fireRate * 3.0; 
+            playerInstance.fireCooldown = playerInstance.fireRate * WEAPON_DEFS.seeker_rockets.cooldownMultiplier;
         }
         return true;
+    }
+
+    spawnFork(projectile, level) {
+        if (!level || !projectile.canFork || projectile.type === 'rocket' || projectile.type === 'visual_laser') return;
+        const baseAngle = Math.atan2(projectile.vy, projectile.vx);
+        const count = level + 1;
+        for (let i = 0; i < count; i++) {
+            const offset = (i - (count - 1) / 2) * 0.55;
+            const speed = Math.max(0.8, Math.hypot(projectile.vx, projectile.vy) * 0.85);
+            this.projectiles.push(new Projectile(projectile.x, projectile.y, Math.cos(baseAngle + offset) * speed, Math.sin(baseAngle + offset) * speed, {
+                damage: projectile.damage * 0.45,
+                type: 'bullet',
+                life: 70,
+                canFork: false
+            }));
+        }
     }
 
     stampToGrid(rendererInstance) {

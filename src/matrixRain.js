@@ -7,6 +7,8 @@ export class MatrixRain {
         this.grid = [];
         this.obstacles = [];
         this.obstacleHP = [];
+        this.activeCells = new Set();
+        this.seed = 0;
     }
 
     resize(cols, rows) {
@@ -15,14 +17,18 @@ export class MatrixRain {
         this.grid = [];
         this.obstacles = Array(cols).fill(null).map(() => Array(rows).fill(false));
         this.obstacleHP = Array(cols).fill(null).map(() => Array(rows).fill(0));
+        this.activeCells = new Set();
+        this.seed++;
 
         // Create background code rain grid
         for (let x = 0; x < cols; x++) {
             const column = [];
             for (let y = 0; y < rows; y++) {
-                const baseBrightness = 0.15 + Math.random() * 0.15;
+                const sector = this.getSectorName(x, y, cols, rows);
+                const sectorGlyphs = sector === 'STACK' ? '|:;[]' : sector === 'HEAP' ? '01{}#@' : sector === 'NULL' ? '... 01' : GLYPHS;
+                const baseBrightness = (sector === 'NULL' ? 0.07 : 0.12) + Math.random() * 0.14;
                 column.push({
-                    char: GLYPHS[Math.floor(Math.random() * GLYPHS.length)],
+                    char: sectorGlyphs[Math.floor(Math.random() * sectorGlyphs.length)],
                     brightness: baseBrightness,
                     baseBrightness: baseBrightness
                 });
@@ -31,8 +37,8 @@ export class MatrixRain {
         }
 
         // Seed creepy/corrupt system terms randomly in the background static ASCII grid
-        const creepyWords = ['abu', 'father', 'papa', 'dad', 'void', 'null', 'ptr', 'fatal', 'error', 'lost', 'alone', 'fear', 'dark', 'help', 'dead', 'kill', 'ghost', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn'];
-        const numWords = 150;
+        const creepyWords = ['memory', 'father', 'void', 'null', 'ptr', 'fatal', 'error', 'lost', 'alone', 'ghost', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn'];
+        const numWords = 75;
         for (let w = 0; w < numWords; w++) {
             const word = creepyWords[Math.floor(Math.random() * creepyWords.length)];
             const isHorizontal = Math.random() < 0.5;
@@ -66,6 +72,19 @@ export class MatrixRain {
         }
     }
 
+    reset() {
+        this.resize(this.cols, this.rows);
+    }
+
+    getSectorName(x, y, cols = this.cols, rows = this.rows) {
+        const left = x < cols / 2;
+        const top = y < rows / 2;
+        if (left && top) return 'STACK';
+        if (!left && top) return 'HEAP';
+        if (left && !top) return 'NULL';
+        return 'KERNEL';
+    }
+
     damageObstacle(x, y, damage = 1) {
         if (x >= 0 && x < this.cols && y >= 0 && y < this.rows && this.obstacles[x][y]) {
             this.obstacleHP[x][y] -= damage;
@@ -79,16 +98,18 @@ export class MatrixRain {
     }
 
     update() {
-        // Only fade scrambled cells back to their base brightness
-        for (let x = 0; x < this.cols; x++) {
-            for (let y = 0; y < this.rows; y++) {
-                const cell = this.grid[x][y];
-                if (cell.brightness > cell.baseBrightness + 0.05) {
-                    cell.brightness -= 0.015;
-                    if (cell.brightness < cell.baseBrightness) {
-                        cell.brightness = cell.baseBrightness;
-                    }
-                }
+        // Only update recently scrambled cells instead of scanning the full world.
+        for (const key of [...this.activeCells]) {
+            const [x, y] = key.split(',').map(Number);
+            const cell = this.grid[x]?.[y];
+            if (!cell) {
+                this.activeCells.delete(key);
+                continue;
+            }
+            cell.brightness -= 0.015;
+            if (cell.brightness <= cell.baseBrightness + 0.05) {
+                cell.brightness = cell.baseBrightness;
+                this.activeCells.delete(key);
             }
         }
     }
@@ -107,6 +128,7 @@ export class MatrixRain {
                     if (Math.random() < intensity) {
                         this.grid[x][y].char = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
                         this.grid[x][y].brightness = 0.6 + Math.random() * 0.4;
+                        this.activeCells.add(`${x},${y}`);
                     }
                 }
             }

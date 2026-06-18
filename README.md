@@ -7,7 +7,7 @@
     |_|  \____/|_____|_____/_/   \_\_|  \_\   |_|  |_|  \_\
 ================================================================================
                      MAINFRAME THREAT EVASION SYSTEM
-                         SECURITY PROTOCOL: v1.3
+                         SECURITY PROTOCOL: v2.0
 ================================================================================
 
 VOID* PTR is an intense, retro-cyberpunk Arena Survival Roguelite where the world
@@ -30,6 +30,10 @@ VOID* PTR features a mouse-free, twin-stick keyboard layout for fluid combat:
 | Arrow Keys        | Deploy projectiles in 8 directions (diagonal combos)    |
 | Escape or P       | Pause / Resume mainframe clock                          |
 | Mouse Click       | Navigate GUI terminal selections                        |
+| Arrows/WASD+Enter | Navigate and confirm all terminal menus                  |
+| Gamepad Sticks/A  | Move, aim, fire and dash                                |
+| Touch Gestures    | Twin-stick movement/aim; two-finger dash                 |
+| F1                | Toggle the runtime diagnostics overlay                   |
 +-------------------+---------------------------------------------------------+
 
 ================================================================================
@@ -49,7 +53,7 @@ VOID* PTR features a mouse-free, twin-stick keyboard layout for fluid combat:
 3. Null Laser (Right Module)
    - Payload: Instantaneous raycast piercing beam.
    - Range: 90 cells.
-   - Yield: 0.5 damage processed once per frame per anomaly (Optimized, zero lag).
+   - Yield: 4.0 base piercing damage per pulse; sustained fire builds heat.
 
 --- UPGRADE MODULE POOL ---
 
@@ -70,7 +74,14 @@ System XP cores harvested from deleted threads trigger kernel upgrade selections
 *   L1 CACHE       [MAX LVL 1] : Expand compiler upgrade card choices to 4.
 *   KERNEL CORE    [MAX LVL 2] : Boost base engine speed & acceleration by 10%.
 *   SWAP PARTITION [MAX LVL 2] : Restore integrity points; delete non-bosses.
-*   REPAIR SECTOR  [UNLIMITED] : Restore 2 integrity points (emergency fallback).
+*   REPAIR SECTOR  [UNLIMITED] : Restore 40% hull integrity (emergency fallback).
+*   GARBAGE COLLECTOR [MAX LVL 3] : Increase memory-fragment attraction range.
+*   STACK CANARY [MAX LVL 1] : Shield breaks flush nearby hostile bullets.
+*   SEGFAULT TRAIL [MAX LVL 3] : Dashes leave damaging corruption.
+*   POINTER ARITHMETIC [MAX LVL 1] : Null Laser reflects from memory barriers.
+*   FORK BOMB [MAX LVL 2] : Killing shots fork into smaller projectiles.
+*   UNDEFINED BEHAVIOR [MAX LVL 2] : Install a powerful random mutation.
+*   MEMORY LEAK [MAX LVL 2] : Uncollected memory grows in value but attracts threats.
 
 ================================================================================
 [03] ENEMY THREAT MANUAL & DATA FLOW DIAGRAMS
@@ -103,14 +114,14 @@ stateDiagram-v2
 SHOOTER (Ranged Projector)
 --------------------------------------------------------------------------------
 Specs: 25 HP | 25 XP | Mass 1.0
-Behavior: Maintains tactical distance (20-25 cells) and shoots radial bullet rings.
+Behavior: Maintains tactical distance and shoots telegraphed six-way bullet rings.
 
 ASCII BEHAVIOR MODEL:
       B U G
       E R R   <-- 3x3 character matrix firing projectiles
       V O I
         |
-        +--> [ * ] [ * ] [ * ] <-- Fires 8-way radial projectile rings
+        +--> [ * ] [ * ] [ * ] <-- Fires 6-way radial projectile rings
         
 STATE MACHINE:
 ```mermaid
@@ -143,7 +154,7 @@ stateDiagram-v2
         Idle --> Teleporting : Teleport Timer <= 0
         Teleporting --> Idle : Relocate x,y, reset timer
         Idle --> Replicating : Replicate Timer <= 0 and count < 40
-        Replicating --> Idle : Spawn clone virus, reset timer
+        Replicating --> Idle : Spawn clone virus, reset timer (15-virus cap)
     }
     ActiveState --> Deletion : HP <= 0
     Deletion --> [*]
@@ -265,8 +276,7 @@ SYS_OBSERVER.BAT (Intrusion Detection Core)
 --------------------------------------------------------------------------------
 Specs: 800 HP | 800 XP | Size: 15x15 | Mass: 12.0
 Behavior: Massive ocular anomaly. Pupil tracks player movement in real-time.
-Periodically spawns gravitational blackholes and fires rotating spiral sweeps of
-projectiles mixed with tracking homing rockets.
+Alternates between telegraphed gaze lanes and iris bursts with readable safe gaps.
 
 ASCII BEHAVIOR MODEL:
          . - ~ ~ ~ - .
@@ -283,9 +293,9 @@ stateDiagram-v2
     Floating --> TrackPlayer : Calculate coordinate delta
     TrackPlayer --> AdjustPupil : Center offset shifts towards target
     Floating --> FiringCycle : Timer <= 0
-    FiringCycle --> SpawnBlackhole : Spawn blackhole near player
-    FiringCycle --> DeploySpiral : Release rotating spiral sweep + homing projectile
-    DeploySpiral --> FiringCycle : Reset cooldown
+    FiringCycle --> LockGaze : Mark directional beam lane
+    FiringCycle --> DeployIris : Release radial burst with safe gap
+    DeployIris --> FiringCycle : Reset cooldown
     Floating --> Deletion : HP <= 0
     Deletion --> [*]
 ```
@@ -316,30 +326,17 @@ stateDiagram-v2
     Deletion --> [*]
 ```
 
---------------------------------------------------------------------------------
-BLACKHOLE (Gravitational Vacuum Core)
---------------------------------------------------------------------------------
-Specs: 9999 HP (Invulnerable) | Active Lifespan: 8.0 Seconds
-Behavior: Generated by SYS_OBSERVER.BAT. Drags player and all standard anomalies
-towards its center coordinates. Contact deals 1 damage.
-
-STATE MACHINE:
-```mermaid
-stateDiagram-v2
-    [*] --> ActiveGravity : Spawned
-    ActiveGravity --> ApplyPull : Drag entities towards center (Radius: 32)
-    ApplyPull --> CheckContact : Distance to target < 2.5
-    CheckContact --> DealDamage : Deal 1 HP damage to player
-    ActiveGravity --> Decay : Decrement ticks remaining
-    Decay --> Deleted : Ticks == 0
-    Deleted --> [*]
-```
-
 ================================================================================
 [05] SYSTEM ARCHITECTURE
 ================================================================================
 
 Built with Vanilla JavaScript, HTML5 Canvas, and bundled with Vite.
+
+Runs now use an encounter-budget director rather than an unstructured spawn ramp.
+Finite runs schedule one authored boss at a time; Endless mode scales from elapsed
+threat tiers and displays elapsed time. Deleted processes drop physical memory
+fragments, creating a risk/reward collection layer. Four visual sectors—STACK,
+HEAP, NULL, and KERNEL—give the world distinct code density and texture.
 
 ```mermaid
 graph TD
@@ -348,6 +345,8 @@ graph TD
     B --> D[Player Physics & Upgrades]
     B --> E[WeaponSystem Projectiles]
     B --> F[Director Wave Spawner]
+    B --> I[Memory Pickup System]
+    B --> J[Shared Balance Definitions]
     
     C --> G[GridRenderer Camera]
     D --> G

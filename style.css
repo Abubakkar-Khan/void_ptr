@@ -5,11 +5,11 @@
     --matrix-dark: #003300;
     --matrix-glow: rgba(0, 255, 65, 0.45);
     
-    --void-amber: #00ff41;
-    --void-amber-glow: rgba(0, 255, 65, 0.6);
+    --void-amber: #ffb000;
+    --void-amber-glow: rgba(255, 176, 0, 0.6);
     
-    --warn-crimson: #00ff41;
-    --warn-crimson-glow: rgba(0, 255, 65, 0.6);
+    --warn-crimson: #ff3366;
+    --warn-crimson-glow: rgba(255, 51, 102, 0.6);
     
     --ui-white: #ffffff;
     --ui-white-glow: rgba(255, 255, 255, 0.4);
@@ -95,6 +95,25 @@ body {
     width: 100%;
     height: 100%;
     background-color: var(--bg-color);
+    touch-action: none;
 }
 
+.reduced-motion #game-container,
+.reduced-motion .crt-scanlines {
+    animation: none !important;
+}
 
+.reduced-motion .crt-scanlines {
+    opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #game-container,
+    .crt-scanlines {
+        animation: none !important;
+    }
+
+    .crt-scanlines {
+        opacity: 0.45;
+    }
+}

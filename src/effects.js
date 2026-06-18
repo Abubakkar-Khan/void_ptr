@@ -43,6 +43,32 @@ class Particle {
     }
 }
 
+class DamageText {
+    constructor(px, py, text, color) {
+        this.px = px;
+        this.py = py;
+        this.text = text;
+        this.color = color;
+        this.life = 38;
+        this.maxLife = 38;
+    }
+
+    update() {
+        this.py -= 0.35;
+        this.life--;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+        ctx.fillStyle = this.color;
+        ctx.font = "bold 14px 'Fira Code', monospace";
+        ctx.textAlign = 'center';
+        ctx.fillText(this.text, this.px, this.py);
+        ctx.restore();
+    }
+}
+
 class EffectSystem {
     constructor() {
         this.particles = [];
@@ -62,7 +88,8 @@ class EffectSystem {
         const screenX = (gridX - renderer.camX) * renderer.cellWidth;
         const screenY = (gridY - renderer.camY) * renderer.cellHeight;
 
-        for (let i = 0; i < count; i++) {
+        const actualCount = renderer.reducedMotion ? Math.ceil(count * 0.35) : count;
+        for (let i = 0; i < actualCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 0.5 + Math.random() * 4.0;
             const vx = Math.cos(angle) * speed;
@@ -130,7 +157,7 @@ class EffectSystem {
     }
 
     triggerFlash(duration = 10) {
-        this.scanlineFlash = 0.3; 
+        this.scanlineFlash = Math.min(0.5, 0.16 + duration * 0.012);
     }
 
     update() {
@@ -207,7 +234,7 @@ class EffectSystem {
         if (this.scanlineFlash > 0 && ctx.canvas) {
             ctx.save();
             ctx.fillStyle = `rgba(0, 255, 65, ${this.scanlineFlash})`;
-            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            ctx.fillRect(0, 0, renderer.width, renderer.height);
             ctx.restore();
         }
     }

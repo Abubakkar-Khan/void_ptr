@@ -1,4 +1,5 @@
 import { matrixRain } from './matrixRain.js';
+import { PALETTE } from './config.js';
 
 const GLYPHS = '01.:;|/\\-_';
 
@@ -49,6 +50,13 @@ class GridRenderer {
         this.shakeIntensity = 0;
 
         this.maskCache = new Map();
+        this.width = 0;
+        this.height = 0;
+        this.dpr = 1;
+        const storage = typeof localStorage !== 'undefined' ? localStorage : null;
+        this.reducedMotion = storage?.getItem('voidptr_reduced_motion') === 'true';
+        this.monochrome = storage?.getItem('voidptr_color_mode') === 'mono';
+        this.animationTime = 0;
     }
 
     // Backward compat: renderer.cols / renderer.rows return world size
@@ -86,9 +94,17 @@ class GridRenderer {
 
         const width = window.innerWidth;
         const height = window.innerHeight;
+        this.width = width;
+        this.height = height;
+        this.dpr = Math.min(2, window.devicePixelRatio || 1);
 
-        this.canvas.width = width;
-        this.canvas.height = height;
+        this.canvas.width = Math.floor(width * this.dpr);
+        this.canvas.height = Math.floor(height * this.dpr);
+        this.canvas.style.width = `${width}px`;
+        this.canvas.style.height = `${height}px`;
+        this.canvas.__logicalWidth = width;
+        this.canvas.__logicalHeight = height;
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
         this.viewCols = Math.floor(width / this.cellWidth) + 2;
         this.viewRows = Math.floor(height / this.cellHeight) + 2;
@@ -170,35 +186,9 @@ class GridRenderer {
         this.camY = Math.max(0, Math.min(this.camY, this.worldRows - this.viewRows));
     }
 
-    applyCircleDisplacement(cx, cy, voidR, pushR, strength, voidType, color = null) {
-        const startX = Math.max(0, Math.floor(cx - pushR - 1));
-        const endX = Math.min(this.worldCols - 1, Math.ceil(cx + pushR + 1));
-        const startY = Math.max(0, Math.floor(cy - pushR - 1));
-        const endY = Math.min(this.worldRows - 1, Math.ceil(cy + pushR + 1));
-
-        for (let x = startX; x <= endX; x++) {
-            for (let y = startY; y <= endY; y++) {
-                const dx = x - cx;
-                const dy = y - cy;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist < voidR) {
-                    this.types[x][y] = voidType;
-                    if (color) this.customColors[x][y] = color;
-                } else if (dist < pushR) {
-                    const force = (pushR - dist) / (pushR - voidR);
-                    const angle = Math.atan2(dy, dx);
-
-                    this.dispX[x][y] += Math.cos(angle) * force * strength;
-                    this.dispY[x][y] += Math.sin(angle) * force * strength;
-
-                    if (this.types[x][y] === CELL_TYPES.RAIN) {
-                        this.types[x][y] = CELL_TYPES.GLITCH;
-                        this.customColors[x][y] = color;
-                    }
-                }
-            }
-        }
+    snapCamera(playerX, playerY) {
+        this.camX = Math.max(0, Math.min(playerX - this.viewCols / 2, Math.max(0, this.worldCols - this.viewCols)));
+        this.camY = Math.max(0, Math.min(playerY - this.viewRows / 2, Math.max(0, this.worldRows - this.viewRows)));
     }
 
     applyBoxDisplacement(bx, by, w, h, pushR, strength, voidType, color = null) {
@@ -297,11 +287,13 @@ class GridRenderer {
     }
 
     triggerShake(duration = 10, intensity = 5) {
-        this.shakeTimer = duration;
-        this.shakeIntensity = intensity;
+        if (this.reducedMotion) return;
+        this.shakeTimer = Math.max(this.shakeTimer, duration);
+        this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
     }
 
     update() {
+        this.animationTime++;
         if (this.shakeTimer > 0) this.shakeTimer--;
     }
 
@@ -320,7 +312,7 @@ class GridRenderer {
 
         // Black background
         ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.fillRect(0, 0, this.width, this.height);
 
         ctx.font = `bold ${this.cellHeight}px 'Fira Code', 'JetBrains Mono', monospace`;
         ctx.textBaseline = 'top';
@@ -342,7 +334,11 @@ class GridRenderer {
                 const char = this.chars[x][y];
 
                 // Draw a faint period '.' for any empty space, void, or missing character cell
-                if (type === CELL_TYPES.UI_VOID || type === CELL_TYPES.PLAYER_VOID || !char || char === ' ') {
+                if (type === CELL_TYPES.PLAYER_VOID || type === CELL_TYPES.ENEMY_VOID) {
+                    continue;
+                }
+
+                if (type === CELL_TYPES.UI_VOID || !char || char === ' ') {
                     const drawX = (x - this.camX) * this.cellWidth;
                     const drawY = (y - this.camY) * this.cellHeight;
                     const batchKey = 'dull_dot';
@@ -379,11 +375,12 @@ class GridRenderer {
                 if (type === CELL_TYPES.ENEMY_GLITCH) {
                     const drawX = (x - this.camX) * this.cellWidth;
                     const drawY = (y - this.camY) * this.cellHeight;
-                    const batchKey = 'enemy_glitch';
+                    const chosenColor = this.monochrome ? PALETTE.environment : (this.customColors[x][y] || PALETTE.enemy);
+                    const batchKey = `enemy_glitch_${chosenColor}`;
                     if (!batches.has(batchKey)) {
                         batches.set(batchKey, {
-                            color: '#ff3366',
-                            shadow: 'rgba(255, 51, 102, 0.95)',
+                            color: chosenColor,
+                            shadow: chosenColor,
                             shadowBlur: 6,
                             cells: []
                         });
@@ -398,11 +395,12 @@ class GridRenderer {
                     if (ch && ch !== ' ') {
                         const drawX = (x - this.camX + this.dispX[x][y]) * this.cellWidth;
                         const drawY = (y - this.camY + this.dispY[x][y]) * this.cellHeight;
-                        const batchKey = type === CELL_TYPES.ENEMY_VOID ? 'enemy_entity' : 'bullet_entity';
+                        const chosenColor = this.monochrome ? PALETTE.environment : (this.customColors[x][y] || PALETTE.playerShot);
+                        const batchKey = `${type === CELL_TYPES.ENEMY_VOID ? 'enemy_entity' : 'bullet_entity'}_${chosenColor}`;
                         if (!batches.has(batchKey)) {
                             batches.set(batchKey, {
-                                color: '#00ff41',
-                                shadow: 'rgba(0, 255, 65, 0.9)',
+                                color: chosenColor,
+                                shadow: chosenColor,
                                 shadowBlur: type === CELL_TYPES.BULLET_VOID ? 6 : 4,
                                 cells: []
                             });
@@ -420,12 +418,13 @@ class GridRenderer {
                 let colorKey = '';
 
                 if (type === CELL_TYPES.GLITCH) {
-                    colorKey = 'glitch';
+                    const chosenColor = this.monochrome ? PALETTE.environment : (this.customColors[x][y] || PALETTE.environment);
+                    colorKey = `glitch_${chosenColor}`;
 
                     if (!batches.has(colorKey)) {
                         batches.set(colorKey, {
-                            color: '#00ff41',
-                            shadow: 'rgba(0, 255, 65, 0.7)',
+                            color: chosenColor,
+                            shadow: chosenColor,
                             shadowBlur: 8,
                             cells: []
                         });

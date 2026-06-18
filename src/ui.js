@@ -1,6 +1,7 @@
 import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { audio } from './audio.js';
+import { HULL_DEFS, WEAPON_DEFS } from './config.js';
 
 const TITLE_LINES = [
     '╭──────────────────────────────────────────────╮',
@@ -49,20 +50,24 @@ const VICTORY_LINES = [
 
 const GLYPHS = '01.:;|/\\-_';
 
-class UIManager {
+export class UIManager {
     constructor() {
         this.hoveredItem = null;
-        this.colorMode = true;
+        const storage = typeof localStorage !== 'undefined' ? localStorage : null;
+        this.colorMode = storage?.getItem('voidptr_color_mode') !== 'mono';
+        this.reducedMotion = storage?.getItem('voidptr_reduced_motion') === 'true';
         
         this.currentScreen = null;
         this.transitionProgress = 0.0;
         this.buttons = [];
+        this.focusIndex = -1;
     }
 
     updateTransition(screenName) {
         if (this.currentScreen !== screenName) {
             this.currentScreen = screenName;
             this.transitionProgress = 0.0;
+            this.focusIndex = -1;
         }
         if (this.transitionProgress < 1.0) {
             const speed = (screenName === 'menu') ? 0.07 : 0.15;
@@ -222,31 +227,33 @@ class UIManager {
     }
 
     stampText(renderer, text, x, y, type, t, align = 'left', parentCc, parentCr) {
+        const characters = Array.from(text);
         let startX = x;
         if (align === 'center') {
-            startX = x - Math.floor(text.length / 2);
+            startX = x - Math.floor(characters.length / 2);
         } else if (align === 'right') {
-            startX = x - text.length;
+            startX = x - characters.length;
         }
 
-        for (let i = 0; i < text.length; i++) {
+        for (let i = 0; i < characters.length; i++) {
             const targetX = startX + i;
             const targetY = y;
 
             const mx = Math.round(parentCc + (targetX - parentCc) * t);
             const my = Math.round(parentCr + (targetY - parentCr) * t);
 
-            const char = this.getUIChar(text[i], t);
+            const char = this.getUIChar(characters[i], t);
             this.stampCell(renderer, mx, my, char, type, 1.0);
         }
     }
 
     stampGlitchyText(renderer, text, x, y, type, t, align = 'left', parentCc, parentCr) {
+        const characters = Array.from(text);
         let startX = x;
         if (align === 'center') {
-            startX = x - Math.floor(text.length / 2);
+            startX = x - Math.floor(characters.length / 2);
         } else if (align === 'right') {
-            startX = x - text.length;
+            startX = x - characters.length;
         }
 
         // Creepy glitch effects
@@ -261,14 +268,14 @@ class UIManager {
         // Random character corruption rate - reduced glitching!
         const corruptionChance = 0.005 + Math.sin(timeFactor * 0.5) * 0.003;
 
-        for (let i = 0; i < text.length; i++) {
+        for (let i = 0; i < characters.length; i++) {
             const targetX = startX + i + lineShift;
             const targetY = y;
 
             const mx = Math.round(parentCc + (targetX - parentCc) * t);
             const my = Math.round(parentCr + (targetY - parentCr) * t);
 
-            let char = text[i];
+            let char = characters[i];
             
             // Randomly corrupt the character with creepy glitch symbols
             if (t >= 1.0 && Math.random() < corruptionChance && char !== ' ' && char !== '│' && char !== '╰' && char !== '╯' && char !== '╭' && char !== '╮') {
@@ -331,9 +338,10 @@ class UIManager {
     stampButton(renderer, id, label, x, y, w, h, t, mx, my, parentCc, parentCr) {
         const mouseCol = Math.floor(mx / renderer.cellWidth);
         const mouseRow = Math.floor(my / renderer.cellHeight);
-        const isHovered = (t >= 1.0 && mouseCol >= x && mouseCol < x + w && mouseRow >= y && mouseRow < y + h);
+        const isMouseHovered = (t >= 1.0 && mouseCol >= x && mouseCol < x + w && mouseRow >= y && mouseRow < y + h);
+        const isHovered = isMouseHovered || (t >= 1.0 && this.buttons.length === this.focusIndex);
 
-        if (isHovered) {
+        if (isMouseHovered) {
             this.hoveredItem = id;
         }
 
@@ -394,8 +402,9 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 54;
-        const panelH = 29;
+        const compact = viewCols < 58 || viewRows < 35;
+        const panelW = compact ? Math.max(30, viewCols - 2) : 54;
+        const panelH = compact ? Math.min(32, viewRows - 2) : 33;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -404,18 +413,32 @@ class UIManager {
 
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
-        const titleX = px + Math.floor((panelW - 48) / 2);
-        for (let i = 0; i < TITLE_LINES.length; i++) {
-            this.stampGlitchyText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+        if (compact) {
+            this.stampGlitchyText(renderer, 'VOID* PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, 'MAINFRAME THREAT EVASION', cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            const buttonX = px + 3;
+            const buttonW = panelW - 6;
+            this.stampButton(renderer, 'select_ship_10', '10 Minute Run', buttonX, py + 6, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', buttonX, py + 10, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, buttonX, py + 14, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, buttonX, py + 18, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, buttonX, py + 22, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, buttonX, py + 26, buttonW, 3, t, mx, my, cc, cr);
+        } else {
+            const titleX = px + Math.floor((panelW - 48) / 2);
+            for (let i = 0; i < TITLE_LINES.length; i++) {
+                this.stampGlitchyText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            }
+            const playBtnY = py + 20;
+            this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
+            const optBtnY = py + 24;
+            this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, px + 3, py + 28, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, px + 28, py + 28, 23, 3, t, mx, my, cc, cr);
+            this.stampText(renderer, 'WASD MOVE | ARROWS FIRE | SPACE DASH | P PAUSE', cc, py + 31, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         }
-
-        const playBtnY = py + 20;
-        this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
-        this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
-
-        const optBtnY = py + 24;
-        this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
-        this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
     }
 
     stampShipSelectScreen(renderer, mx, my) {
@@ -427,8 +450,9 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = 84;
-        const panelH = 34;
+        const compact = viewCols < 88;
+        const panelW = compact ? Math.max(38, Math.min(viewCols - 2, 52)) : 84;
+        const panelH = compact ? Math.min(viewRows - 2, 36) : 36;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -440,46 +464,49 @@ class UIManager {
         this.stampText(renderer, "═ CHOOSE YOUR VEHICLE ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select a hull configuration to initialize", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 25;
-        const cardH = 22;
+        const cardW = compact ? panelW - 6 : 25;
+        const cardH = compact ? 8 : 22;
         const cardY = py + 7;
-        const startX = px + Math.floor((panelW - (3 * cardW + 6)) / 2);
+        const startX = compact ? px + 3 : px + Math.floor((panelW - (3 * cardW + 6)) / 2);
 
         // Rearranged starting cards: Seeker Left, Blaster Middle, Laser Right
         const ships = [
-            { id: 'ship_seeker', title: 'Homing Pods', icon: '◈', desc: 'Fires seeker missiles that automatically target enemies. (Dmg: 5)' },
-            { id: 'ship_normal', title: 'Auto-Blaster', icon: '▲', desc: 'Standard fire. Upgrades: double shot, spread. (Dmg: 5)' },
-            { id: 'ship_laser', title: 'Null Laser', icon: '║', desc: 'Concentrated beam of light. Pierces through targets. (Dmg: 0.02)' }
+            { id: 'ship_seeker', title: HULL_DEFS.daemon.name, icon: '◈', desc: `${HULL_DEFS.daemon.description} ${WEAPON_DEFS.seeker_rockets.baseDamage} direct damage.` },
+            { id: 'ship_normal', title: HULL_DEFS.runner.name, icon: '▲', desc: `${HULL_DEFS.runner.description} ${WEAPON_DEFS.auto_blaster.baseDamage} damage.` },
+            { id: 'ship_laser', title: HULL_DEFS.cutter.name, icon: '║', desc: `${HULL_DEFS.cutter.description} ${WEAPON_DEFS.null_laser.baseDamage} piercing damage.` }
         ];
 
         for (let i = 0; i < ships.length; i++) {
-            const cardX = startX + i * (cardW + 3);
+            const cardX = compact ? startX : startX + i * (cardW + 3);
+            const currentCardY = compact ? cardY + i * (cardH + 1) : cardY;
             const s = ships[i];
 
             const mouseCol = Math.floor(mx / renderer.cellWidth);
             const mouseRow = Math.floor(my / renderer.cellHeight);
-            const isHovered = (t >= 1.0 && mouseCol >= cardX && mouseCol < cardX + cardW && mouseRow >= cardY && mouseRow < cardY + cardH);
+            const isMouseHovered = (t >= 1.0 && mouseCol >= cardX && mouseCol < cardX + cardW && mouseRow >= currentCardY && mouseRow < currentCardY + cardH);
+            const isHovered = isMouseHovered || (t >= 1.0 && this.buttons.length === this.focusIndex);
 
-            if (isHovered) {
+            if (isMouseHovered) {
                 this.hoveredItem = s.id;
             }
 
-            this.stampCard(renderer, cardX, cardY, cardW, cardH, t, isHovered, cc, cr);
+            this.stampCard(renderer, cardX, currentCardY, cardW, cardH, t, isHovered, cc, cr);
 
             // Icon
-            this.stampText(renderer, s.icon, cardX + Math.floor(cardW/2), cardY + 2, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampText(renderer, s.icon, cardX + Math.floor(cardW/2), currentCardY + 1, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             
             // Title
-            this.stampText(renderer, s.title, cardX + Math.floor(cardW/2), cardY + 4, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, s.title, cardX + Math.floor(cardW/2), currentCardY + (compact ? 2 : 4), RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
             // Description
             const wrappedDesc = this.wrapText(s.desc, cardW - 4);
-            for (let j = 0; j < wrappedDesc.length; j++) {
-                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), cardY + 7 + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            for (let j = 0; j < Math.min(wrappedDesc.length, compact ? 3 : 12); j++) {
+                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), currentCardY + (compact ? 4 : 7) + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
 
-            this.buttons.push({ id: s.id, col: cardX, row: cardY, w: cardW, h: cardH });
+            this.buttons.push({ id: s.id, col: cardX, row: currentCardY, w: cardW, h: cardH });
         }
+        this.stampButton(renderer, 'back', 'Back [Esc]', px + Math.floor((panelW - 20) / 2), py + panelH - 4, 20, 3, t, mx, my, cc, cr);
     }
 
     stampPauseScreen(renderer, mx, my) {
@@ -507,7 +534,7 @@ class UIManager {
         this.stampButton(renderer, 'quit', 'Quit to Menu', px + 4, py + 9, 24, 3, t, mx, my, cc, cr);
     }
 
-    stampUpgradeScreen(renderer, mx, my, cards) {
+    stampUpgradeScreen(renderer, mx, my, cards, rerolls = 1) {
         this.updateTransition('level_up');
         const t = this.transitionProgress;
         this.buttons = [];
@@ -516,8 +543,12 @@ class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const panelW = cards.length === 4 ? 116 : 84;
-        const panelH = 34;
+        const layoutCols = viewCols >= (cards.length === 4 ? 118 : 86) ? cards.length : (viewCols >= 58 ? 2 : 1);
+        const rows = Math.ceil(cards.length / layoutCols);
+        const cardW = layoutCols === 1 ? Math.max(28, Math.min(38, viewCols - 6)) : 25;
+        const cardH = rows === 1 ? 22 : 15;
+        const panelW = Math.min(viewCols - 2, layoutCols * cardW + (layoutCols - 1) * 3 + 6);
+        const panelH = Math.min(viewRows - 2, 12 + rows * (cardH + 1));
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -529,44 +560,49 @@ class UIManager {
         this.stampText(renderer, "═ LEVEL UP ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, "Select an upgrade module to install", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
-        const cardW = 25;
-        const cardH = 22;
         const cardY = py + 7;
-        const startX = px + Math.floor((panelW - (cards.length * cardW + (cards.length - 1) * 3)) / 2);
+        const startX = px + Math.floor((panelW - (layoutCols * cardW + (layoutCols - 1) * 3)) / 2);
 
         for (let i = 0; i < cards.length; i++) {
-            const cardX = startX + i * (cardW + 3);
+            const col = i % layoutCols;
+            const row = Math.floor(i / layoutCols);
+            const cardX = startX + col * (cardW + 3);
+            const currentCardY = cardY + row * (cardH + 1);
             const cardId = `upgrade_${i}`;
 
             const mouseCol = Math.floor(mx / renderer.cellWidth);
             const mouseRow = Math.floor(my / renderer.cellHeight);
-            const isHovered = (t >= 1.0 && mouseCol >= cardX && mouseCol < cardX + cardW && mouseRow >= cardY && mouseRow < cardY + cardH);
+            const isMouseHovered = (t >= 1.0 && mouseCol >= cardX && mouseCol < cardX + cardW && mouseRow >= currentCardY && mouseRow < currentCardY + cardH);
+            const isHovered = isMouseHovered || (t >= 1.0 && this.buttons.length === this.focusIndex);
 
-            if (isHovered) {
+            if (isMouseHovered) {
                 this.hoveredItem = cardId;
             }
 
-            this.stampCard(renderer, cardX, cardY, cardW, cardH, t, isHovered, cc, cr);
+            this.stampCard(renderer, cardX, currentCardY, cardW, cardH, t, isHovered, cc, cr);
 
             const c = cards[i];
             
             // Icon
-            this.stampText(renderer, c.icon, cardX + Math.floor(cardW/2), cardY + 2, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampText(renderer, c.icon, cardX + Math.floor(cardW/2), currentCardY + 1, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             
             // Title
-            this.stampText(renderer, c.title, cardX + Math.floor(cardW/2), cardY + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, `[${c.tag}] ${c.title} L${c.level}`, cardX + Math.floor(cardW/2), currentCardY + (rows === 1 ? 5 : 3), RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
             // Description
             const wrappedDesc = this.wrapText(c.description, cardW - 4);
-            for (let j = 0; j < wrappedDesc.length; j++) {
-                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), cardY + 8 + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            for (let j = 0; j < Math.min(wrappedDesc.length, rows === 1 ? 12 : 8); j++) {
+                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), currentCardY + (rows === 1 ? 8 : 5) + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
 
-            this.buttons.push({ id: cardId, col: cardX, row: cardY, w: cardW, h: cardH });
+            this.buttons.push({ id: cardId, col: cardX, row: currentCardY, w: cardW, h: cardH });
+        }
+        if (rerolls > 0) {
+            this.stampButton(renderer, 'reroll_upgrades', `REROLL [${rerolls}]`, cc - 10, py + panelH - 4, 20, 3, t, mx, my, cc, cr);
         }
     }
 
-    stampGameOverScreen(renderer, mx, my, isVictory, score) {
+    stampGameOverScreen(renderer, mx, my, isVictory, score, summary = '') {
         this.updateTransition(isVictory ? 'victory' : 'game_over');
         const t = this.transitionProgress;
         this.buttons = [];
@@ -599,7 +635,8 @@ class UIManager {
                 this.stampText(renderer, wrapped[i], cc, py + 9 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
             
-            this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 13, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, `Execution Score: ${score}`, cc, py + 13, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, summary, cc, py + 14, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 16, 24, 3, t, mx, my, cc, cr);
         } else {
             // Draw game over block ASCII art
@@ -614,8 +651,9 @@ class UIManager {
                 this.stampText(renderer, wrapped[i], cc, py + 16 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
             
-            this.stampText(renderer, `Total XP Recovered: ${score}`, cc, py + 19, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-            this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 21, 24, 3, t, mx, my, cc, cr);
+            this.stampText(renderer, `Execution Score: ${score}`, cc, py + 19, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, summary, cc, py + 20, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampButton(renderer, 'restart', 'System Reboot', px + Math.floor((panelW - 24) / 2), py + 22, 24, 3, t, mx, my, cc, cr);
         }
     }
 
@@ -624,7 +662,7 @@ class UIManager {
         ctx.fillStyle = color;
         ctx.textAlign = align;
         ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0, 255, 65, 0.4)';
+        ctx.shadowColor = color;
         ctx.shadowBlur = 3;
         ctx.fillText(text, x, y);
         ctx.shadowBlur = 0;
@@ -667,6 +705,42 @@ class UIManager {
         } else {
             onActionCallback(this.hoveredItem);
         }
+    }
+
+    handlePointer(mx, my, renderer, onActionCallback, cards = []) {
+        const col = Math.floor(mx / renderer.cellWidth);
+        const row = Math.floor(my / renderer.cellHeight);
+        const target = this.buttons.find(button => col >= button.col && col < button.col + button.w && row >= button.row && row < button.row + button.h);
+        if (!target) return;
+        this.hoveredItem = target.id;
+        this.handleClicks(onActionCallback, cards);
+    }
+
+    handleKeyPress(key, onActionCallback, cards = []) {
+        if (!this.buttons.length) return;
+        if (key === 'ArrowRight' || key === 'ArrowDown' || key.toLowerCase() === 'd' || key.toLowerCase() === 's') {
+            this.focusIndex = this.focusIndex < 0 ? 0 : (this.focusIndex + 1) % this.buttons.length;
+            this.hoveredItem = null;
+        } else if (key === 'ArrowLeft' || key === 'ArrowUp' || key.toLowerCase() === 'a' || key.toLowerCase() === 'w') {
+            this.focusIndex = this.focusIndex < 0 ? this.buttons.length - 1 : (this.focusIndex - 1 + this.buttons.length) % this.buttons.length;
+            this.hoveredItem = null;
+        } else if (key === 'Enter' || key === ' ') {
+            this.hoveredItem = this.buttons[this.focusIndex]?.id || null;
+            this.handleClicks(onActionCallback, cards);
+        } else if (key === 'Escape' && this.currentScreen === 'ship_select') {
+            onActionCallback('back');
+        }
+    }
+
+    toggleReducedMotion() {
+        this.reducedMotion = !this.reducedMotion;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('voidptr_reduced_motion', String(this.reducedMotion));
+        document.body.classList.toggle('reduced-motion', this.reducedMotion);
+    }
+
+    toggleColorMode() {
+        this.colorMode = !this.colorMode;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('voidptr_color_mode', this.colorMode ? 'color' : 'mono');
     }
 }
 

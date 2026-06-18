@@ -1,9 +1,10 @@
 class AudioManager {
     constructor() {
+        const storage = typeof localStorage !== 'undefined' ? localStorage : null;
         this.ctx = null;
         this.enabled = true;
-        this.musicEnabled = true;
-        this.sfxEnabled = true;
+        this.musicEnabled = storage?.getItem('voidptr_music') !== 'off';
+        this.sfxEnabled = storage?.getItem('voidptr_sfx') !== 'off';
         this.drone = null;
         this.noiseBuffer = null;
         this.lastHitTime = 0;
@@ -11,6 +12,7 @@ class AudioManager {
         this.bgmBuffer = null;
         this.bgmSource = null;
         this.bgmGain = null;
+        this.output = null;
     }
 
     init() {
@@ -19,6 +21,15 @@ class AudioManager {
         try {
             const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             this.ctx = new AudioContextClass();
+            const compressor = this.ctx.createDynamicsCompressor();
+            compressor.threshold.value = -14;
+            compressor.knee.value = 12;
+            compressor.ratio.value = 6;
+            const master = this.ctx.createGain();
+            master.gain.value = 0.82;
+            compressor.connect(master);
+            master.connect(this.ctx.destination);
+            this.output = compressor;
             
             // Pre-allocate 1-second of white noise to avoid garbage collection/lag spikes during gameplay
             const sampleRate = this.ctx.sampleRate;
@@ -37,6 +48,7 @@ class AudioManager {
 
     toggleMusic() {
         this.musicEnabled = !this.musicEnabled;
+        localStorage.setItem('voidptr_music', this.musicEnabled ? 'on' : 'off');
         if (!this.musicEnabled) {
             this.stopMusic();
             if (this.drone && this.drone.gain) {
@@ -57,14 +69,8 @@ class AudioManager {
 
     toggleSfx() {
         this.sfxEnabled = !this.sfxEnabled;
+        localStorage.setItem('voidptr_sfx', this.sfxEnabled ? 'on' : 'off');
         return this.sfxEnabled;
-    }
-
-    stopMusic() {
-        if (this.musicInterval) {
-            clearInterval(this.musicInterval);
-            this.musicInterval = null;
-        }
     }
 
     // A low-frequency humming cyberpunk background drone
@@ -98,7 +104,7 @@ class AudioManager {
             osc1.connect(filter);
             osc2.connect(filter);
             filter.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(this.output || ctx.destination);
 
             osc1.start();
             osc2.start();
@@ -131,7 +137,7 @@ class AudioManager {
         const gain = ctx.createGain();
         
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.output || ctx.destination);
 
         const now = ctx.currentTime;
 
@@ -145,6 +151,14 @@ class AudioManager {
             
             osc.start(now);
             osc.stop(now + 0.18);
+        } else if (type === 'seeker_rockets' || type === 'rocket') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.16);
+            gain.gain.setValueAtTime(0.11, now);
+            gain.gain.linearRampToValueAtTime(0.001, now + 0.16);
+            osc.start(now);
+            osc.stop(now + 0.16);
         } else if (type === 'cannon') {
             osc.type = 'triangle';
             osc.frequency.setValueAtTime(150, now);
@@ -198,7 +212,7 @@ class AudioManager {
 
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.output || ctx.destination);
 
         const offset = Math.random() * 0.9;
         noise.start(0, offset, 0.05);
@@ -224,7 +238,7 @@ class AudioManager {
 
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.output || ctx.destination);
 
         const offset = Math.random() * 0.8;
         noise.start(0, offset, 0.15);
@@ -239,7 +253,7 @@ class AudioManager {
         oscGain.gain.linearRampToValueAtTime(0.001, now + 0.12);
         
         osc.connect(oscGain);
-        oscGain.connect(ctx.destination);
+        oscGain.connect(this.output || ctx.destination);
         
         osc.start(now);
         osc.stop(now + 0.12);
@@ -266,10 +280,16 @@ class AudioManager {
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.output || ctx.destination);
 
         osc.start(now);
         osc.stop(now + 0.4);
+        if (this.bgmGain) {
+            this.bgmGain.gain.cancelScheduledValues(now);
+            this.bgmGain.gain.setValueAtTime(this.bgmGain.gain.value, now);
+            this.bgmGain.gain.linearRampToValueAtTime(0.08, now + 0.03);
+            this.bgmGain.gain.linearRampToValueAtTime(0.25, now + 0.5);
+        }
     }
 
     playUpgradeSelect() {
@@ -294,7 +314,7 @@ class AudioManager {
 
             osc.connect(gain);
             osc2.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(this.output || ctx.destination);
 
             osc.start(now + delay);
             osc2.start(now + delay);
@@ -327,7 +347,7 @@ class AudioManager {
             gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
 
             osc.connect(gain);
-            gain.connect(ctx.destination);
+            gain.connect(this.output || ctx.destination);
 
             osc.start(now);
             osc.stop(now + 1.2);
@@ -349,7 +369,7 @@ class AudioManager {
         gain.gain.linearRampToValueAtTime(0.001, now + 0.15);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(this.output || ctx.destination);
 
         osc.start(now);
         osc.stop(now + 0.15);
@@ -358,7 +378,7 @@ class AudioManager {
     async loadBGM() {
         if (!this.ctx) return;
         try {
-            const response = await fetch('/audio/bgm.mp3');
+            const response = await fetch(`${import.meta.env.BASE_URL}audio/bgm.mp3`);
             const arrayBuffer = await response.arrayBuffer();
             this.bgmBuffer = await this.ctx.decodeAudioData(arrayBuffer);
             if (this.musicEnabled) {
@@ -382,7 +402,7 @@ class AudioManager {
             this.bgmGain.gain.setValueAtTime(0.25, this.ctx.currentTime); // 25% volume for ambient/bgm
 
             this.bgmSource.connect(this.bgmGain);
-            this.bgmGain.connect(this.ctx.destination);
+            this.bgmGain.connect(this.output || this.ctx.destination);
             
             this.bgmSource.start(0);
         } catch (e) {
@@ -401,6 +421,24 @@ class AudioManager {
         if (this.bgmGain) {
             this.bgmGain.disconnect();
             this.bgmGain = null;
+        }
+    }
+
+    playExplosion() {
+        this.playShoot('cannon');
+    }
+
+    setIntensity(threatTier = 1, bossActive = false) {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        if (this.bgmGain) {
+            const target = Math.min(0.38, 0.2 + threatTier * 0.012 + (bossActive ? 0.06 : 0));
+            this.bgmGain.gain.cancelScheduledValues(now);
+            this.bgmGain.gain.linearRampToValueAtTime(target, now + 1.5);
+        }
+        if (this.drone?.filter) {
+            const targetHz = Math.min(260, 100 + threatTier * 10 + (bossActive ? 50 : 0));
+            this.drone.filter.frequency.linearRampToValueAtTime(targetHz, now + 1.5);
         }
     }
 }

@@ -2,6 +2,7 @@ import { renderer, RENDER_CELL_TYPES } from './renderer.js';
 import { effects } from './effects.js';
 import { matrixRain } from './matrixRain.js';
 import { audio } from './audio.js';
+import { BOSS_TYPES, ENEMY_DEFS, NORMAL_ENEMY_TYPES, PALETTE } from './config.js';
 
 const GLYPHS = '01.:;|/\\-_';
 const BRUTE_GLYPHS = ['█', '▓', '▒', '░', '#', '■', '▪', ' ', '█', '█'];
@@ -36,7 +37,7 @@ function stampOrganicBlob(rendererInstance, cx, cy, baseRadius, charSet = GLYPHS
 
             const angle = Math.atan2(dy, dx);
             // Wobbles with time and angle to make it organic/pulsating
-            const wobble = Math.sin(angle * 5 + Date.now() * 0.007) * 0.7;
+            const wobble = Math.sin(angle * 5 + rendererInstance.animationTime * 0.11) * 0.7;
             
             // Add direction extension spike if vector is provided
             let spike = 0;
@@ -53,12 +54,32 @@ function stampOrganicBlob(rendererInstance, cx, cy, baseRadius, charSet = GLYPHS
                 const gy = icy + dy;
 
                 if (gx >= 0 && gx < rendererInstance.cols && gy >= 0 && gy < rendererInstance.rows) {
-                    const char = charSet[Math.floor(Math.random() * charSet.length)];
+                    const animFrame = Math.floor(rendererInstance.animationTime / 13);
+                    const charIndex = Math.abs(gx * 31 + gy * 17 + animFrame) % charSet.length;
+                    const char = charSet[charIndex];
                     rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                     rendererInstance.chars[gx][gy] = char;
-                    rendererInstance.brightness[gx][gy] = (0.5 + Math.random() * 0.5) * brightnessMult;
+                    rendererInstance.brightness[gx][gy] = (0.72 + ((charIndex % 3) * 0.1)) * brightnessMult;
                 }
             }
+        }
+    }
+}
+
+function stampPattern(rendererInstance, x, y, rows, brightness = 1, color = PALETTE.enemy) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    for (let row = 0; row < rows.length; row++) {
+        for (let col = 0; col < rows[row].length; col++) {
+            const char = rows[row][col];
+            if (char === ' ') continue;
+            const gx = ix + col;
+            const gy = iy + row;
+            if (gx < 0 || gx >= rendererInstance.cols || gy < 0 || gy >= rendererInstance.rows) continue;
+            rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
+            rendererInstance.chars[gx][gy] = char;
+            rendererInstance.brightness[gx][gy] = brightness;
+            rendererInstance.customColors[gx][gy] = color;
         }
     }
 }
@@ -67,7 +88,7 @@ export class EnemyProjectile {
     constructor(x, y, vx, vy, isHoming = false) {
         this.x = x; this.y = y;
         this.vx = vx; this.vy = vy;
-        this.color = '#ff3366'; // red bullets
+        this.color = PALETTE.enemyShot;
         this.damage = 1;
         this.life = 120;
         this.isHoming = isHoming;
@@ -98,6 +119,7 @@ export class EnemyProjectile {
             rendererInstance.types[ix][iy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
             rendererInstance.chars[ix][iy] = '☼';
             rendererInstance.brightness[ix][iy] = 1.0;
+            rendererInstance.customColors[ix][iy] = this.color;
         }
     }
 
@@ -133,77 +155,35 @@ export class Enemy {
         this.replicateTimer = 360 + Math.random() * 180; // 60 FPS scaling
         this.frozenTimer = 0;
         this.shielded = false;
+        this.linkedTargets = [];
+        this.detonationTimer = null;
+        this.detonated = false;
+        this.introTimer = BOSS_TYPES.has(type) ? 90 : 0;
+        this.phase = 1;
+        this.phaseTransitionTimer = 0;
+        this.attackState = 'idle';
+        this.telegraphTimer = 0;
+        this.lockedAimAngle = 0;
+        this.weakPoints = [];
+        this.attackCycle = 0;
 
         this.initType();
     }
 
     initType() {
         this.life = 0;
-        switch(this.type) {
-            case 'drone': // Swarmers
-                this.hp = 14; this.xpValue = 15;
-                this.width = 1; this.height = 1; 
-                this.mass = 0.8;
-                break;
-            case 'brute': // Giant tank
-                this.hp = 60; this.xpValue = 50;
-                this.width = 5; this.height = 5;
-                this.mass = 3.0;
-                break;
-            case 'brute_medium': // Split offspring of brute
-                this.hp = 30; this.xpValue = 20;
-                this.width = 3; this.height = 3;
-                this.mass = 1.5;
-                break;
-            case 'shooter': // Keeps distance and fires rings
-                this.hp = 25; this.xpValue = 25;
-                this.width = 3; this.height = 3;
-                this.mass = 1.0;
-                break;
-            case 'worm': // Slitherer sinewave worm of segments
-                this.hp = 30; this.xpValue = 30;
-                this.width = 1; this.height = 1;
-                this.mass = 1.1;
-                break;
-            case 'virus': // Erratic teleporter and replicator
-                this.hp = 25; this.xpValue = 35;
-                this.width = 3; this.height = 3;
-                this.mass = 1.2;
-                break;
-            case 'kamikaze': // Fast self-destructing anomaly bomb
-                this.hp = 10; this.xpValue = 20;
-                this.width = 1; this.height = 1;
-                this.mass = 0.6;
-                this.color = '#ff3333';
-                break;
-            case 'shield_projector': // Projects shields to other entities
-                this.hp = 35; this.xpValue = 40;
-                this.width = 3; this.height = 3;
-                this.mass = 2.0;
-                this.color = '#33ffaa';
-                break;
-            case 'boss_snake': // Massive mothership snake
-                this.hp = 800; this.xpValue = 1000;
-                this.width = 11; this.height = 11;
-                this.mass = 15.0;
-                break;
-            case 'boss_eye': // Eye boss (creates blackholes)
-                this.hp = 800; this.xpValue = 800;
-                this.width = 15; this.height = 15;
-                this.mass = 12.0;
-                break;
-            case 'boss_carrier': // Carrier boss (spawns drones/viruses)
-                this.hp = 900; this.xpValue = 800;
-                this.width = 16; this.height = 10;
-                this.mass = 12.0;
-                break;
-            case 'blackhole': // Gravitational vacuum hazard
-                this.hp = 9999; this.xpValue = 0;
-                this.width = 5; this.height = 5;
-                this.mass = 999.0;
-                this.life = 480; // 8 seconds
-                break;
-        }
+        const def = ENEMY_DEFS[this.type] || ENEMY_DEFS.drone;
+        this.hp = def.hp;
+        this.xpValue = def.xp;
+        this.width = def.width;
+        this.height = def.height;
+        this.mass = def.mass;
+        if (this.type === 'kamikaze') this.color = PALETTE.enemyShot;
+        if (this.type === 'shield_projector') this.color = PALETTE.pickup;
+        if (BOSS_TYPES.has(this.type)) this.color = PALETTE.boss;
+        if (this.type === 'boss_snake') this.weakPoints = [{ x: 4, y: 2, width: 3, height: 2, phase: 1 }];
+        if (this.type === 'boss_eye') this.weakPoints = [{ x: 6, y: 4, width: 3, height: 3, phase: 1 }];
+        if (this.type === 'boss_carrier') this.weakPoints = [{ x: 7, y: 4, width: 5, height: 3, phase: 2 }];
         this.maxHp = this.hp;
     }
 
@@ -225,6 +205,28 @@ export class Enemy {
             return;
         }
 
+        if (this.introTimer > 0) {
+            this.introTimer--;
+            this.trail.unshift({ x: this.x, y: this.y, vx: 0, vy: 0 });
+            if (this.trail.length > 80) this.trail.pop();
+            return;
+        }
+
+        if (BOSS_TYPES.has(this.type) && this.phase === 1 && this.hp <= this.maxHp * 0.5) {
+            this.phase = 2;
+            this.phaseTransitionTimer = 35;
+            this.attackState = 'phase_break';
+            this.fireCooldown = 70;
+            effects.spawnGlitchExplosion(this.x + this.width / 2, this.y + this.height / 2, PALETTE.boss, 45);
+            renderer.triggerShake(10, 2.5);
+        }
+        if (this.phaseTransitionTimer > 0) {
+            this.phaseTransitionTimer--;
+            this.vx *= 0.8;
+            this.vy *= 0.8;
+            return;
+        }
+
         this.fireCooldown--;
 
         // Track trail history for glitch tails/worms/boss
@@ -239,22 +241,6 @@ export class Enemy {
 
         this.vx *= this.friction;
         this.vy *= this.friction;
-
-        // Blackhole gravitational pull on this enemy
-        if (enemyManager && enemyManager.enemies) {
-            for (const other of enemyManager.enemies) {
-                if (other && other.type === 'blackhole' && other !== this && other.x !== undefined && other.y !== undefined) {
-                    const bdx = (other.x + 2.5) - (this.x + this.width / 2);
-                    const bdy = (other.y + 2.5) - (this.y + this.height / 2);
-                    const bdist = Math.sqrt(bdx*bdx + bdy*bdy) || 1;
-                    if (bdist < 25) {
-                        const pullForce = ((25 - bdist) / 25) * 0.07;
-                        this.vx += (bdx / bdist) * pullForce;
-                        this.vy += (bdy / bdist) * pullForce;
-                    }
-                }
-            }
-        }
 
         let moveX = 0;
         let moveY = 0;
@@ -341,56 +327,26 @@ export class Enemy {
         }
         else if (this.type === 'boss_snake') {
             this.waveTime += 0.04;
-            const ratio = this.hp / this.maxHp;
             const baseAngle = Math.atan2(dy, dx);
             const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8;
-            const speedMult = 1.0 + (1.0 - ratio) * 0.8;
+            const speedMult = this.phase === 2 ? 1.65 : 1;
             moveX = Math.cos(slitherAngle) * 0.04 * speedMult;
             moveY = Math.sin(slitherAngle) * 0.04 * speedMult;
-
-            // Firing logic
-            if (this.fireCooldown <= 0) {
-                if (ratio < 0.5) {
-                    // 24 bullets ring
-                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
-                        spawnedProjectiles.push(new EnemyProjectile(
-                            this.x + 5.5, this.y + 5.5,
-                            Math.cos(a) * 0.20, Math.sin(a) * 0.20
-                        ));
-                    }
-                    // Targeted homing barrage
-                    const baseA = Math.atan2(dy, dx);
-                    for (let spread = -0.25; spread <= 0.25; spread += 0.25) {
-                        spawnedProjectiles.push(new EnemyProjectile(
-                            this.x + 5.5, this.y + 5.5,
-                            Math.cos(baseA + spread) * 0.26, Math.sin(baseA + spread) * 0.26,
-                            true
-                        ));
-                    }
-                } else {
-                    // 16 bullets ring
-                    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
-                        spawnedProjectiles.push(new EnemyProjectile(
-                            this.x + 5.5, this.y + 5.5,
-                            Math.cos(a) * 0.18, Math.sin(a) * 0.18
-                        ));
-                    }
-                    // Targeted stream of 5 bullets
-                    const baseA = Math.atan2(dy, dx);
-                    for (let spread = -0.3; spread <= 0.3; spread += 0.15) {
-                        spawnedProjectiles.push(new EnemyProjectile(
-                            this.x + 5.5, this.y + 5.5,
-                            Math.cos(baseA + spread) * 0.25, Math.sin(baseA + spread) * 0.25
-                        ));
-                    }
-                }
-                this.fireCooldown = 80 + Math.random() * 40; // Every 1.3 - 2.0 seconds
+            if (this.fireCooldown <= 30 && this.fireCooldown > 0) {
+                this.attackState = 'charge';
+                this.lockedAimAngle = baseAngle;
             }
-
-            // Spawn minion drone from tail occasionally
-            if (Math.random() < 0.008 && enemyManager.enemies.length < 35) {
-                const tailPos = this.trail[this.trail.length - 1] || this;
-                enemyManager.spawn(tailPos.x, tailPos.y, 'drone');
+            if (this.fireCooldown <= 0) {
+                const spreads = this.phase === 2 ? [-0.48, -0.24, 0, 0.24, 0.48] : [-0.3, -0.15, 0, 0.15, 0.3];
+                for (const spread of spreads) {
+                    const a = this.lockedAimAngle + spread;
+                    spawnedProjectiles.push(new EnemyProjectile(this.x + 5.5, this.y + 5.5, Math.cos(a) * 0.3, Math.sin(a) * 0.3, this.phase === 2 && spread === 0));
+                }
+                this.vx += Math.cos(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                this.vy += Math.sin(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                this.attackState = 'recover';
+                this.attackCycle++;
+                this.fireCooldown = this.phase === 2 ? 72 : 105;
             }
         }
         else if (this.type === 'boss_eye') {
@@ -403,68 +359,71 @@ export class Enemy {
                 moveY = -(dy / dist) * 0.025;
             }
 
+            const toPlayerA = Math.atan2(dy, dx);
+            if (this.fireCooldown <= 42 && this.fireCooldown > 0) {
+                this.attackState = this.attackCycle % 2 === 0 ? 'gaze' : 'iris';
+                this.lockedAimAngle = toPlayerA;
+            }
             if (this.fireCooldown <= 0) {
                 const cx = this.x + 7.5;
                 const cy = this.y + 7.5;
-                
-                // Spawn a blackhole in a distance
-                if (enemyManager && enemyManager.enemies.filter(e => e.type === 'blackhole').length < 2) {
-                    const angleBh = Math.random() * Math.PI * 2;
-                    const distBh = 18 + Math.random() * 12;
-                    const bhX = playerX + Math.cos(angleBh) * distBh;
-                    const bhY = playerY + Math.sin(angleBh) * distBh;
-                    enemyManager.spawn(bhX, bhY, 'blackhole');
+                if (this.attackCycle % 2 === 0) {
+                    for (let offset = -0.18; offset <= 0.18; offset += 0.09) {
+                        const a = this.lockedAimAngle + offset;
+                        spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(a) * 0.38, Math.sin(a) * 0.38, offset === 0));
+                    }
+                } else {
+                    const safeGap = this.lockedAimAngle;
+                    const count = this.phase === 2 ? 20 : 14;
+                    for (let i = 0; i < count; i++) {
+                        const a = this.waveTime + i * Math.PI * 2 / count;
+                        const gapDistance = Math.abs(Math.atan2(Math.sin(a - safeGap), Math.cos(a - safeGap)));
+                        if (gapDistance < 0.42) continue;
+                        spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(a) * 0.27, Math.sin(a) * 0.27));
+                    }
                 }
-
-                // Ring sweep from center
-                for (let a = 0; a < Math.PI * 2; a += Math.PI / 9) {
-                    spawnedProjectiles.push(new EnemyProjectile(
-                        cx, cy,
-                        Math.cos(a) * 0.24, Math.sin(a) * 0.24
-                    ));
-                }
-                
-                // Homing stream
-                const toPlayerA = Math.atan2(dy, dx);
-                spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(toPlayerA) * 0.28, Math.sin(toPlayerA) * 0.28, true));
-                
-                this.fireCooldown = 150 + Math.random() * 60;
+                this.attackCycle++;
+                this.attackState = 'recover';
+                this.fireCooldown = this.phase === 2 ? 92 : 125;
             }
         }
         else if (this.type === 'boss_carrier') {
-            // Slither slowly towards player
-            moveX = (dx / dist) * 0.03;
-            moveY = (dy / dist) * 0.03;
-
+            moveX = (dx / dist) * (this.phase === 2 ? 0.04 : 0.028);
+            moveY = (dy / dist) * (this.phase === 2 ? 0.04 : 0.028);
+            const baseA = Math.atan2(dy, dx);
+            if (this.fireCooldown <= 38 && this.fireCooldown > 0) {
+                this.attackState = 'broadside';
+                this.lockedAimAngle = baseA;
+            }
             if (this.fireCooldown <= 0) {
-                // Spawn minions (drones/viruses)
                 if (enemyManager && enemyManager.enemies.length < 40) {
                     const spawnType = Math.random() < 0.65 ? 'drone' : 'virus';
                     enemyManager.spawn(this.x - 2, this.y + 4, spawnType);
-                    enemyManager.spawn(this.x + 16, this.y + 4, spawnType);
+                    enemyManager.spawn(this.x + 18, this.y + 4, spawnType);
+                    if (this.phase === 2) enemyManager.spawn(this.x + 8, this.y + 11, 'kamikaze');
                 }
-
-                // 5-way spread target barrage (with homing chance)
-                const baseA = Math.atan2(dy, dx);
-                const angles = [baseA - 0.4, baseA - 0.2, baseA, baseA + 0.2, baseA + 0.4];
+                const angles = [-0.5, -0.25, 0, 0.25, 0.5].map(offset => this.lockedAimAngle + offset);
                 for (let a of angles) {
-                    spawnedProjectiles.push(new EnemyProjectile(
-                        this.x + 8.0, this.y + 5.0,
-                        Math.cos(a) * 0.26, Math.sin(a) * 0.26,
-                        Math.random() < 0.3
-                    ));
+                    spawnedProjectiles.push(new EnemyProjectile(this.x + 9, this.y + 5, Math.cos(a) * 0.31, Math.sin(a) * 0.31, this.phase === 2 && a === angles[2]));
                 }
-                this.fireCooldown = 130 + Math.random() * 70;
+                this.attackCycle++;
+                this.attackState = 'recover';
+                this.fireCooldown = this.phase === 2 ? 82 : 118;
             }
         }
         else if (this.type === 'kamikaze') {
-            // Chase player quickly
-            moveX = (dx / dist) * 0.12;
-            moveY = (dy / dist) * 0.12;
-
-            // Blow up if very close to player
-            if (dist < 4.0 && this.hp > 0) {
-                this.hp = 0; // trigger death detonation
+            if (dist < 8 && this.detonationTimer === null) this.detonationTimer = 60;
+            if (this.detonationTimer !== null) {
+                this.detonationTimer--;
+                moveX = (dx / dist) * 0.035;
+                moveY = (dy / dist) * 0.035;
+                if (this.detonationTimer <= 0 && this.hp > 0) {
+                    this.detonated = true;
+                    this.hp = 0;
+                }
+            } else {
+                moveX = (dx / dist) * 0.12;
+                moveY = (dy / dist) * 0.12;
             }
         }
         else if (this.type === 'shield_projector') {
@@ -481,27 +440,15 @@ export class Enemy {
             if (enemyManager && enemyManager.enemies) {
                 const px = this.x + 1.5;
                 const py = this.y + 1.5;
-                for (const other of enemyManager.enemies) {
-                    if (other && other !== this && other.type !== 'shield_projector' && other.type !== 'blackhole') {
-                        const ow = other.width !== undefined ? other.width : 1;
-                        const oh = other.height !== undefined ? other.height : 1;
-                        const odx = (other.x + ow/2) - px;
-                        const ody = (other.y + oh/2) - py;
-                        const odist = Math.sqrt(odx*odx + ody*ody);
-                        if (odist < 16) {
-                            other.shielded = true;
-                        }
-                    }
-                }
+                this.linkedTargets = enemyManager.enemies
+                    .filter(other => other && other !== this && other.type !== 'shield_projector' && other.hp > 0)
+                    .map(other => ({ other, dist: Math.hypot(other.x + other.width / 2 - px, other.y + other.height / 2 - py) }))
+                    .filter(entry => entry.dist < 16)
+                    .sort((a, b) => a.dist - b.dist)
+                    .slice(0, 2)
+                    .map(entry => entry.other);
+                for (const target of this.linkedTargets) target.shielded = true;
             }
-        }
-        else if (this.type === 'blackhole') {
-            this.life--;
-            if (this.life <= 0) {
-                this.hp = 0; // mark for deletion
-            }
-            moveX = 0;
-            moveY = 0;
         }
 
         // Check if inside a static glitch obstacle field (slowing penalty!)
@@ -509,7 +456,7 @@ export class Enemy {
         const cy_cell = Math.floor(this.y + this.height / 2);
         let insideGlitchField = false;
         if (cx_cell >= 0 && cx_cell < gridCols && cy_cell >= 0 && cy_cell < gridRows) {
-            if (matrixRain.obstacles && matrixRain.obstacles[cx_cell][cy_cell]) {
+            if (matrixRain.obstacles?.[cx_cell]?.[cy_cell]) {
                 insideGlitchField = true;
             }
         }
@@ -531,7 +478,7 @@ export class Enemy {
                 const ex_cell = Math.floor(nextX + w);
                 const ey_cell = Math.floor(nextY + h);
                 if (ex_cell >= 0 && ex_cell < gridCols && ey_cell >= 0 && ey_cell < gridRows) {
-                    if (matrixRain.obstacles && matrixRain.obstacles[ex_cell][ey_cell]) {
+                    if (matrixRain.obstacles?.[ex_cell]?.[ey_cell]) {
                         collides = true;
                         break;
                     }
@@ -549,9 +496,87 @@ export class Enemy {
         }
     }
 
+    stampDirectionalTelegraph(rendererInstance) {
+        if (this.introTimer > 0 && BOSS_TYPES.has(this.type)) {
+            const blink = Math.floor(this.introTimer / 8) % 2 === 0;
+            if (blink) {
+                const w = this.width + 4;
+                const x = this.x - 2;
+                const y = this.y - 2;
+                stampPattern(rendererInstance, x, y, [`+${'-'.repeat(w - 2)}+`], 0.9, PALETTE.enemyShot);
+                stampPattern(rendererInstance, x, y + this.height + 3, [`+${'-'.repeat(w - 2)}+`], 0.9, PALETTE.enemyShot);
+            }
+            return;
+        }
+        const shouldWarn = (BOSS_TYPES.has(this.type) && this.fireCooldown > 0 && this.fireCooldown <= 42)
+            || (['shooter', 'worm', 'virus'].includes(this.type) && this.fireCooldown > 0 && this.fireCooldown <= 26);
+        if (!shouldWarn) return;
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        let angle = this.lockedAimAngle;
+        if (!BOSS_TYPES.has(this.type)) {
+            angle = Math.atan2((this.lastPlayerY ?? cy) + 1.5 - cy, (this.lastPlayerX ?? cx) + 1.5 - cx);
+        }
+        const length = BOSS_TYPES.has(this.type) ? 26 : 10;
+        for (let distance = Math.max(2, this.width / 2); distance < length; distance += 2) {
+            const gx = Math.floor(cx + Math.cos(angle) * distance);
+            const gy = Math.floor(cy + Math.sin(angle) * distance);
+            if (gx < 0 || gx >= rendererInstance.cols || gy < 0 || gy >= rendererInstance.rows) continue;
+            rendererInstance.types[gx][gy] = RENDER_CELL_TYPES.GLITCH;
+            rendererInstance.chars[gx][gy] = distance + 2 >= length ? '>' : ':';
+            rendererInstance.brightness[gx][gy] = 0.75;
+            rendererInstance.customColors[gx][gy] = PALETTE.enemyShot;
+        }
+    }
+
+    stampAuthored(rendererInstance, brightMult) {
+        const blink = Math.floor(rendererInstance.animationTime / 10) % 2 === 0;
+        if (this.type === 'drone') {
+            stampPattern(rendererInstance, this.x, this.y, [this.vx < 0 ? '<o>' : '<o>'], brightMult, this.color);
+        } else if (this.type === 'brute') {
+            stampPattern(rendererInstance, this.x, this.y, ['#####', '#===#', '#[X]#', '#===#', '#####'], brightMult, this.color);
+        } else if (this.type === 'brute_medium') {
+            stampPattern(rendererInstance, this.x, this.y, ['###', '#X#', '###'], brightMult, this.color);
+        } else if (this.type === 'shooter') {
+            stampPattern(rendererInstance, this.x, this.y, ['[+]', blink ? '-X-' : '=X=', '[+]'], brightMult, this.color);
+        } else if (this.type === 'worm') {
+            for (let i = 2; i < this.trail.length; i += 3) {
+                const pos = this.trail[i];
+                stampPattern(rendererInstance, pos.x, pos.y, [i % 2 ? '-o-' : '=o='], Math.max(0.25, brightMult * (1 - i / this.trail.length)), this.color);
+            }
+            stampPattern(rendererInstance, this.x, this.y, [this.vx < 0 ? '<S=' : '=S>'], brightMult, this.color);
+        } else if (this.type === 'virus') {
+            stampPattern(rendererInstance, this.x, this.y, [blink ? '\*/' : '/#\\', '*X*', blink ? '/*\\' : '\#/'], brightMult, this.color);
+        } else if (this.type === 'kamikaze') {
+            const count = this.detonationTimer === null ? '!' : String(Math.max(1, Math.ceil(this.detonationTimer / 20)));
+            stampPattern(rendererInstance, this.x, this.y, [blink ? `<${count}>` : `[${count}]`], brightMult, this.color);
+        } else if (this.type === 'shield_projector') {
+            stampPattern(rendererInstance, this.x, this.y, ['/A\\', '<+>', '\\V/'], brightMult, this.color);
+        } else if (this.type === 'boss_snake') {
+            for (let i = 8; i < this.trail.length; i += this.phase === 2 ? 10 : 7) {
+                const pos = this.trail[i];
+                stampPattern(rendererInstance, pos.x + 4, pos.y + 4, [' /#\\ ', '<=== >', ' \\#/ '], Math.max(0.35, brightMult * (1 - i / this.trail.length)), this.color);
+            }
+            const jaw = this.attackState === 'charge' ? '\\  V  /' : '\\_===_/';
+            stampPattern(rendererInstance, this.x, this.y + 1, ['  /#####\\  ', ' /##o#o##\\ ', '<###/X\\###>', ' \\##===##/ ', `  ${jaw}  `], brightMult, this.color);
+        } else if (this.type === 'boss_eye') {
+            const pupil = this.attackState === 'gaze' ? '!' : '@';
+            const offset = this.phase === 2 ? (blink ? 1 : -1) : 0;
+            stampPattern(rendererInstance, this.x + offset, this.y + 2, ['   .=======.   ', ' /===========\\ ', '<====-----====>', `<===--[${pupil}]--===>`, '<====-----====>', ' \\===========/ ', '   `=======`   '], brightMult, this.color);
+        } else if (this.type === 'boss_carrier') {
+            const core = this.phase === 2 ? (blink ? '{@}' : '{X}') : '[#]';
+            stampPattern(rendererInstance, this.x, this.y, [' /================\\ ', '/[T]====[T]====[T]\\', '|################|', '|==\\          /==|', `|===\\  ${core}  /===|`, '|====\\======/====|', '|[B]  |====|  [B]|', '\\____/|====|\\____/', '  v v  |====|  v v ', '   *   /====\\   *  ', '      <<<<<<      '], brightMult, this.color);
+        } else {
+            return false;
+        }
+        return true;
+    }
+
     stampToGrid(rendererInstance) {
         const brightMult = this.frozenTimer > 0 ? 0.35 : 1.0;
-        
+        this.stampDirectionalTelegraph(rendererInstance);
+        if (this.stampAuthored(rendererInstance, brightMult)) return;
+
         if (this.type === 'drone') {
             // Glitch Snake trail (chain of wobbly organic blobs)
             for (let i = 0; i < this.trail.length; i++) {
@@ -583,7 +608,7 @@ export class Enemy {
         }
         else if (this.type === 'virus') {
             // Pulsating virus blob
-            const scale = 1.4 + Math.sin(Date.now() * 0.02) * 0.2;
+            const scale = 1.4 + Math.sin(rendererInstance.animationTime * 0.12) * 0.2;
             stampOrganicBlob(rendererInstance, this.x + 1.5, this.y + 1.5, scale, VIRUS_CHARS, 0.85 * brightMult);
         }
         else if (this.type === 'boss_snake') {
@@ -680,8 +705,9 @@ export class Enemy {
         }
         else if (this.type === 'kamikaze') {
             // Draw a wobbly blinking hazard symbol
-            const isBlink = Math.floor(Date.now() / 150) % 2 === 0;
-            const char = isBlink ? '⚠' : '!';
+            const isBlink = Math.floor(rendererInstance.animationTime / 9) % 2 === 0;
+            const count = this.detonationTimer === null ? '!' : String(Math.max(1, Math.ceil(this.detonationTimer / 20)));
+            const char = isBlink ? count : '!';
             stampOrganicBlob(rendererInstance, this.x + 0.5, this.y + 0.5, 1.2, [char], 1.0 * brightMult);
         }
         else if (this.type === 'shield_projector') {
@@ -709,8 +735,8 @@ export class Enemy {
             if (enemies && enemies.enemies) {
                 const px = this.x + 1.5;
                 const py = this.y + 1.5;
-                for (const other of enemies.enemies) {
-                    if (other && other !== this && other.shielded && other.type !== 'blackhole') {
+                for (const other of this.linkedTargets || []) {
+                    if (other && other.hp > 0) {
                         // Draw a simple dotted line between projector and other
                         const ow = other.width !== undefined ? other.width : 1;
                         const oh = other.height !== undefined ? other.height : 1;
@@ -730,6 +756,7 @@ export class Enemy {
                                     rendererInstance.types[lx][ly] = RENDER_CELL_TYPES.ENEMY_GLITCH;
                                     rendererInstance.chars[lx][ly] = '≈';
                                     rendererInstance.brightness[lx][ly] = 0.8 * brightMult;
+                                    rendererInstance.customColors[lx][ly] = this.color;
                                 }
                             }
                         }
@@ -737,30 +764,10 @@ export class Enemy {
                 }
             }
         }
-        else if (this.type === 'blackhole') {
-            const angleOffset = (Date.now() * 0.005);
-            for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-                const rot = a + angleOffset;
-                const sx = Math.floor(this.x + 2.5 + Math.cos(rot) * 2.0);
-                const sy = Math.floor(this.y + 2.5 + Math.sin(rot) * 2.0);
-                if (sx >= 0 && sx < rendererInstance.cols && sy >= 0 && sy < rendererInstance.rows) {
-                    rendererInstance.types[sx][sy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
-                    rendererInstance.chars[sx][sy] = ['@', '%', '#', '*'][Math.floor(Math.random() * 4)];
-                    rendererInstance.brightness[sx][sy] = 0.9;
-                }
-            }
-            const cx = Math.floor(this.x + 2.5);
-            const cy = Math.floor(this.y + 2.5);
-            if (cx >= 0 && cx < rendererInstance.cols && cy >= 0 && cy < rendererInstance.rows) {
-                rendererInstance.types[cx][cy] = RENDER_CELL_TYPES.ENEMY_GLITCH;
-                rendererInstance.chars[cx][cy] = ' ';
-                rendererInstance.brightness[cx][cy] = 1.0;
-            }
-        }
     }
 
     getHitbox() {
-        const padding = 2.0; // Padded hitboxes so they are easy to hit!
+        const padding = Math.max(0.7, this.width * 0.2);
         
         if (this.type === 'boss_snake') {
             const boxes = [
@@ -788,26 +795,49 @@ export class Enemy {
         };
     }
 
-    takeDamage(amount) {
+    getContactHitbox() {
+        const insetX = Math.min(this.width * 0.15, 1.5);
+        const insetY = Math.min(this.height * 0.15, 1.5);
+        return {
+            x: this.x + insetX,
+            y: this.y + insetY,
+            width: Math.max(0.8, this.width - insetX * 2),
+            height: Math.max(0.8, this.height - insetY * 2),
+            isCircle: false
+        };
+    }
+
+    takeDamage(amount, hitX = null, hitY = null) {
         if (this.shielded && this.type !== 'shield_projector') {
             effects.spawnImpactSparks(this.x + this.width/2, this.y + this.height/2);
             audio.playHit();
             return false; // shielded from damage
         }
+        const weakPointHit = hitX !== null && hitY !== null && this.weakPoints.some(point =>
+            this.phase >= point.phase
+            && hitX >= this.x + point.x && hitX <= this.x + point.x + point.width
+            && hitY >= this.y + point.y && hitY <= this.y + point.y + point.height
+        );
+        if (weakPointHit) amount *= 1.35;
         this.hp -= amount;
+        if (amount >= 1) effects.spawnDamageText(this.x + this.width / 2, this.y, `-${Math.round(amount * 10) / 10}`, this.color);
 
-        // Screen shake if boss is damaged!
-        if (this.type === 'boss_snake' || this.type === 'boss_eye' || this.type === 'boss_carrier') {
-            renderer.triggerShake(5, 1.2);
+        if (BOSS_TYPES.has(this.type) && amount >= 10 && renderer.shakeTimer <= 0) {
+            renderer.triggerShake(2, 0.35);
         }
 
         return this.hp <= 0;
     }
 
     onDeath(enemyManager, spawnedProjectiles = []) {
-        if (this.type === 'boss_snake' || this.type === 'boss_eye' || this.type === 'boss_carrier') {
-            renderer.triggerShake(35, 6.0); // HUGE boss death shake!
-            effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, '#ff3366', 80); // Massive explosion
+        if (BOSS_TYPES.has(this.type)) {
+            renderer.triggerShake(28, 4.5);
+            const sections = 7;
+            for (let i = 0; i < sections; i++) {
+                const sx = this.x + ((i * 7) % Math.max(1, this.width));
+                const sy = this.y + ((i * 5) % Math.max(1, this.height));
+                effects.spawnGlitchExplosion(sx, sy, PALETTE.boss, 18 + i * 4);
+            }
         } else {
             effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 35 : 15);
         }
@@ -852,17 +882,18 @@ class EnemyManager {
     }
 
     spawn(x, y, type) {
-        const normalTypes = ['drone', 'brute', 'brute_medium', 'shooter', 'worm', 'virus', 'kamikaze', 'shield_projector'];
-        if (normalTypes.includes(type)) {
+        if (NORMAL_ENEMY_TYPES.has(type)) {
             let normalCount = 0;
             for (const e of this.enemies) {
-                if (e && normalTypes.includes(e.type)) {
+                if (e && NORMAL_ENEMY_TYPES.has(e.type)) {
                     normalCount++;
                 }
             }
-            if (normalCount >= 45) return;
+            if (normalCount >= 45) return null;
         }
-        this.enemies.push(new Enemy(x, y, type));
+        const enemy = new Enemy(x, y, type);
+        this.enemies.push(enemy);
+        return enemy;
     }
 
     update(playerInstance, gridCols, gridRows) {
@@ -892,10 +923,38 @@ class EnemyManager {
 
         for (const proj of spawnedProjectiles) this.projectiles.push(proj);
 
+        // Gentle separation keeps silhouettes from collapsing into unreadable red clumps.
+        for (let i = 0; i < this.enemies.length; i++) {
+            const a = this.enemies[i];
+            if (!a) continue;
+            for (let j = i + 1; j < this.enemies.length; j++) {
+                const b = this.enemies[j];
+                if (!b) continue;
+                const dx = (b.x + b.width / 2) - (a.x + a.width / 2);
+                const dy = (b.y + b.height / 2) - (a.y + a.height / 2);
+                const dist = Math.hypot(dx, dy) || 0.01;
+                const minDist = Math.min(4, (a.width + b.width) * 0.28 + 0.8);
+                if (dist < minDist) {
+                    const push = (minDist - dist) * 0.012;
+                    a.vx -= (dx / dist) * push;
+                    a.vy -= (dy / dist) * push;
+                    b.vx += (dx / dist) * push;
+                    b.vy += (dy / dist) * push;
+                }
+            }
+        }
+
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const p = this.projectiles[i];
             p.update(playerInstance);
-            if (p.life <= 0 || p.x < 0 || p.x > gridCols || p.y < 0 || p.y > gridRows) {
+            const ix = Math.floor(p.x);
+            const iy = Math.floor(p.y);
+            const hitObstacle = ix >= 0 && ix < matrixRain.cols && iy >= 0 && iy < matrixRain.rows && matrixRain.obstacles?.[ix]?.[iy];
+            if (hitObstacle) {
+                matrixRain.damageObstacle(ix, iy, 0.5);
+                effects.spawnImpactSparks(p.x, p.y, PALETTE.enemyShot);
+            }
+            if (hitObstacle || p.life <= 0 || p.x < 0 || p.x > gridCols || p.y < 0 || p.y > gridRows) {
                 this.projectiles.splice(i, 1);
             }
         }
@@ -903,7 +962,16 @@ class EnemyManager {
 
     stampToGrid(rendererInstance) {
         for (const enemy of this.enemies) {
-            if (enemy) enemy.stampToGrid(rendererInstance);
+            if (enemy) {
+                enemy.stampToGrid(rendererInstance);
+                const minX = Math.max(0, Math.floor(enemy.x - 7));
+                const maxX = Math.min(rendererInstance.cols - 1, Math.ceil(enemy.x + enemy.width + 7));
+                const minY = Math.max(0, Math.floor(enemy.y - 7));
+                const maxY = Math.min(rendererInstance.rows - 1, Math.ceil(enemy.y + enemy.height + 7));
+                for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) {
+                    if (rendererInstance.types[x][y] === RENDER_CELL_TYPES.ENEMY_GLITCH) rendererInstance.customColors[x][y] = enemy.color;
+                }
+            }
         }
         for (const p of this.projectiles) {
             if (p) p.stampToGrid(rendererInstance);
