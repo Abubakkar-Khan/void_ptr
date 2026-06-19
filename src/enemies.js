@@ -20,6 +20,12 @@ const WORM_CHARS = ['S', 'N', 'A', 'K', 'E', '8', 's', 'o', '0'];
 const VIRUS_CHARS = ['☣', '☠', '✖', '†', '‡', '§', '¶', '?', '*'];
 const BOSS_HEAD_CHARS = ['█', '☣', '☠', '⚔', '✖', '☠', '☣'];
 const BOSS_SEG_CHARS = ['F','A','T','A','L','E','R','R','O','R','C','R','A','S','H'];
+const FAMILY_COLORS = Object.freeze({
+    skitter: '#ff355d', bloomcaster: '#ff3dbb', ribbon: '#d92f63', prism: '#ff82c8',
+    carapace: '#b91f49', burst_sac: '#ff9b32', rootweaver: '#52d6c7',
+    spore: '#79a86b', colony: '#568b63', parasite: '#bd62ff', amalgam: '#d84592',
+    serpent: '#ff214f', watcher: '#ff4fb8', carrier: '#c72768'
+});
 
 function get8WayDirection(vx, vy) {
     let angle = Math.atan2(vy, vx);
@@ -130,9 +136,21 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
         const heart = living('core', enemy.phase === 2 ? (blink ? '@' : '*') : '%');
         stampPattern(rendererInstance, enemy.x + 1, enemy.y + 2, [`:${bay}:`, '%%::%%', blink ? ':o::o:' : '::oo::'], 0.92, enemy.color);
         stampPattern(rendererInstance, enemy.x + 11, enemy.y + 5, [`:${bay.split('').reverse().join('')}:`, '%%::%%', blink ? '::oo::' : ':o::o:'], 0.92, enemy.color);
-        stampPattern(rendererInstance, enemy.x + 6, enemy.y + 4, [blink ? '::%%%%::' : ':%::::%:', `%%:{${heart}}:%%`, blink ? ':%::::%:' : '::%%%%::'], 1, PALETTE.boss);
+        const heartOrgan = enemy.organs?.find(entry => entry.id === 'core');
+        const heartX = enemy.x + Math.floor((heartOrgan?.x ?? 9) - 3);
+        const heartY = enemy.y + Math.floor((heartOrgan?.y ?? 5) - 1);
+        stampPattern(rendererInstance, heartX, heartY, [blink ? '::%%%%::' : ':%::::%:', `%%:{${heart}}:%%`, blink ? ':%::::%:' : '::%%%%::'], 1, PALETTE.boss);
+        if (enemy.attackState === 'broadside' && enemy.broodType) {
+            const broodGlyph = enemy.broodType === 'virus' ? '+' : enemy.broodType === 'kamikaze' ? '!' : '~';
+            stampPattern(rendererInstance, enemy.x + 2, enemy.y + 1, [`:${broodGlyph}:${broodGlyph}:`], 1, PALETTE.enemyShot);
+            stampPattern(rendererInstance, enemy.x + 12, enemy.y + 8, [`:${broodGlyph}:${broodGlyph}:`], 1, PALETTE.enemyShot);
+        }
         stampPattern(rendererInstance, enemy.x + 3, enemy.y + 9, [blink ? 'Y  |  Y  |  Y' : '|  Y  |  Y  |'], 0.72, '#ff9de2');
         if (enemy.broodRuptured) stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, ['x : x', ' ,x, '], 1, '#ff9de2');
+    }
+    for (const point of enemy.weakPoints || []) {
+        if (enemy.phase < point.phase) continue;
+        stampPattern(rendererInstance, enemy.x + Math.floor(point.x + point.width / 2), enemy.y + Math.floor(point.y + point.height / 2), [blink ? '*' : ':'], 1, '#ffd0e8');
     }
     if (enemy.signal) stampPattern(rendererInstance, enemy.x + enemy.width / 2, enemy.y - 2, [enemy.signal], 1, PALETTE.enemyShot);
 }
@@ -215,6 +233,8 @@ export class Enemy {
         this.phase = 1;
         this.phaseTransitionTimer = 0;
         this.attackState = 'idle';
+        this.attackStateTimer = 0;
+        this.lungeTimer = 0;
         this.telegraphTimer = 0;
         this.lockedAimAngle = 0;
         this.weakPoints = [];
@@ -232,6 +252,7 @@ export class Enemy {
         this.intentOffset = null;
         this.consumed = false;
         this.deathState = null;
+        this.rewardedOrganStates = new Set();
         this.birthTimer = options.birthTimer ?? 32;
 
         this.initType();
@@ -256,6 +277,9 @@ export class Enemy {
         this.genome = biology.genome;
         this.bodyPlan = biology.bodyPlan;
         this.organs = biology.bodyPlan.organs;
+        this.color = FAMILY_COLORS[this.genome.family] || this.color;
+        if (this.type === 'kamikaze') this.color = PALETTE.enemyShot;
+        if (BOSS_TYPES.has(this.type)) this.color = FAMILY_COLORS[this.genome.family] || PALETTE.boss;
         this.coordinationRadius = 18 * getGenomeModifiers(this.genome).link;
     }
 
@@ -266,6 +290,11 @@ export class Enemy {
 
     update(playerX, playerY, gridCols, gridRows, spawnedProjectiles, enemyManager) {
         this.life++;
+        if (this.attackStateTimer > 0 && --this.attackStateTimer === 0) {
+            if (this.attackState === 'release') { this.attackState = 'recover'; this.attackStateTimer = 12; }
+            else if (this.attackState === 'recover') this.attackState = 'idle';
+        }
+        if (this.lungeTimer > 0) this.lungeTimer--;
         this.lastPlayerX = playerX;
         this.lastPlayerY = playerY;
         if (this.signalTimer > 0) this.signalTimer--;
@@ -351,8 +380,18 @@ export class Enemy {
         let moveY = 0;
 
         if (this.type === 'drone') {
-            moveX = (dx / dist) * 0.07;
-            moveY = (dy / dist) * 0.07;
+            this.waveTime += 0.11;
+            const flank = this.genome.bias * Math.sin(this.waveTime) * 0.065;
+            moveX = (dx / dist) * 0.052 - (dy / dist) * flank;
+            moveY = (dy / dist) * 0.052 + (dx / dist) * flank;
+            if (this.fireCooldown <= 22 && this.fireCooldown > 0 && dist < 18) {
+                this.attackState = 'prepare'; this.signal = this.genome.bias > 0 ? '>' : '<'; this.signalTimer = 10;
+            }
+            if (this.fireCooldown <= 0 && dist < 18) {
+                this.attackState = 'release'; this.attackStateTimer = 7; this.lungeTimer = 14;
+                this.vx += (dx / dist) * 0.72; this.vy += (dy / dist) * 0.72;
+                this.fireCooldown = 95 + (this.genomeSeed % 35);
+            }
         } 
         else if (this.type === 'brute' || this.type === 'brute_medium') {
             moveX = (dx / dist) * 0.025;
@@ -367,15 +406,17 @@ export class Enemy {
                 moveY = -(dy / dist) * 0.025;
             }
 
-            // Bullet Hell Firing: Radial ring of 6 bullets
+            if (this.fireCooldown <= 28 && this.fireCooldown > 0 && dist < 30) this.attackState = 'prepare';
             if (this.fireCooldown <= 0 && dist < 30) {
                 const aimDrift = (1 - organModifier(this, 'aim')) * 0.45 * this.genome.bias;
-                for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+                const baseAngle = Math.atan2(dy, dx) + aimDrift;
+                for (const spread of [-0.18, 0, 0.18]) {
                     spawnedProjectiles.push(new EnemyProjectile(
                         this.x + this.width/2, this.y + this.height/2, 
-                        Math.cos(a + aimDrift) * 0.2, Math.sin(a + aimDrift) * 0.2
+                        Math.cos(baseAngle + spread) * 0.24, Math.sin(baseAngle + spread) * 0.24
                     ));
                 }
+                this.attackState = 'release'; this.attackStateTimer = 8;
                 this.fireCooldown = 220 + Math.random() * 100;
             }
         }
@@ -397,14 +438,17 @@ export class Enemy {
                         Math.cos(baseAngle + aimDrift + sp) * 0.22, Math.sin(baseAngle + aimDrift + sp) * 0.22
                     ));
                 }
+                this.attackState = 'release'; this.attackStateTimer = 8;
                 this.fireCooldown = 180 + Math.random() * 80;
             }
         }
         else if (this.type === 'virus') {
-            // Erratic teleporter and replicator
-            if (Math.random() < 0.01) {
-                this.x += (Math.random() - 0.5) * 5;
-                this.y += (Math.random() - 0.5) * 5;
+            // A readable phase-step replaces noisy random teleporting.
+            if ((this.life + this.genome.pulseOffset) % 150 === 0) {
+                const side = this.genome.bias;
+                this.x += -(dy / dist) * 3 * side;
+                this.y += (dx / dist) * 3 * side;
+                this.attackState = 'divide'; this.attackStateTimer = 14;
             }
 
             moveX = (dx / dist) * 0.045;
@@ -420,6 +464,7 @@ export class Enemy {
                         Math.cos(a + aimDrift) * 0.19, Math.sin(a + aimDrift) * 0.19
                     ));
                 }
+                this.attackState = 'release'; this.attackStateTimer = 8;
                 this.fireCooldown = 200 + Math.random() * 80;
             }
 
@@ -445,10 +490,12 @@ export class Enemy {
             this.vy *= 0.4;
         }
         else if (this.type === 'cell_parasite') {
-            const host = enemyManager?.enemies
-                ?.filter(other => other && other !== this && NORMAL_ENEMY_TYPES.has(other.type) && !ECOSYSTEM_TYPES.has(other.type))
-                .map(other => ({ other, distance: Math.hypot(other.x - this.x, other.y - this.y) }))
-                .sort((a, b) => a.distance - b.distance)[0]?.other;
+            const host = colonyMind.query(this.x, this.y, 22)
+                .filter(other => other && other !== this && NORMAL_ENEMY_TYPES.has(other.type) && !ECOSYSTEM_TYPES.has(other.type))
+                .reduce((best, other) => {
+                    const distance = Math.hypot(other.x - this.x, other.y - this.y);
+                    return !best || distance < best.distance ? { other, distance } : best;
+                }, null)?.other;
             if (host) {
                 const hdx = host.x + host.width / 2 - (this.x + 0.5);
                 const hdy = host.y + host.height / 2 - (this.y + 0.5);
@@ -469,7 +516,8 @@ export class Enemy {
         else if (this.type === 'boss_snake') {
             this.waveTime += 0.04;
             const baseAngle = Math.atan2(dy, dx);
-            const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8;
+            const coilBias = this.attackCycle % 3 === 1 ? this.genome.bias * 0.72 : 0;
+            const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8 + coilBias;
             const speedMult = this.phase === 2 ? 1.65 : 1;
             moveX = Math.cos(slitherAngle) * 0.04 * speedMult;
             moveY = Math.sin(slitherAngle) * 0.04 * speedMult;
@@ -493,6 +541,11 @@ export class Enemy {
                 for (let ox = -4; ox <= 4; ox += 2) for (let oy = -4; oy <= 4; oy += 2) {
                     if (ecosystem.damageTerrain(this.x + this.width / 2 + ox, this.y + this.height / 2 + oy, 1)) this.hp = Math.min(this.maxHp, this.hp + 0.35);
                 }
+            }
+            if (this.life % 120 === 0) {
+                const travel = (this.life / 120) % 3;
+                this.weakPoints = [{ x: 2 + travel * 3, y: 2 + (travel % 2) * 3, width: 2, height: 2, phase: 1 }];
+                if (this.phase === 2) this.weakPoints.push({ x: 9 - travel * 2, y: 5 - (travel % 2) * 2, width: 2, height: 2, phase: 2 });
             }
         }
         else if (this.type === 'boss_eye') {
@@ -540,10 +593,11 @@ export class Enemy {
             if (this.fireCooldown <= 38 && this.fireCooldown > 0) {
                 this.attackState = 'broadside';
                 this.lockedAimAngle = baseA;
+                if (!this.broodType) this.broodType = (this.attackCycle + this.genomeSeed) % 3 === 0 ? 'virus' : (this.attackCycle + this.genomeSeed) % 3 === 1 ? 'drone' : 'kamikaze';
             }
             if (this.fireCooldown <= 0) {
                 if (enemyManager && enemyManager.enemies.length < 40 && organModifier(this, 'gestation') > 0.25) {
-                    const spawnType = Math.random() < 0.65 ? 'drone' : 'virus';
+                    const spawnType = this.broodType || 'drone';
                     enemyManager.spawn(this.x - 2, this.y + 4, spawnType);
                     enemyManager.spawn(this.x + 18, this.y + 4, spawnType);
                     if (this.phase === 2) enemyManager.spawn(this.x + 8, this.y + 11, 'kamikaze');
@@ -553,6 +607,7 @@ export class Enemy {
                     spawnedProjectiles.push(new EnemyProjectile(this.x + 9, this.y + 5, Math.cos(a) * 0.31, Math.sin(a) * 0.31, this.phase === 2 && a === angles[2]));
                 }
                 this.attackCycle++;
+                this.broodType = null;
                 this.attackState = 'recover';
                 this.fireCooldown = this.phase === 2 ? 82 : 118;
             }
@@ -567,10 +622,20 @@ export class Enemy {
                     this.signal = '+'; this.signalTimer = 55;
                 }
             }
+            if (this.phase === 2 && this.life % 90 === 0) {
+                const heart = this.organs.find(entry => entry.id === 'core');
+                if (heart) {
+                    heart.x = 5 + ((this.life / 90) % 3) * 4;
+                    heart.y = 3 + ((this.life / 180) % 2) * 3;
+                    this.weakPoints = [{ x: heart.x - 1, y: heart.y - 1, width: 3, height: 3, phase: 2 }];
+                    this.signal = '@'; this.signalTimer = 32;
+                }
+            }
         }
         else if (this.type === 'kamikaze') {
             if (dist < 8 && this.detonationTimer === null) this.detonationTimer = 60;
             if (this.detonationTimer !== null) {
+                this.attackState = 'countdown';
                 this.detonationTimer--;
                 moveX = (dx / dist) * 0.035;
                 moveY = (dy / dist) * 0.035;
@@ -594,18 +659,19 @@ export class Enemy {
             }
 
             // Project shields to other enemies within 16 units
-            if (enemyManager && enemyManager.enemies) {
+            if (enemyManager && enemyManager.enemies && (this.life % 8 === 0 || !this.linkedTargets.length)) {
                 const px = this.x + 1.5;
                 const py = this.y + 1.5;
-                this.linkedTargets = enemyManager.enemies
+                this.linkedTargets = colonyMind.query(px, py, 16)
                     .filter(other => other && other !== this && other.type !== 'shield_projector' && other.hp > 0)
                     .map(other => ({ other, dist: Math.hypot(other.x + other.width / 2 - px, other.y + other.height / 2 - py) }))
                     .filter(entry => entry.dist < 16)
                     .sort((a, b) => a.dist - b.dist)
                     .slice(0, 2)
                     .map(entry => entry.other);
-                for (const target of this.linkedTargets) target.shielded = true;
             }
+            for (const target of this.linkedTargets) if (target?.hp > 0) target.shielded = true;
+            if (this.life % 30 === 0) ecosystem.addNutrient(this.x + this.width / 2, this.y + this.height / 2, 0.18);
         }
 
         // Check if inside a static glitch obstacle field (slowing penalty!)
@@ -724,7 +790,18 @@ export class Enemy {
                 }
             }
             const bodyWidth = Math.max(...livingBody.map(row => row.length));
-            stampPattern(rendererInstance, this.x - Math.floor((bodyWidth - this.width) / 2), this.y - Math.max(0, Math.floor((livingBody.length - this.height) / 2)), livingBody, brightMult, this.color);
+            const bodyX = this.x - Math.floor((bodyWidth - this.width) / 2);
+            const bodyY = this.y - Math.max(0, Math.floor((livingBody.length - this.height) / 2));
+            stampPattern(rendererInstance, bodyX, bodyY, livingBody, brightMult, this.color);
+            const shell = this.organs.find(entry => entry.effect === 'armor');
+            for (const organ of this.organs) {
+                const activeAttack = organ.type === 'attack' && ['prepare', 'countdown', 'divide', 'release'].includes(this.attackState);
+                const exposedCore = organ.type === 'core' && (!shell || shell.state !== OrganState.HEALTHY || this.hp < this.maxHp * 0.45);
+                const damaged = organ.state !== OrganState.HEALTHY;
+                if (!activeAttack && !exposedCore && !damaged) continue;
+                const glyph = organ.state === OrganState.SEVERED ? ' ' : organ.state === OrganState.RUPTURED ? 'x' : organ.state === OrganState.WOUNDED ? ':' : organ.type === 'core' ? '@' : '*';
+                if (glyph !== ' ') stampPattern(rendererInstance, this.x + Math.floor(organ.x), this.y + Math.floor(organ.y), [glyph], 1, activeAttack ? PALETTE.enemyShot : '#ffb3dc');
+            }
             if (this.signal && this.signalTimer > 0) stampPattern(rendererInstance, this.x + Math.floor(this.width / 2), this.y - 2, [this.signal], 1, PALETTE.enemyShot);
             if (this.birthTimer > 0 && blink) stampPattern(rendererInstance, this.x - 1, this.y + this.height + 1, [`<${this.genome.signature}>`], 0.55, '#8cff7a');
             if (this.symbioteBoosted) stampPattern(rendererInstance, this.x - 1, this.y - 1, [blink ? '~^~' : '^~^'], 1, '#ff9de2');
@@ -981,6 +1058,7 @@ export class Enemy {
     }
 
     getContactHitbox() {
+        if (this.type === 'drone' && this.lungeTimer <= 0) return { x: this.x, y: this.y, width: 0, height: 0, isCircle: false };
         const insetX = Math.min(this.width * 0.15, 1.5);
         const insetY = Math.min(this.height * 0.15, 1.5);
         return {
@@ -1014,6 +1092,14 @@ export class Enemy {
         if (weakPointHit) context.amount *= 1.35;
         else if (wound?.organ.type === 'core') context.amount *= Math.min(1.18, genomeMods.coreExposure);
         if (wound?.changed) this.reactToWound(wound.organ);
+        if (wound?.changed) {
+            const rewardKey = `${wound.organ.id}:${wound.organ.state}`;
+            if (!this.rewardedOrganStates.has(rewardKey) && [OrganState.RUPTURED, OrganState.SEVERED].includes(wound.organ.state)) {
+                this.rewardedOrganStates.add(rewardKey);
+                this.xpValue += BOSS_TYPES.has(this.type) ? 12 : 3;
+            }
+        }
+        if (context.hitX !== null && context.hitY !== null) effects.spawnTissueEjection(context.hitX, context.hitY, context.directionX, context.directionY, this.color, context.amount >= 10 ? 5 : 3, wound?.organ.type === 'core' ? '@' : ':');
         this.hp -= context.amount;
         evolution.recordDamage(this, context, context.amount);
         stats.recordHit(context.amount);
@@ -1051,13 +1137,17 @@ export class Enemy {
                 effects.spawnGlitchExplosion(sx, sy, PALETTE.boss, 18 + i * 4);
             }
         } else {
-            effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 35 : 15);
+            const accent = { skitter: '-', bloomcaster: '%', ribbon: '~', prism: '+', carapace: '#', burst_sac: '!', rootweaver: 'Y', parasite: '^', amalgam: ':' }[this.genome?.family] || ':';
+            const pieces = this.genome?.family === SpeciesFamily.CARAPACE ? 7 : this.genome?.family === SpeciesFamily.RIBBON ? 6 : 4;
+            for (let i = 0; i < pieces; i++) effects.spawnShatter(this.x + this.width * (i + 1) / (pieces + 1), this.y + this.height * ((i % 3) + 1) / 4, accent, this.color);
+            effects.spawnGlitchExplosion(this.x + this.width/2, this.y + this.height/2, this.color, this.type === 'brute' ? 18 : 9);
         }
 
         if (this.type === 'kamikaze') {
             effects.spawnGlitchExplosion(this.x + 0.5, this.y + 0.5, '#ff3333', 25);
-            // Spawn circular ring of 10 projectiles
-            for (let a = 0; a < Math.PI * 2; a += Math.PI / 5) {
+            const away = Math.atan2(this.y - (this.lastPlayerY ?? this.y), this.x - (this.lastPlayerX ?? this.x));
+            const spreads = this.detonated ? Array.from({ length: 10 }, (_, i) => i * Math.PI * 2 / 10) : [-0.55, -0.28, 0, 0.28, 0.55].map(offset => away + offset);
+            for (const a of spreads) {
                 spawnedProjectiles.push(new EnemyProjectile(
                     this.x + 0.5, this.y + 0.5,
                     Math.cos(a) * 0.35, Math.sin(a) * 0.35
@@ -1065,15 +1155,8 @@ export class Enemy {
             }
         }
         
-        // Bullet Hell: Brute releases a massive 8-bullet ring when killed/splitting!
+        // Broken carapace divides into two vulnerable organisms without an unavoidable death ring.
         if (this.type === 'brute') {
-            for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-                spawnedProjectiles.push(new EnemyProjectile(
-                    this.x + this.width/2, this.y + this.height/2,
-                    Math.cos(a) * 0.45, Math.sin(a) * 0.45
-                ));
-            }
-
             if (enemyManager) {
                 enemyManager.spawn(this.x - 1, this.y, 'brute_medium');
                 enemyManager.spawn(this.x + 2, this.y, 'brute_medium');

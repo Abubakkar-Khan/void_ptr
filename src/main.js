@@ -47,6 +47,7 @@ class GameEngine {
         this.stateBeforePortrait = null;
         this.guideReturnState = GAME_STATES.PLAYING;
         this.lastRenderTime = 0;
+        this.performanceMetrics = { updateMs: 0, renderMs: 0 };
     }
 
     init() {
@@ -251,6 +252,7 @@ class GameEngine {
         this.accumulator += dt;
 
         let ticks = 0;
+        const updateStarted = performance.now();
         while (this.accumulator >= this.tickRate) {
             this.update();
             this.accumulator -= this.tickRate;
@@ -260,10 +262,15 @@ class GameEngine {
                 break;
             }
         }
+        const updateCost = performance.now() - updateStarted;
+        this.performanceMetrics.updateMs = this.performanceMetrics.updateMs * 0.9 + updateCost * 0.1;
 
         const renderInterval = renderer.lowPowerMode ? 1000 / 30 : 0;
         if (!renderInterval || time - this.lastRenderTime >= renderInterval) {
+            const renderStarted = performance.now();
             this.draw();
+            const renderCost = performance.now() - renderStarted;
+            this.performanceMetrics.renderMs = this.performanceMetrics.renderMs * 0.9 + renderCost * 0.1;
             this.lastRenderTime = time;
         }
         requestAnimationFrame((t) => this.loop(t));
@@ -562,7 +569,7 @@ class GameEngine {
             threat: waves.getThreatLabel(), weapon: WEAPON_DEFS[player.weaponType]?.name || player.weaponType,
             heat: player.weaponType === 'null_laser' ? Math.round(player.heat) : null,
             overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
-            boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}` : '',
+            boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length} U:${this.performanceMetrics.updateMs.toFixed(1)} R:${this.performanceMetrics.renderMs.toFixed(1)} C:${renderer.lastVisibleCells || 0}` : '',
             hint: !input.touchCapable && waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : '',
             touch: input.touchCapable ? { ...input.getTouchPresentation(), dashReady: player.dashCooldown <= 0, dashSeconds: Math.ceil(player.dashCooldown / 60) } : null,
             controller: !!input.getGamepad()

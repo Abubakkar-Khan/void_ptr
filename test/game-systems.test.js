@@ -557,3 +557,40 @@ test('organic bosses expose authored organs and metamorphose through organ failu
         assert.ok(boss.weakPoints.length > 0);
     }
 });
+
+test('organic morphology has stable preparation, release, and recovery states', () => {
+    const creature = new Enemy(10, 10, 'shooter', { seed: 5150 });
+    creature.attackState = 'idle';
+    const idle = renderCreatureBody(creature, 24).join('\n');
+    creature.attackState = 'prepare';
+    const prepared = renderCreatureBody(creature, 24).join('\n');
+    creature.attackState = 'release';
+    const released = renderCreatureBody(creature, 24).join('\n');
+    creature.attackState = 'recover';
+    const recovered = renderCreatureBody(creature, 24).join('\n');
+    assert.notEqual(prepared, idle);
+    assert.notEqual(released, prepared);
+    assert.notEqual(recovered, released);
+    creature.attackState = 'prepare';
+    assert.equal(renderCreatureBody(creature, 24).join('\n'), prepared);
+});
+
+test('combat rituals telegraph attacks and organ destruction increases the kill reward', () => {
+    const skitter = new Enemy(10, 10, 'drone', { seed: 71 });
+    skitter.introTimer = 0;
+    skitter.fireCooldown = 10;
+    skitter.update(20, 10, 100, 100, [], { enemies: [skitter], spawn() {} });
+    assert.equal(skitter.attackState, 'prepare');
+    assert.equal(skitter.getContactHitbox().width, 0);
+    skitter.fireCooldown = 0;
+    skitter.update(20, 10, 100, 100, [], { enemies: [skitter], spawn() {} });
+    assert.equal(skitter.attackState, 'release');
+    assert.ok(skitter.getContactHitbox().width > 0);
+
+    const caster = new Enemy(10, 10, 'shooter', { seed: 72 });
+    caster.introTimer = 0;
+    const startingXp = caster.xpValue;
+    const attack = caster.organs.find(organ => organ.type === 'attack');
+    caster.takeDamage({ amount: 30, damageType: 'bullet', hitX: caster.x + attack.x, hitY: caster.y + attack.y, directionX: 1 });
+    assert.ok(caster.xpValue > startingXp);
+});

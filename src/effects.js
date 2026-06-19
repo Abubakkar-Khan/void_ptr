@@ -124,6 +124,21 @@ class EffectSystem {
         }
     }
 
+    spawnTissueEjection(gridX, gridY, directionX, directionY, color = '#ff3366', count = 4, glyph = ':') {
+        const screenX = (gridX - renderer.camX) * renderer.cellWidth;
+        const screenY = (gridY - renderer.camY) * renderer.cellHeight;
+        const length = Math.hypot(directionX, directionY) || 1;
+        const nx = directionX / length, ny = directionY / length;
+        const total = renderer.lowPowerMode ? Math.min(2, count) : count;
+        for (let i = 0; i < total; i++) {
+            const spread = (i - (total - 1) / 2) * 0.35;
+            this.particles.push(new Particle(screenX, screenY,
+                (nx - ny * spread) * (1.2 + i * 0.25),
+                (ny + nx * spread) * (1.2 + i * 0.25),
+                { char: i === 0 ? glyph : '.', color, life: 10 + i * 3, size: 9, glow: false }));
+        }
+    }
+
     spawnImpactSparks(gridX, gridY, color = '#00ff41') {
         const screenX = (gridX - renderer.camX) * renderer.cellWidth;
         const screenY = (gridY - renderer.camY) * renderer.cellHeight;

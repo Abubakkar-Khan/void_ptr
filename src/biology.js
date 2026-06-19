@@ -92,6 +92,34 @@ export class OrganicField {
         this.width = this.profile.width;
         this.height = this.profile.height;
         this.frames = this.buildFrames();
+        this.stateFrames = {
+            idle: this.frames,
+            prepare: this.transformFrames('prepare'),
+            release: this.transformFrames('release'),
+            recovery: this.transformFrames('recovery')
+        };
+    }
+
+    transformFrames(state) {
+        const cx = (this.width - 1) * 0.5, cy = (this.height - 1) * 0.5;
+        return this.frames.map((frame, frameIndex) => frame.flatMap(cell => {
+            const noise = cellNoise(this.seed, frameIndex + 31, cell.x, cell.y);
+            if (state === 'recovery' && noise < 0.18) return [];
+            let x = cell.x, y = cell.y, glyph = cell.glyph;
+            if (state === 'prepare') {
+                x = Math.round(cell.x + (cx - cell.x) * 0.24);
+                y = Math.round(cell.y + (cy - cell.y) * 0.2);
+                glyph = this.profile.glyphs[(this.profile.glyphs.indexOf(glyph) + 1) % this.profile.glyphs.length];
+            } else if (state === 'release') {
+                const forward = cell.x >= cx ? 1 : 0;
+                x = Math.min(this.width - 1, cell.x + forward);
+                y = Math.max(0, Math.min(this.height - 1, cell.y + (noise < 0.5 ? -1 : 1) * forward));
+            } else if (state === 'recovery') {
+                x = Math.max(0, Math.min(this.width - 1, Math.round(cell.x + (cell.x - cx) * 0.12)));
+                y = Math.max(0, Math.min(this.height - 1, Math.round(cell.y + (cell.y - cy) * 0.12)));
+            }
+            return [{ x, y, glyph }];
+        }));
     }
 
     buildFrames() {
@@ -164,7 +192,9 @@ export class OrganicField {
 
     render(enemy, animationTime) {
         const frameIndex = Math.floor((animationTime + enemy.genome.pulseOffset) / 6) % this.frames.length;
-        const cells = this.frames[frameIndex];
+        const state = ['charge', 'gaze', 'iris', 'broadside', 'prepare', 'countdown', 'divide'].includes(enemy.attackState)
+            ? 'prepare' : enemy.attackState === 'release' ? 'release' : enemy.attackState === 'recover' || enemy.attackState === 'ruptured' ? 'recovery' : 'idle';
+        const cells = this.stateFrames[state][frameIndex];
         const grid = Array.from({ length: this.height }, () => Array(this.width).fill(' '));
         for (const cell of cells) {
             let glyph = cell.glyph;

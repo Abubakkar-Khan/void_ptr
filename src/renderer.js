@@ -339,6 +339,7 @@ class GridRenderer {
         const yStart = Math.max(0, camFloorY);
         const xEnd = Math.min(this.worldCols - 1, camFloorX + this.viewCols + 1);
         const yEnd = Math.min(this.worldRows - 1, camFloorY + this.viewRows + 1);
+        this.lastVisibleCells = Math.max(0, xEnd - xStart + 1) * Math.max(0, yEnd - yStart + 1);
 
         for (let x = xStart; x <= xEnd; x++) {
             for (let y = yStart; y <= yEnd; y++) {

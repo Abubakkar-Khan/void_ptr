@@ -61,9 +61,9 @@ export class Director {
         this.spawnTimer--;
         if (bossAlive && this.threatTier < 5) return;
         if (this.spawnTimer <= 0) {
-            this.spawnEncounter(rendererInstance);
+            const recovery = this.spawnEncounter(rendererInstance) || 0;
             const pressure = Math.min(60, this.elapsedSeconds / 8);
-            this.spawnTimer = Math.max(20, 88 - pressure);
+            this.spawnTimer = Math.max(20, 88 - pressure) + recovery;
         }
     }
 
@@ -73,8 +73,10 @@ export class Director {
         if (seconds >= 35) available.push('shooter');
         if (seconds >= 75) available.push('worm', 'kamikaze');
         if (seconds >= 130) available.push('virus');
+        if (seconds >= 150) available.push('cell_parasite');
         if (seconds >= 190) available.push('brute');
         if (seconds >= 240) available.push('shield_projector');
+        if (seconds >= 300) available.push('cell_amalgam', 'cell_spore');
         return available;
     }
 
@@ -85,17 +87,21 @@ export class Director {
         const available = this.getAvailableTypes();
         const tier = this.threatTier;
         const recipes = [
-            { name: 'SWARM', types: ['drone'], bonus: 3 },
-            { name: 'CROSSFIRE', types: ['shooter', 'drone'], bonus: 1 },
-            { name: 'REPLICATION', types: ['virus', 'drone'], bonus: 1 },
-            { name: 'ESCORT', types: ['brute', 'shield_projector', 'drone'], bonus: 0 },
-            { name: 'PANIC', types: ['kamikaze', 'drone'], bonus: 2 }
+            { name: 'HUNTING RING', types: ['drone'], bonus: 3, formation: 'ring', recovery: 18 },
+            { name: 'MOVING NEST', types: ['brute', 'shooter'], bonus: 0, formation: 'cluster', recovery: 34 },
+            { name: 'HERDING CURRENT', types: ['worm', 'drone'], bonus: 1, formation: 'line', recovery: 26 },
+            { name: 'DIVISION FIELD', types: ['virus'], bonus: 1, formation: 'mirror', recovery: 30 },
+            { name: 'PARASITE MIGRATION', types: ['cell_parasite', 'drone'], bonus: 1, formation: 'line', recovery: 24 },
+            { name: 'ROOT TERRITORY', types: ['brute', 'shield_projector'], bonus: 0, formation: 'cluster', recovery: 38 },
+            { name: 'PREDATOR FEED', types: ['cell_amalgam', 'cell_spore'], bonus: 0, formation: 'cluster', recovery: 42 },
+            { name: 'PANIC BLOOM', types: ['kamikaze', 'drone'], bonus: 2, formation: 'arc', recovery: 28 }
         ].filter(recipe => recipe.types.every(type => available.includes(type)));
 
         const recipe = recipes.length && Math.random() < 0.55
             ? recipes[Math.floor(Math.random() * recipes.length)]
-            : { name: 'WILD PROCESSES', types: available, bonus: 0 };
+            : { name: 'WILD PROCESSES', types: available, bonus: 0, formation: 'line', recovery: 8 };
         this.encounterName = recipe.name;
+        const anchor = this.getEdgeSpawn(rendererInstance, 6);
 
         let budget = Math.min(26, 5 + tier * 2 + recipe.bonus);
         let safety = 0;
@@ -103,10 +109,30 @@ export class Director {
             const affordable = recipe.types.filter(type => (ENEMY_DEFS[type]?.cost || 1) <= budget);
             if (!affordable.length) break;
             const type = affordable[Math.floor(Math.random() * affordable.length)];
-            const pos = this.getEdgeSpawn(rendererInstance, 6);
-            enemies.spawn(pos.x + (Math.random() - 0.5) * 5, pos.y + (Math.random() - 0.5) * 5, type);
+            const pos = this.getFormationPosition(rendererInstance, anchor, recipe.formation, safety);
+            enemies.spawn(pos.x + (Math.random() - 0.5) * 1.5, pos.y + (Math.random() - 0.5) * 1.5, type);
             budget -= ENEMY_DEFS[type]?.cost || 1;
         }
+        return recipe.recovery;
+    }
+
+    getFormationPosition(rendererInstance, anchor, formation, index) {
+        const centerX = rendererInstance.camX + rendererInstance.viewCols / 2;
+        const centerY = rendererInstance.camY + rendererInstance.viewRows / 2;
+        const toward = Math.atan2(centerY - anchor.y, centerX - anchor.x);
+        const tangentX = -Math.sin(toward), tangentY = Math.cos(toward);
+        if (formation === 'ring' || formation === 'arc') {
+            const arc = formation === 'ring' ? Math.PI * 1.45 : Math.PI * 0.8;
+            const angle = toward - arc / 2 + (index % 9) / 8 * arc;
+            const radius = Math.max(12, Math.min(rendererInstance.viewCols, rendererInstance.viewRows) * 0.42);
+            return { x: centerX - Math.cos(angle) * radius, y: centerY - Math.sin(angle) * radius };
+        }
+        if (formation === 'cluster') return { x: anchor.x + (index % 3 - 1) * 4, y: anchor.y + (Math.floor(index / 3) % 3 - 1) * 3 };
+        if (formation === 'mirror') {
+            const side = index % 2 ? 1 : -1;
+            return { x: anchor.x + tangentX * side * (3 + index), y: anchor.y + tangentY * side * (3 + index) };
+        }
+        return { x: anchor.x + tangentX * (index - 4) * 2.5, y: anchor.y + tangentY * (index - 4) * 2.5 };
     }
 
     getEdgeSpawn(rendererInstance, padding = 6) {
