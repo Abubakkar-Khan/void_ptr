@@ -24,7 +24,9 @@ const GAME_STATES = {
     GAME_OVER: 'game_over',
     VICTORY: 'victory',
     RECORDS: 'records',
-    PAUSED: 'paused'
+    PAUSED: 'paused',
+    SETTINGS: 'settings',
+    MOBILE_GUIDE: 'mobile_guide'
 };
 
 class GameEngine {
@@ -41,6 +43,9 @@ class GameEngine {
         this.comboTimer = 0;
         this.totalKills = 0;
         this.upgradeRerolls = 1;
+        this.portraitBlocked = false;
+        this.stateBeforePortrait = null;
+        this.guideReturnState = GAME_STATES.PLAYING;
     }
 
     init() {
@@ -53,7 +58,7 @@ class GameEngine {
         renderer.reducedMotion = ui.reducedMotion;
         renderer.monochrome = !ui.colorMode;
         
-        window.addEventListener('resize', () => renderer.resize());
+        window.addEventListener('resize', () => { input.updateMobileDisplay(); renderer.resize(); });
         document.addEventListener('visibilitychange', () => {
             if (document.hidden && this.state === GAME_STATES.PLAYING) {
                 this.state = GAME_STATES.PAUSED;
@@ -62,6 +67,8 @@ class GameEngine {
         });
 
         canvas.addEventListener('pointerdown', (event) => {
+            input.activateMobileDisplay();
+            if (input.mobile.isPortrait) return;
             input.updateMousePos(event);
             audio.init();
             if (this.state !== GAME_STATES.PLAYING) {
@@ -141,7 +148,10 @@ class GameEngine {
         this.comboTimer = 0;
         this.totalKills = 0;
         renderer.snapCamera(player.x + player.width / 2, player.y + player.height / 2);
-        this.state = GAME_STATES.PLAYING;
+        if (input.touchCapable && !input.mobile.guideDismissed) {
+            this.guideReturnState = GAME_STATES.PLAYING;
+            this.state = GAME_STATES.MOBILE_GUIDE;
+        } else this.state = GAME_STATES.PLAYING;
         ui.currentScreen = null;
     }
 
@@ -176,6 +186,18 @@ class GameEngine {
         } else if (action === 'records') {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.RECORDS;
+            ui.currentScreen = null;
+        } else if (action === 'settings') {
+            audio.playUpgradeSelect();
+            this.state = GAME_STATES.SETTINGS;
+            ui.currentScreen = null;
+        } else if (action === 'controls') {
+            this.guideReturnState = this.state === GAME_STATES.PAUSED ? GAME_STATES.PAUSED : GAME_STATES.MENU;
+            this.state = GAME_STATES.MOBILE_GUIDE;
+            ui.currentScreen = null;
+        } else if (action === 'guide_close') {
+            input.dismissMobileGuide();
+            this.state = this.guideReturnState;
             ui.currentScreen = null;
         } else if (action === 'restart') {
             audio.playUpgradeSelect();
@@ -241,6 +263,23 @@ class GameEngine {
     }
 
     update() {
+        input.updateMobileDisplay();
+        if (input.touchCapable && input.mobile.isPortrait) {
+            if (!this.portraitBlocked) {
+                this.portraitBlocked = true;
+                this.stateBeforePortrait = this.state;
+                if (this.state === GAME_STATES.PLAYING) this.state = GAME_STATES.PAUSED;
+                ui.currentScreen = null;
+            }
+            input.tick();
+            return;
+        }
+        if (this.portraitBlocked) {
+            if (this.stateBeforePortrait === GAME_STATES.PLAYING && this.state === GAME_STATES.PAUSED) this.state = GAME_STATES.PLAYING;
+            this.portraitBlocked = false;
+            this.stateBeforePortrait = null;
+            ui.currentScreen = null;
+        }
         if (this.state !== GAME_STATES.PAUSED) {
             matrixRain.update();
             effects.update();
@@ -472,7 +511,13 @@ class GameEngine {
             }
         }
         
-        if (this.state === GAME_STATES.PLAYING || this.state === GAME_STATES.LEVEL_UP || this.state === GAME_STATES.PAUSED) {
+        if (input.touchCapable && input.mobile.isPortrait) {
+            ui.stampRotateScreen(renderer);
+            renderer.draw();
+            return;
+        }
+
+        if (this.state === GAME_STATES.PLAYING || this.state === GAME_STATES.LEVEL_UP || this.state === GAME_STATES.PAUSED || (this.state === GAME_STATES.MOBILE_GUIDE && this.guideReturnState === GAME_STATES.PLAYING)) {
             ecosystem.stampToGrid(renderer, player);
             player.stampToGrid(renderer);
             weapons.stampToGrid(renderer);
@@ -486,6 +531,8 @@ class GameEngine {
         else if (this.state === GAME_STATES.LEVEL_UP) ui.stampUpgradeScreen(renderer, mx, my, this.activeUpgradesSelection, this.upgradeRerolls);
         else if (this.state === GAME_STATES.PAUSED) ui.stampPauseScreen(renderer, mx, my);
         else if (this.state === GAME_STATES.RECORDS) ui.stampRecordsScreen(renderer, mx, my, stats.lifetime);
+        else if (this.state === GAME_STATES.SETTINGS) ui.stampSettingsScreen(renderer, mx, my);
+        else if (this.state === GAME_STATES.MOBILE_GUIDE) ui.stampMobileGuide(renderer, mx, my);
         else if (this.state === GAME_STATES.GAME_OVER || this.state === GAME_STATES.VICTORY) ui.stampResultsScreen(renderer, mx, my, this.state === GAME_STATES.VICTORY, stats.snapshot());
         else if (this.state === GAME_STATES.PLAYING) this.stampHUD();
 
@@ -510,7 +557,7 @@ class GameEngine {
             overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
             boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}` : '',
             hint: !input.touchCapable && waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : '',
-            touch: input.touchCapable ? { move: input.touchMove, shoot: input.touchShoot, dashReady: player.dashCooldown <= 0 } : null,
+            touch: input.touchCapable ? { ...input.getTouchPresentation(), dashReady: player.dashCooldown <= 0, dashSeconds: Math.ceil(player.dashCooldown / 60) } : null,
             controller: !!input.getGamepad()
         });
     }

@@ -89,59 +89,38 @@ function stampPattern(rendererInstance, x, y, rows, brightness = 1, color = PALE
     }
 }
 
-function stampTendril(rendererInstance, x1, y1, x2, y2, color = '#ff9de2') {
-    const dx = x2 - x1, dy = y2 - y1;
-    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
-    const glyph = Math.abs(dx) > Math.abs(dy) * 1.7 ? '~' : Math.abs(dy) > Math.abs(dx) * 1.25 ? ':' : dx * dy > 0 ? '\\' : '/';
-    for (let step = 1; step < steps; step += 2) {
-        const x = Math.floor(x1 + dx * step / steps), y = Math.floor(y1 + dy * step / steps);
-        if (x < 0 || x >= rendererInstance.cols || y < 0 || y >= rendererInstance.rows) continue;
-        rendererInstance.types[x][y] = RENDER_CELL_TYPES.GLITCH;
-        rendererInstance.chars[x][y] = glyph;
-        rendererInstance.brightness[x][y] = 0.48;
-        rendererInstance.customColors[x][y] = color;
-    }
-}
-
 function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
-    const state = effect => enemy.organs?.find(entry => entry.effect === effect)?.state || OrganState.HEALTHY;
-    const stateById = id => enemy.organs?.find(entry => entry.id === id)?.state || OrganState.HEALTHY;
-    const aliveGlyph = (effect, healthy, hurt = 'x') => state(effect) === OrganState.HEALTHY ? healthy : state(effect) === OrganState.WOUNDED ? hurt : ' ';
-    const organGlyph = (id, healthy, hurt = 'x') => stateById(id) === OrganState.HEALTHY ? healthy : stateById(id) === OrganState.WOUNDED ? hurt : ' ';
+    const rows = renderCreatureBody(enemy, rendererInstance.animationTime) || [];
+    const bodyWidth = Math.max(1, ...rows.map(row => row.length));
+    const bx = enemy.x + Math.floor((enemy.width - bodyWidth) / 2);
+    const by = enemy.y + Math.floor((enemy.height - rows.length) / 2);
+    stampPattern(rendererInstance, bx, by, rows, brightness, enemy.color);
+    const state = id => enemy.organs?.find(entry => entry.id === id)?.state || OrganState.HEALTHY;
+    const living = (id, glyph) => [OrganState.RUPTURED, OrganState.SEVERED].includes(state(id)) ? 'x' : state(id) === OrganState.WOUNDED ? ':' : glyph;
     if (enemy.type === 'boss_snake') {
-        const eye = aliveGlyph('aim', enemy.genome.sensorGlyph);
-        const gland = aliveGlyph('fire', blink ? '*' : '+', ':');
-        for (let i = 8; i < enemy.trail.length; i += enemy.phase === 2 ? 10 : 7) {
+        for (let i = 7; i < enemy.trail.length; i += enemy.phase === 2 ? 11 : 8) {
             const pos = enemy.trail[i];
-            const contraction = Math.floor(rendererInstance.animationTime / 6 + i / 7) % 2 ? '=' : '-';
-            const shell = enemy.molted && i % 20 === 0 ? 'x' : enemy.genome.shellGlyph;
-            stampPattern(rendererInstance, pos.x + 4, pos.y + 4, [` /${shell}\\ `, `<${contraction}${gland}${contraction}>`, ` \\${shell}/ `], Math.max(0.35, brightness * (1 - i / enemy.trail.length)), enemy.color);
+            const phase = Math.floor(rendererInstance.animationTime / 5 + i) % 3;
+            const cluster = phase === 0 ? [' ~=:', '  %~'] : phase === 1 ? [' :=% ', '~='] : [' %~', '=::~'];
+            stampPattern(rendererInstance, pos.x + 3, pos.y + 3, cluster, Math.max(0.3, brightness * (1 - i / enemy.trail.length)), enemy.color);
         }
-        const jaw = enemy.attackState === 'charge' ? '\\  V  /' : wounded ? '\\_x=x_/' : '\\_===_/';
-        const rows = enemy.phase === 2
-            ? [`  /${gland}#/\\#${gland}\\  `, ` /#${eye}####${eye}#\\ `, `<##/[${enemy.genome.coreGlyph}]\\##>`, ' \\#\\===/#/ ', `  ${jaw}  `]
-            : [`  /##${gland}##\\  `, ` /##${eye}#${eye}##\\ `, `<###/${enemy.genome.coreGlyph}\\###>`, ' \\##===##/ ', `  ${jaw}  `];
-        stampPattern(rendererInstance, enemy.x, enemy.y + 1, rows, brightness, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 5, enemy.y + 4, [[living('sense', blink ? '*' : ':'), living('core', '%'), living('attack', enemy.attackState === 'charge' ? '!' : '~')].join('')], 1, PALETTE.boss);
     } else if (enemy.type === 'boss_eye') {
-        const pupil = aliveGlyph('aim', enemy.attackState === 'gaze' ? '!' : enemy.genome.coreGlyph);
-        const irisGlyph = aliveGlyph('fire', '=', '-');
-        const lobeGlyph = organGlyph('lobe', 'o', 'x');
-        const offset = enemy.phase === 2 ? (blink ? 1 : -1) : 0;
-        stampPattern(rendererInstance, enemy.x + offset, enemy.y + 2, [`   .${irisGlyph.repeat(7)}.   `, ` /${irisGlyph.repeat(11)}\\ `, `<${irisGlyph.repeat(4)}-----${irisGlyph.repeat(4)}>`, `<${irisGlyph.repeat(3)}--[${pupil}]--${irisGlyph.repeat(3)}>`, `<${irisGlyph.repeat(4)}-----${irisGlyph.repeat(4)}>`, ` \\${irisGlyph.repeat(11)}/ `, `   '${irisGlyph.repeat(7)}'   `], brightness, enemy.color);
         const lobes = enemy.phase === 2 ? Math.min(4, 2 + enemy.genome.tendrilCount) : 1;
         for (let i = 0; i < lobes; i++) {
-            const angle = i / lobes * Math.PI * 2 + enemy.genome.bias * 0.4;
+            const angle = i / lobes * Math.PI * 2 + rendererInstance.animationTime * 0.012 * enemy.genome.bias;
             const lx = enemy.x + 7 + Math.cos(angle) * (10 + i % 2 * 2);
             const ly = enemy.y + 6 + Math.sin(angle) * (5 + i % 2);
-            stampTendril(rendererInstance, enemy.x + 7, enemy.y + 6, lx, ly, enemy.color);
-            stampPattern(rendererInstance, lx - 1, ly, [`<${i % 2 ? lobeGlyph : pupil}>`], 0.75, enemy.color);
+            const lobe = i % 2 ? living('lobe', blink ? 'o:*' : '*:o') : living('sense', blink ? ':!:' : '*o*');
+            stampPattern(rendererInstance, lx - 1, ly, [lobe], 0.78, enemy.color);
         }
+        stampPattern(rendererInstance, enemy.x + 6, enemy.y + 6, [`:${living('core', enemy.attackState === 'gaze' ? '!' : '@')}:`], 1, PALETTE.boss);
     } else if (enemy.type === 'boss_carrier') {
-        const core = aliveGlyph('vulnerability', enemy.genome.coreGlyph, '!');
-        const bay = organGlyph('bay', blink ? 'o' : 'O', ':');
-        const shell = aliveGlyph('armor', enemy.genome.shellGlyph, '/');
-        stampPattern(rendererInstance, enemy.x, enemy.y, [` /${shell.repeat(16)}\\ `, `/(${bay})==(${bay})==(${bay})\\`, `|${shell.repeat(5)}~~~~~~${shell.repeat(5)}|`, '|==\\  ~  ~  /==|', `|===\\  {${core}}  /===|`, '|==~~\\====/~~==|', `|(${bay})  |==|  (${bay})|`, '\\_Y__/|==|\\__Y_/', `  ${blink ? 'v' : '|'} ${blink ? 'v' : '|'}  |==|  ${blink ? 'v' : '|'} ${blink ? 'v' : '|'} `, `  ~~~ /${bay}${bay}\\ ~~~  `, '     \\||||/     '], brightness, enemy.color);
-        if (enemy.broodRuptured) stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, ['x~x~x', ' ~x~ '], 1, '#ff9de2');
+        const bay = living('bay', blink ? 'o%:' : '%:o');
+        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 2, [bay], 0.92, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 12, enemy.y + 6, [bay.split('').reverse().join('')], 0.92, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 8, enemy.y + 5, [`:${living('core', '@')}:`], 1, PALETTE.boss);
+        if (enemy.broodRuptured) stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, ['x : x', ' ,x, '], 1, '#ff9de2');
     }
     if (enemy.signal) stampPattern(rendererInstance, enemy.x + enemy.width / 2, enemy.y - 2, [enemy.signal], 1, PALETTE.enemyShot);
 }
@@ -952,38 +931,6 @@ export class Enemy {
                 }
             }
 
-            // Draw shield rays connecting to shielded enemies
-            if (enemies && enemies.enemies) {
-                const px = this.x + 1.5;
-                const py = this.y + 1.5;
-                for (const other of this.linkedTargets || []) {
-                    if (other && other.hp > 0) {
-                        // Draw a simple dotted line between projector and other
-                        const ow = other.width !== undefined ? other.width : 1;
-                        const oh = other.height !== undefined ? other.height : 1;
-                        const tx = other.x + ow/2;
-                        const ty = other.y + oh/2;
-                        const ldx = tx - px;
-                        const ldy = ty - py;
-                        const ldist = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
-                        
-                        // Sample points along the line
-                        for (let d = 1; d < ldist; d += 1.5) {
-                            const lx = Math.floor(px + (ldx / ldist) * d);
-                            const ly = Math.floor(py + (ldy / ldist) * d);
-                            if (lx >= 0 && lx < rendererInstance.cols && ly >= 0 && ly < rendererInstance.rows) {
-                                // Only draw on blank/rain cells to keep it clean
-                                if (rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.RAIN || rendererInstance.types[lx][ly] === RENDER_CELL_TYPES.UI_VOID) {
-                                    rendererInstance.types[lx][ly] = RENDER_CELL_TYPES.ENEMY_GLITCH;
-                                    rendererInstance.chars[lx][ly] = '≈';
-                                    rendererInstance.brightness[lx][ly] = 0.8 * brightMult;
-                                    rendererInstance.customColors[lx][ly] = this.color;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 

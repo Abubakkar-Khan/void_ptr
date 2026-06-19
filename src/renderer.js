@@ -92,9 +92,15 @@ class GridRenderer {
     resize() {
         if (!this.canvas) return;
 
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        const viewport = window.visualViewport;
+        const container = this.canvas.parentElement;
+        const containerStyle = container ? getComputedStyle(container) : null;
+        const horizontalInset = containerStyle ? parseFloat(containerStyle.paddingLeft) + parseFloat(containerStyle.paddingRight) : 0;
+        const verticalInset = containerStyle ? parseFloat(containerStyle.paddingTop) + parseFloat(containerStyle.paddingBottom) : 0;
+        const width = Math.max(1, (viewport?.width || window.innerWidth) - horizontalInset);
+        const height = Math.max(1, (viewport?.height || window.innerHeight) - verticalInset);
         const touchLayout = navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches;
+        this.isTouchLayout = touchLayout;
         this.cellWidth = touchLayout ? (width > height ? 7 : 6) : 9;
         this.cellHeight = touchLayout ? (width > height ? 11 : 10) : 15;
         this.width = width;

@@ -11,9 +11,11 @@ export class MemoryPickup {
         this.phase = Math.random() * Math.PI * 2;
         this.age = 0;
         this.baseValue = value;
+        this.collected = false;
     }
 
     update(player, enemyList = []) {
+        if (this.collected) return true;
         this.age++;
         this.phase += 0.08;
         const px = player.x + player.width / 2;
@@ -45,6 +47,7 @@ export class MemoryPickup {
     }
 
     stamp(renderer) {
+        if (this.collected) return;
         const x = Math.floor(this.x);
         const y = Math.floor(this.y);
         if (x < 0 || x >= renderer.cols || y < 0 || y >= renderer.rows) return;
@@ -81,18 +84,23 @@ export class PickupSystem {
         for (let i = this.items.length - 1; i >= 0; i--) {
             const item = this.items[i];
             if (item.update(player, enemyList)) {
-                player.gainXp(item.value);
-                stats.recordXp(item.value);
+                this.collect(item, player);
                 this.items.splice(i, 1);
             }
         }
     }
 
+    collect(item, player) {
+        if (!item || item.collected) return false;
+        item.collected = true;
+        player.gainXp(item.value);
+        stats.recordXp(item.value);
+        return true;
+    }
+
     vacuumAll(player) {
-        for (const item of this.items) {
-            item.x = player.x + player.width / 2;
-            item.y = player.y + player.height / 2;
-        }
+        for (const item of this.items) this.collect(item, player);
+        this.items.length = 0;
     }
 
     stampToGrid(renderer) {

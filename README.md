@@ -53,7 +53,7 @@ Enemy deaths leave temporary nutrient residue. Colonies spread into a bounded te
 
 ## Synthetic species
 
-Every organism receives a stable seeded genome and an authored family body plan. Skitters flank in packs, Bloomcasters open firing sacs behind Carapaces, Ribbons herd the player, Prisms divide when ruptured, Burst Sacs count down, and Rootweavers replace broken living links. Individual symmetry, limbs, tendrils, organs, scars, glyphs, and mutations stay consistent for that creature's lifetime.
+Every organism receives a stable seeded genome and a bounded cellular field rather than a fixed outline. Its occupied cells continuously grow, collapse, split, and change glyphs while the family's alphabet and motion remain recognizable. Skitters flank, Bloomcasters swell before firing, Ribbons herd, Prisms divide, Burst Sacs contract toward rupture, and Rootweavers pulse protection without drawing connector lines.
 
 Hits are assigned to nearby functional organs. Damaged legs limp, blinded senses spoil aim, ruptured attack glands stop firing, cracked shells expose cores, and severed signal organs disconnect packs. Badly wounded compatible organisms can fuse into a single inherited Amalgam without duplicating kills or XP.
 

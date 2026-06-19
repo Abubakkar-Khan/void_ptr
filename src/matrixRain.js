@@ -1,4 +1,14 @@
 const GLYPHS = '01.:;|/\\-_';
+const cellKey = (x, y) => `${x},${y}`;
+export const BACKGROUND_WORD_CONFIG = Object.freeze({
+    version: 1,
+    ordinary: ['memory', 'signal', 'kernel', 'spawn', 'cell', 'grow', 'sleep', 'wake', 'ghost', 'error', 'void', 'null', 'ptr', 'fatal', 'lost', 'alone', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn', 'thread', 'stack', 'heap', 'root', 'divide', 'mutate', 'watch', 'carrier'],
+    kinship: ['father', 'papa', 'abu', 'dad', 'baba', 'abba', 'padre', 'pater', 'apa', 'tata'],
+    ordinaryCount: [90, 120],
+    kinshipCount: [24, 32],
+    ordinaryBrightness: [0.045, 0.095],
+    kinshipBrightness: [0.075, 0.125]
+});
 
 export class MatrixRain {
     constructor() {
@@ -8,6 +18,8 @@ export class MatrixRain {
         this.obstacles = [];
         this.obstacleHP = [];
         this.activeCells = new Set();
+        this.easterEggs = [];
+        this.backgroundWords = [];
         this.seed = 0;
     }
 
@@ -18,6 +30,8 @@ export class MatrixRain {
         this.obstacles = Array(cols).fill(null).map(() => Array(rows).fill(false));
         this.obstacleHP = Array(cols).fill(null).map(() => Array(rows).fill(0));
         this.activeCells = new Set();
+        this.easterEggs = [];
+        this.backgroundWords = [];
         this.seed++;
 
         // Create background code rain grid
@@ -36,23 +50,33 @@ export class MatrixRain {
             this.grid.push(column);
         }
 
-        // Seed creepy/corrupt system terms randomly in the background static ASCII grid
-        const creepyWords = ['memory', 'father', 'void', 'null', 'ptr', 'fatal', 'error', 'lost', 'alone', 'ghost', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn'];
-        const numWords = 75;
-        for (let w = 0; w < numWords; w++) {
-            const word = creepyWords[Math.floor(Math.random() * creepyWords.length)];
-            const isHorizontal = Math.random() < 0.5;
-            const startX = Math.floor(Math.random() * (cols - word.length - 2)) + 1;
-            const startY = Math.floor(Math.random() * (rows - word.length - 2)) + 1;
-            
-            for (let i = 0; i < word.length; i++) {
-                const x = isHorizontal ? startX + i : startX;
-                const y = isHorizontal ? startY : startY + i;
-                if (x >= 0 && x < cols && y >= 0 && y < rows) {
-                    this.grid[x][y].char = word[i];
+        const occupiedWordCells = new Set();
+        const placeWords = (pool, countRange, brightnessRange, target) => {
+            const count = countRange[0] + Math.floor(Math.random() * (countRange[1] - countRange[0] + 1));
+            for (let w = 0; w < count; w++) {
+                const word = pool[Math.floor(Math.random() * pool.length)];
+                let placement = null;
+                for (let attempt = 0; attempt < 12 && !placement; attempt++) {
+                    const vertical = Math.random() < 0.45;
+                    const maxX = Math.max(1, cols - (vertical ? 2 : word.length + 1));
+                    const maxY = Math.max(1, rows - (vertical ? word.length + 1 : 2));
+                    const x = 1 + Math.floor(Math.random() * maxX), y = 1 + Math.floor(Math.random() * maxY);
+                    const cells = Array.from({ length: word.length }, (_, index) => cellKey(vertical ? x : x + index, vertical ? y + index : y));
+                    if (cells.every(key => !occupiedWordCells.has(key))) placement = { x, y, vertical, cells };
+                }
+                if (!placement) continue;
+                placement.cells.forEach(key => occupiedWordCells.add(key));
+                const brightness = brightnessRange[0] + Math.random() * (brightnessRange[1] - brightnessRange[0]);
+                const record = { word, x: placement.x, y: placement.y, vertical: placement.vertical, brightness };
+                target.push(record);
+                for (let i = 0; i < word.length; i++) {
+                    const x = placement.vertical ? placement.x : placement.x + i, y = placement.vertical ? placement.y + i : placement.y;
+                    this.grid[x][y].char = word[i]; this.grid[x][y].brightness = brightness; this.grid[x][y].baseBrightness = brightness;
                 }
             }
-        }
+        };
+        placeWords(BACKGROUND_WORD_CONFIG.ordinary, BACKGROUND_WORD_CONFIG.ordinaryCount, BACKGROUND_WORD_CONFIG.ordinaryBrightness, this.backgroundWords);
+        placeWords(BACKGROUND_WORD_CONFIG.kinship, BACKGROUND_WORD_CONFIG.kinshipCount, BACKGROUND_WORD_CONFIG.kinshipBrightness, this.easterEggs);
 
         // Seed breakable static code barriers (pillars/debris) in the large world
         const numObstacles = 20;

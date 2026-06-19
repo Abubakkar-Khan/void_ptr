@@ -1,4 +1,4 @@
-import { COMBAT_CONFIG, ECOSYSTEM_TYPES, NORMAL_ENEMY_TYPES, PALETTE } from './config.js';
+import { COMBAT_CONFIG, ECOSYSTEM_TYPES, NORMAL_ENEMY_TYPES } from './config.js';
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { matrixRain } from './matrixRain.js';
 
@@ -313,9 +313,9 @@ export class EcosystemSystem {
             const y = Math.floor(nutrient.y);
             if (x < 0 || x >= renderer.cols || y < 0 || y >= renderer.rows) continue;
             renderer.types[x][y] = RENDER_CELL_TYPES.GLITCH;
-            renderer.chars[x][y] = nutrient.value > 2 ? ':' : '.';
-            renderer.brightness[x][y] = 0.35;
-            renderer.customColors[x][y] = PALETTE.pickup;
+            renderer.chars[x][y] = nutrient.value > 2 ? ';' : ',';
+            renderer.brightness[x][y] = 0.24;
+            renderer.customColors[x][y] = '#397d4c';
         }
     }
 }

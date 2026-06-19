@@ -5,16 +5,18 @@ import { readFileSync } from 'node:fs';
 import { Director } from '../src/waves.js';
 import { Player } from '../src/player.js';
 import { upgrades } from '../src/upgrades.js';
-import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
+import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PALETTE, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
 import { Enemy, enemies } from '../src/enemies.js';
 import { EcosystemSystem } from '../src/ecosystem.js';
 import { StatsTracker } from '../src/stats.js';
 import { UIManager } from '../src/ui.js';
 import { resolveAssistedAim, weapons } from '../src/weapons.js';
-import { createBiology, Genome, OrganState, renderCreatureBody, SpeciesFamily } from '../src/biology.js';
+import { Genome, ORGANIC_FIELD_PROFILES, OrganState, renderCreatureBody, SpeciesFamily } from '../src/biology.js';
 import { EvolutionDirector } from '../src/evolution.js';
 import { ColonyMindSystem } from '../src/colonyMind.js';
-import { PickupSystem } from '../src/pickups.js';
+import { MemoryPickup, PickupSystem } from '../src/pickups.js';
+import { BACKGROUND_WORD_CONFIG, MatrixRain } from '../src/matrixRain.js';
+import { FloatingStick } from '../src/input.js';
 
 const makeUpgradePlayer = (weaponType) => ({
     weaponType,
@@ -358,6 +360,75 @@ test('XP pickups disappear as soon as magnetic movement reaches the player', () 
     assert.equal(player.gained, 10);
 });
 
+test('overlapping pickups and boss vacuum collect each XP value exactly once', () => {
+    const system = new PickupSystem();
+    const player = { x: 0, y: 0, width: 3, height: 3, upgrades: {}, gained: 0, gainXp(value) { this.gained += value; } };
+    system.items.push(new MemoryPickup(1.5, 1.5, 12), new MemoryPickup(1.5, 1.5, 18));
+    system.update(player, []);
+    assert.equal(player.gained, 30);
+    assert.equal(system.items.length, 0);
+    system.items.push(new MemoryPickup(50, 50, 40), new MemoryPickup(70, 70, 60));
+    system.vacuumAll(player);
+    system.vacuumAll(player);
+    assert.equal(player.gained, 130);
+    assert.equal(system.items.length, 0);
+});
+
+test('nutrient residue cannot masquerade as blue XP', () => {
+    const system = new EcosystemSystem();
+    system.reset(40, 30);
+    system.addNutrient(10, 10, 3);
+    const renderer = {
+        cols: 40, rows: 30,
+        types: Array.from({ length: 40 }, () => Array(30).fill(0)),
+        chars: Array.from({ length: 40 }, () => Array(30).fill(' ')),
+        brightness: Array.from({ length: 40 }, () => Array(30).fill(0)),
+        customColors: Array.from({ length: 40 }, () => Array(30).fill(null))
+    };
+    system.stampToGrid(renderer);
+    assert.notEqual(renderer.customColors[10][10], PALETTE.pickup);
+    assert.match(renderer.chars[10][10], /[,;]/);
+});
+
+test('organic fields are seeded, bounded, amorphous, and family-specific', () => {
+    for (const [type, family] of [['drone', 'skitter'], ['shooter', 'bloomcaster'], ['worm', 'ribbon'], ['virus', 'prism'], ['brute', 'carapace'], ['kamikaze', 'burst_sac'], ['shield_projector', 'rootweaver']]) {
+        const first = new Enemy(0, 0, type, { seed: 100 });
+        const same = new Enemy(0, 0, type, { seed: 100 });
+        const other = new Enemy(0, 0, type, { seed: 101 });
+        const profile = ORGANIC_FIELD_PROFILES[family];
+        assert.deepEqual(first.bodyPlan.organicField.frames, same.bodyPlan.organicField.frames);
+        assert.notDeepEqual(first.bodyPlan.organicField.frames, other.bodyPlan.organicField.frames);
+        assert.ok(first.bodyPlan.organicField.frames.every(frame => frame.length <= profile.maxCells));
+        assert.ok(first.bodyPlan.organicField.frames.flat().every(cell => profile.glyphs.includes(cell.glyph)));
+        assert.ok(new Set(first.bodyPlan.organicField.frames.map((_, index) => renderCreatureBody(first, index * 6).join('\n'))).size >= 3);
+    }
+});
+
+test('father names and ordinary background words are frequent, dim, and bounded', () => {
+    const rain = new MatrixRain();
+    rain.resize(120, 80);
+    const allowed = new Set(['father', 'papa', 'abu', 'dad', 'baba', 'abba', 'padre', 'pater', 'apa', 'tata']);
+    assert.ok(rain.easterEggs.length >= 24 && rain.easterEggs.length <= 32);
+    assert.ok(rain.backgroundWords.length >= 90 && rain.backgroundWords.length <= 120);
+    assert.ok(rain.easterEggs.every(entry => allowed.has(entry.word) && entry.brightness <= BACKGROUND_WORD_CONFIG.kinshipBrightness[1]));
+    rain.resize(120, 80);
+    assert.ok(rain.easterEggs.length >= 24 && rain.easterEggs.length <= 32);
+});
+
+test('floating touch sticks clamp, respect deadzones, and reset independently', () => {
+    const move = new FloatingStick('move');
+    const fire = new FloatingStick('shoot');
+    move.begin(1, 100, 100, 50); fire.begin(2, 300, 100, 50);
+    move.move(102, 102);
+    assert.deepEqual(move.vector, { x: 0, y: 0 });
+    move.move(200, 100); fire.move(300, 50);
+    assert.ok(Math.abs(move.vector.x - 1) < 0.001);
+    assert.ok(Math.abs(fire.vector.y + 1) < 0.001);
+    move.end(1);
+    assert.equal(move.active, false);
+    assert.equal(fire.active, true);
+});
+
 test('damage numbers are disabled and results are reduced to basic run stats', () => {
     const enemySource = readFileSync(new URL('../src/enemies.js', import.meta.url), 'utf8');
     const playerSource = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
@@ -378,6 +449,39 @@ test('mobile presentation requests fullscreen landscape and keeps XP on the bott
     const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     assert.doesNotMatch(enemySource, /for \(const pack of colonyMind\.packs\.values\(\)\)/);
     assert.doesNotMatch(mainSource, /shield_fence/);
+});
+
+test('mobile landscape keeps the full title and paginates cards within short viewports', () => {
+    const makeMobileRenderer = (width, height) => {
+        const viewCols = Math.floor(width / 7) + 2, viewRows = Math.floor(height / 11) + 2;
+        return {
+            width, height, viewCols, viewRows, isTouchLayout: true, worldCols: 180, worldRows: 110, camX: 0, camY: 0, cellWidth: 7, cellHeight: 11,
+            chars: Array.from({ length: 180 }, () => Array(110).fill(' ')),
+            types: Array.from({ length: 180 }, () => Array(110).fill(0)),
+            brightness: Array.from({ length: 180 }, () => Array(110).fill(0))
+        };
+    };
+    for (const [width, height] of [[568, 320], [667, 375], [740, 360]]) {
+        const grid = makeMobileRenderer(width, height);
+        const mobileUi = new UIManager();
+        for (let frame = 0; frame < 20; frame++) mobileUi.stampTitleScreen(grid, -1, -1);
+        assert.ok(grid.chars.flat().filter(char => char === '█').length > 10, `${width}x${height} should keep full title art`);
+        mobileUi.stampShipSelectScreen(grid, -1, -1);
+        assert.ok(mobileUi.buttons.some(button => button.id.startsWith('ship_')));
+        const choices = upgrades.getRandomSelection(makeUpgradePlayer('auto_blaster'), 3);
+        mobileUi.stampUpgradeScreen(grid, -1, -1, choices, 1);
+        for (const button of mobileUi.buttons) {
+            assert.ok(button.col >= 0 && button.row >= 0 && button.col + button.w <= grid.viewCols && button.row + button.h <= grid.viewRows, `${button.id} overflowed ${width}x${height}`);
+        }
+    }
+    const portrait = makeMobileRenderer(320, 568);
+    const rotateUi = new UIManager();
+    rotateUi.stampRotateScreen(portrait);
+    assert.equal(rotateUi.buttons.length, 0);
+    const portraitRows = Array.from({ length: portrait.viewRows }, (_, row) =>
+        Array.from({ length: portrait.viewCols }, (_, col) => portrait.chars[col]?.[row] ?? ' ').join('')
+    ).join('\n');
+    assert.match(portraitRows, /ROTATE DEVICE/);
 });
 
 test('organ wounds are stable and have functional combat consequences', () => {

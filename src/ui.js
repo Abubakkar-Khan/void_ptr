@@ -105,6 +105,12 @@ export class UIManager {
         }
     }
 
+    measureUpgradeCard(card, width) {
+        const description = this.wrapText(card.shortDescription || card.description || '', width - 4);
+        const evolution = this.wrapText(card.evolutionText || '', width - 4);
+        return { description, evolution, requiredHeight: 10 + description.length + evolution.length };
+    }
+
     stampCell(renderer, x, y, char, type, brightness) {
         const wx = Math.floor(renderer.camX) + x;
         const wy = Math.floor(renderer.camY) + y;
@@ -406,9 +412,10 @@ export class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const compact = viewCols < 58 || viewRows < 35;
+        const mobileLandscape = renderer.isTouchLayout && renderer.width >= renderer.height;
+        const compact = !mobileLandscape && (viewCols < 58 || viewRows < 35);
         const panelW = compact ? Math.max(30, viewCols - 2) : 54;
-        const panelH = compact ? Math.min(36, viewRows - 2) : 38;
+        const panelH = compact ? Math.min(36, viewRows - 2) : mobileLandscape ? Math.min(30, viewRows - 2) : 38;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -444,13 +451,20 @@ export class UIManager {
             const playBtnY = py + 19;
             this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'records', 'Lifetime Records', px + 15, py + 23, 24, 3, t, mx, my, cc, cr);
-            const optBtnY = py + 27;
-            this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, px + 3, py + 31, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, px + 28, py + 31, 23, 3, t, mx, my, cc, cr);
-            this.stampText(renderer, 'WASD MOVE | ARROWS FIRE | SPACE DASH | P PAUSE', cc, py + 35, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            if (mobileLandscape) {
+                this.stampButton(renderer, 'records', 'Records', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
+                const fullscreen = typeof document !== 'undefined' && document.fullscreenElement;
+                this.stampText(renderer, fullscreen ? 'FULLSCREEN ACTIVE' : 'TAP FOR FULLSCREEN | INSTALL FOR TRUE FULLSCREEN', cc, py + 27, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            } else {
+                this.stampButton(renderer, 'records', 'Lifetime Records', px + 15, py + 23, 24, 3, t, mx, my, cc, cr);
+                const optBtnY = py + 27;
+                this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, px + 3, py + 31, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, px + 28, py + 31, 23, 3, t, mx, my, cc, cr);
+                this.stampText(renderer, 'WASD MOVE | ARROWS FIRE | SPACE DASH | P PAUSE', cc, py + 35, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            }
         }
     }
 
@@ -463,9 +477,9 @@ export class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const compact = viewCols < 88;
-        const panelW = compact ? Math.max(38, Math.min(viewCols - 2, 52)) : 84;
-        const panelH = compact ? Math.min(viewRows - 2, 36) : 36;
+        const compact = viewCols < 88 || (renderer.isTouchLayout && viewRows < 42);
+        const panelW = compact ? Math.max(38, Math.min(viewCols - 2, 56)) : 84;
+        const panelH = Math.min(viewRows - 2, 36);
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -478,8 +492,8 @@ export class UIManager {
         this.stampText(renderer, "Select a hull configuration to initialize", cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
 
         const cardW = compact ? panelW - 6 : 25;
-        const cardH = compact ? 8 : 22;
-        const cardY = py + 7;
+        const cardH = compact ? Math.max(12, Math.min(18, panelH - 13)) : 22;
+        const cardY = py + 6;
         const startX = compact ? px + 3 : px + Math.floor((panelW - (3 * cardW + 6)) / 2);
 
         // Rearranged starting cards: Seeker Left, Blaster Middle, Laser Right
@@ -488,11 +502,14 @@ export class UIManager {
             { id: 'ship_normal', title: HULL_DEFS.runner.name, icon: '▲', desc: `${HULL_DEFS.runner.description} ${WEAPON_DEFS.auto_blaster.baseDamage} damage.` },
             { id: 'ship_laser', title: HULL_DEFS.cutter.name, icon: '║', desc: `${HULL_DEFS.cutter.description} ${WEAPON_DEFS.null_laser.baseDamage} piercing damage.` }
         ];
+        this.pageCount = ships.length;
+        if (this.page >= ships.length) this.page = 0;
+        const visibleShips = compact ? [ships[this.page]] : ships;
 
-        for (let i = 0; i < ships.length; i++) {
+        for (let i = 0; i < visibleShips.length; i++) {
             const cardX = compact ? startX : startX + i * (cardW + 3);
-            const currentCardY = compact ? cardY + i * (cardH + 1) : cardY;
-            const s = ships[i];
+            const currentCardY = cardY;
+            const s = visibleShips[i];
 
             const mouseCol = Math.floor(mx / renderer.cellWidth);
             const mouseRow = Math.floor(my / renderer.cellHeight);
@@ -509,17 +526,21 @@ export class UIManager {
             this.stampText(renderer, s.icon, cardX + Math.floor(cardW/2), currentCardY + 1, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             
             // Title
-            this.stampText(renderer, s.title, cardX + Math.floor(cardW/2), currentCardY + (compact ? 2 : 4), RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, s.title, cardX + Math.floor(cardW/2), currentCardY + (compact ? 3 : 4), RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
             // Description
             const wrappedDesc = this.wrapText(s.desc, cardW - 4);
-            for (let j = 0; j < Math.min(wrappedDesc.length, compact ? 3 : 12); j++) {
-                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), currentCardY + (compact ? 4 : 7) + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            for (let j = 0; j < wrappedDesc.length && currentCardY + (compact ? 5 : 7) + j < currentCardY + cardH - 1; j++) {
+                this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), currentCardY + (compact ? 5 : 7) + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
 
             this.buttons.push({ id: s.id, col: cardX, row: currentCardY, w: cardW, h: cardH });
         }
-        this.stampButton(renderer, 'back', 'Back [Esc]', px + Math.floor((panelW - 20) / 2), py + panelH - 4, 20, 3, t, mx, my, cc, cr);
+        if (compact) {
+            this.stampButton(renderer, 'page_prev', '<', px + 3, py + panelH - 4, 7, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'back', `BACK ${this.page + 1}/${ships.length}`, cc - 6, py + panelH - 4, 12, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'page_next', '>', px + panelW - 10, py + panelH - 4, 7, 3, t, mx, my, cc, cr);
+        } else this.stampButton(renderer, 'back', 'Back [Esc]', px + Math.floor((panelW - 20) / 2), py + panelH - 4, 20, 3, t, mx, my, cc, cr);
     }
 
     stampPauseScreen(renderer, mx, my) {
@@ -532,7 +553,7 @@ export class UIManager {
         const viewRows = renderer.viewRows;
 
         const panelW = 32;
-        const panelH = 14;
+        const panelH = 18;
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -544,7 +565,66 @@ export class UIManager {
         this.stampText(renderer, "═ PAUSED ═", cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
 
         this.stampButton(renderer, 'resume', 'Resume Game', px + 4, py + 5, 24, 3, t, mx, my, cc, cr);
-        this.stampButton(renderer, 'quit', 'Quit to Menu', px + 4, py + 9, 24, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'controls', 'Touch Controls', px + 4, py + 9, 24, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'quit', 'Quit to Menu', px + 4, py + 13, 24, 3, t, mx, my, cc, cr);
+    }
+
+    stampSettingsScreen(renderer, mx, my) {
+        this.updateTransition('settings');
+        const t = this.transitionProgress;
+        this.buttons = []; this.hoveredItem = null;
+        const panelW = Math.min(46, renderer.viewCols - 2), panelH = Math.min(26, renderer.viewRows - 2);
+        const px = Math.floor((renderer.viewCols - panelW) / 2), py = Math.floor((renderer.viewRows - panelH) / 2);
+        const cc = px + Math.floor(panelW / 2), cr = py + Math.floor(panelH / 2);
+        this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
+        this.stampText(renderer, '== SETTINGS ==', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        const x = px + 4, w = panelW - 8;
+        this.stampButton(renderer, 'toggle_music', `Music ${audio.musicEnabled ? 'ON' : 'OFF'}`, x, py + 5, w, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'toggle_sfx', `Sounds ${audio.sfxEnabled ? 'ON' : 'OFF'}`, x, py + 9, w, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'toggle_fx', `Motion ${this.reducedMotion ? 'SAFE' : 'FULL'}`, x, py + 13, w, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'toggle_color', `Palette ${this.colorMode ? 'COLOR' : 'MONO'}`, x, py + 17, w, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'back', 'Back', cc - 10, py + panelH - 4, 20, 3, t, mx, my, cc, cr);
+    }
+
+    stampMobileGuide(renderer, mx, my) {
+        this.updateTransition('mobile_guide');
+        const t = this.transitionProgress;
+        this.buttons = []; this.hoveredItem = null;
+        const panelW = Math.min(66, renderer.viewCols - 2), panelH = Math.min(27, renderer.viewRows - 2);
+        const px = Math.floor((renderer.viewCols - panelW) / 2), py = Math.floor((renderer.viewRows - panelH) / 2);
+        const cc = px + Math.floor(panelW / 2), cr = py + Math.floor(panelH / 2);
+        this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
+        this.stampText(renderer, '== TOUCH CONTROL GUIDE ==', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        const left = px + 4, right = cc + 2;
+        this.stampText(renderer, 'MOVE', left + 8, py + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, "   ^   ", left + 8, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, '<  @  >', left + 8, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, '   v   ', left + 8, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, 'Touch anywhere on the left', left, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
+        this.stampText(renderer, 'AIM + FIRE', right + 10, py + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, "   ^   ", right + 10, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, '<  *  >', right + 10, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, '   v   ', right + 10, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, 'Hold and drag on the right', right, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
+        this.stampText(renderer, '[ DASH ] sits beside FIRE | XP fills the bottom bar', cc, py + 15, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, 'Upgrade cards pause combat. Tap a card to install it.', cc, py + 17, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampButton(renderer, 'guide_close', 'GOT IT', cc - 10, py + panelH - 4, 20, 3, t, mx, my, cc, cr);
+    }
+
+    stampRotateScreen(renderer) {
+        this.updateTransition('rotate');
+        // This is a safety/input gate, so it must be legible on its first frame.
+        this.transitionProgress = 1;
+        const t = 1;
+        this.buttons = []; this.hoveredItem = null;
+        const panelW = Math.min(42, renderer.viewCols - 4), panelH = Math.min(18, renderer.viewRows - 4);
+        const px = Math.floor((renderer.viewCols - panelW) / 2), py = Math.floor((renderer.viewRows - panelH) / 2);
+        const cc = px + Math.floor(panelW / 2), cr = py + Math.floor(panelH / 2);
+        this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
+        this.stampText(renderer, '== ROTATE DEVICE ==', cc, py + 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, 'LANDSCAPE MODE REQUIRED', cc, py + 6, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, 'phone  ->  [==========]', cc, py + 9, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, 'Gameplay is paused', cc, py + 12, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
     }
 
     stampUpgradeScreen(renderer, mx, my, cards, rerolls = 1) {
@@ -556,14 +636,16 @@ export class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const paged = viewCols < 58;
+        const paged = viewCols < 58 || viewRows < 38 || (renderer.isTouchLayout && viewRows < 42);
         this.pageCount = cards.length;
         if (this.page >= cards.length) this.page = 0;
         const displayedCards = paged ? [{ card: cards[this.page], index: this.page }] : cards.map((card, index) => ({ card, index }));
         const layoutCols = paged ? 1 : (viewCols >= (cards.length === 4 ? 118 : 86) ? cards.length : 2);
         const rows = Math.ceil(displayedCards.length / layoutCols);
         const cardW = layoutCols === 1 ? Math.max(28, Math.min(38, viewCols - 6)) : 25;
-        const cardH = rows === 1 ? 22 : 15;
+        const measurements = displayedCards.map(entry => this.measureUpgradeCard(entry.card, cardW));
+        const requiredCardH = Math.max(...measurements.map(measure => measure.requiredHeight));
+        const cardH = paged ? Math.max(14, Math.min(requiredCardH, viewRows - 14)) : rows === 1 ? Math.max(22, requiredCardH) : Math.max(15, requiredCardH);
         const panelW = Math.min(viewCols - 2, layoutCols * cardW + (layoutCols - 1) * 3 + 6);
         const panelH = Math.min(viewRows - 2, 12 + rows * (cardH + 1));
         const px = Math.floor((viewCols - panelW) / 2);
@@ -610,11 +692,11 @@ export class UIManager {
             this.stampText(renderer, values, cardX + Math.floor(cardW/2), currentCardY + (rows === 1 ? 6 : 5), RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
             // Description
-            const wrappedDesc = this.wrapText(c.shortDescription || c.description, cardW - 4);
-            for (let j = 0; j < Math.min(wrappedDesc.length, rows === 1 ? 7 : 3); j++) {
+            const wrappedDesc = measurements[i].description;
+            for (let j = 0; j < wrappedDesc.length && currentCardY + (rows === 1 ? 8 : 7) + j < currentCardY + cardH - 2 - measurements[i].evolution.length; j++) {
                 this.stampText(renderer, wrappedDesc[j], cardX + Math.floor(cardW/2), currentCardY + (rows === 1 ? 8 : 7) + j, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             }
-            if (c.evolutionText && rows === 1) this.stampText(renderer, c.evolutionText, cardX + Math.floor(cardW/2), currentCardY + cardH - 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            measurements[i].evolution.forEach((line, lineIndex) => this.stampText(renderer, line, cardX + Math.floor(cardW / 2), currentCardY + cardH - 2 - measurements[i].evolution.length + lineIndex, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr));
 
             this.buttons.push({ id: cardId, col: cardX, row: currentCardY, w: cardW, h: cardH });
         }
@@ -795,22 +877,25 @@ export class UIManager {
     stampTouchControls(renderer, touch) {
         const w = renderer.viewCols;
         const h = renderer.viewRows;
-        const row = Math.max(8, h - 9);
-        const direction = vector => {
-            if (!vector || Math.hypot(vector.x, vector.y) < 0.12) return '+';
-            if (Math.abs(vector.x) > Math.abs(vector.y)) return vector.x > 0 ? '>' : '<';
-            return vector.y > 0 ? 'v' : '^';
+        const renderStick = (stick, fallbackX, label, knob) => {
+            const origin = stick.origin || { x: fallbackX * renderer.cellWidth, y: (h - 8) * renderer.cellHeight };
+            const current = stick.current || origin;
+            const col = Math.max(4, Math.min(w - 5, Math.round(origin.x / renderer.cellWidth)));
+            const row = Math.max(8, Math.min(h - 6, Math.round(origin.y / renderer.cellHeight)));
+            const knobCol = Math.max(col - 4, Math.min(col + 4, Math.round(current.x / renderer.cellWidth)));
+            const knobRow = Math.max(row - 2, Math.min(row + 2, Math.round(current.y / renderer.cellHeight)));
+            this.stampText(renderer, '   ^   ', col, row - 2, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
+            this.stampText(renderer, '<  +  >', col, row, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
+            this.stampText(renderer, '   v   ', col, row + 2, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
+            this.stampText(renderer, knob, knobCol, knobRow, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
+            this.stampText(renderer, label, col, row + 3, stick.active ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
         };
-        const box = (x, label, glyph) => {
-            this.stampText(renderer, '+---------+', x, row, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
-            this.stampText(renderer, `| ${label.padEnd(7)} |`, x, row + 1, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
-            this.stampText(renderer, `|    ${glyph}    |`, x, row + 2, RENDER_CELL_TYPES.UI_TEXT, 0.85, 'left', 0, 0);
-            this.stampText(renderer, '+---------+', x, row + 3, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
-        };
-        box(2, 'MOVE', direction(touch.move));
-        box(Math.max(2, w - 13), 'AIM', direction(touch.shoot));
-        this.stampText(renderer, '[ DASH ]', Math.floor(w / 2), row + 2, RENDER_CELL_TYPES.UI_TEXT, touch.dashReady ? 1 : 0.45, 'center', 0, 0);
-        if (renderer.width < renderer.height) this.stampText(renderer, 'ROTATE PHONE FOR LANDSCAPE', Math.floor(w / 2), row - 2, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
+        renderStick(touch.move, 12, 'MOVE', '@');
+        renderStick(touch.shoot, w - 12, 'AIM + FIRE', '*');
+        const dashCol = Math.round((touch.dash.x + touch.dash.width / 2) / renderer.cellWidth);
+        const dashRow = Math.round((touch.dash.y + touch.dash.height / 2) / renderer.cellHeight);
+        const dashLabel = touch.dashReady ? '[ DASH ]' : touch.dashSeconds > 0 ? `[ DASH ${touch.dashSeconds} ]` : '[ LOCK ]';
+        this.stampText(renderer, dashLabel, dashCol, dashRow, touch.dashReady ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
     }
 
     drawText(ctx, text, x, y, size = 20, color = '#00ff41', align = 'center') {
@@ -875,8 +960,10 @@ export class UIManager {
         } else if (key === 'Enter' || key === ' ') {
             this.hoveredItem = this.buttons[this.focusIndex]?.id || null;
             this.handleClicks(onActionCallback, cards);
-        } else if (key === 'Escape' && this.currentScreen === 'ship_select') {
+        } else if (key === 'Escape' && ['ship_select', 'settings', 'records'].includes(this.currentScreen)) {
             onActionCallback('back');
+        } else if (key === 'Escape' && this.currentScreen === 'mobile_guide') {
+            onActionCallback('guide_close');
         }
     }
 

@@ -45,6 +45,122 @@ export function seededRandom(seed) {
 
 const pick = (rng, values) => values[Math.floor(rng() * values.length) % values.length];
 
+export const ORGANIC_FIELD_PROFILES = Object.freeze({
+    skitter: { width: 6, height: 4, glyphs: ["'", '~', '-'], density: 0.42, birth: [3], survive: [2, 3], maxCells: 15 },
+    bloomcaster: { width: 7, height: 5, glyphs: ['*', ':', '%'], density: 0.55, birth: [3, 4], survive: [2, 3, 4], maxCells: 24 },
+    ribbon: { width: 9, height: 4, glyphs: ['~', '=', '.'], density: 0.38, birth: [2, 3], survive: [1, 2, 3], maxCells: 22 },
+    prism: { width: 6, height: 6, glyphs: ['+', ':', 'x'], density: 0.45, birth: [3], survive: [2, 3], maxCells: 24 },
+    carapace: { width: 8, height: 6, glyphs: ['#', '%', ';'], density: 0.68, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 36 },
+    burst_sac: { width: 6, height: 5, glyphs: ['!', '*', ':'], density: 0.54, birth: [3], survive: [2, 3, 4], maxCells: 22 },
+    rootweaver: { width: 7, height: 7, glyphs: ['|', ':', 'Y'], density: 0.46, birth: [3, 4], survive: [2, 3, 4], maxCells: 28 },
+    spore: { width: 3, height: 3, glyphs: ['.', "'", '*'], density: 0.32, birth: [2, 3], survive: [1, 2, 3], maxCells: 5 },
+    colony: { width: 5, height: 5, glyphs: ['o', ':', '+'], density: 0.5, birth: [3], survive: [2, 3], maxCells: 17 },
+    parasite: { width: 5, height: 3, glyphs: ['~', ':', '^'], density: 0.4, birth: [2, 3], survive: [1, 2, 3], maxCells: 11 },
+    amalgam: { width: 10, height: 7, glyphs: ['%', '~', ':', '#'], density: 0.58, birth: [3, 4], survive: [2, 3, 4], maxCells: 48 },
+    serpent: { width: 12, height: 9, glyphs: ['~', '=', ':', '%'], density: 0.52, birth: [2, 3], survive: [1, 2, 3], maxCells: 66 },
+    watcher: { width: 15, height: 11, glyphs: [':', 'o', '*', '+'], density: 0.47, birth: [3], survive: [2, 3, 4], maxCells: 78 },
+    carrier: { width: 18, height: 11, glyphs: ['#', '%', ':', 'Y'], density: 0.62, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 112 }
+});
+
+const cellKey = (x, y) => `${x},${y}`;
+const cellNoise = (seed, frame, x, y) => seededRandom(hashSeed(`${seed}:${frame}:${x}:${y}`))();
+
+export class OrganicField {
+    constructor(genome) {
+        this.seed = genome.seed;
+        this.family = genome.family;
+        this.profile = ORGANIC_FIELD_PROFILES[this.family] || ORGANIC_FIELD_PROFILES.skitter;
+        this.width = this.profile.width;
+        this.height = this.profile.height;
+        this.frames = this.buildFrames();
+    }
+
+    buildFrames() {
+        const profile = this.profile;
+        const rng = seededRandom(hashSeed(`field:${this.seed}:${this.family}`));
+        let cells = new Set();
+        const cx = (this.width - 1) / 2;
+        const cy = (this.height - 1) / 2;
+        for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
+            const nx = (x - cx) / Math.max(1, cx);
+            const ny = (y - cy) / Math.max(1, cy);
+            const organicDistance = nx * nx + ny * ny + (rng() - 0.5) * 0.48;
+            if (organicDistance < 1.08 && rng() < profile.density) cells.add(cellKey(x, y));
+        }
+        this.reseed(cells, 0);
+        const frames = [];
+        for (let frame = 0; frame < 8; frame++) {
+            frames.push(this.snapshot(cells, frame));
+            cells = this.evolve(cells, frame + 1);
+        }
+        return frames;
+    }
+
+    reseed(cells, frame) {
+        const minimum = Math.max(3, Math.floor(this.profile.maxCells * 0.28));
+        for (let attempt = 0; cells.size < minimum && attempt < this.width * this.height * 2; attempt++) {
+            const x = Math.floor(cellNoise(this.seed, frame, attempt, 17) * this.width);
+            const y = Math.floor(cellNoise(this.seed, frame, attempt, 31) * this.height);
+            cells.add(cellKey(x, y));
+        }
+    }
+
+    evolve(cells, frame) {
+        const next = new Set();
+        for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
+            let neighbours = 0;
+            for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+                if ((ox || oy) && cells.has(cellKey(x + ox, y + oy))) neighbours++;
+            }
+            const alive = cells.has(cellKey(x, y));
+            const noise = cellNoise(this.seed, frame, x, y);
+            const survives = alive && (this.profile.survive.includes(neighbours) || noise < 0.1);
+            const born = !alive && this.profile.birth.includes(neighbours) && noise < 0.82;
+            if (survives || born) next.add(cellKey(x, y));
+        }
+        this.reseed(next, frame);
+        if (next.size > this.profile.maxCells) {
+            const kept = [...next].sort((a, b) => hashSeed(`${this.seed}:${frame}:${a}`) - hashSeed(`${this.seed}:${frame}:${b}`)).slice(0, this.profile.maxCells);
+            return new Set(kept);
+        }
+        return next;
+    }
+
+    snapshot(cells, frame) {
+        return [...cells].map(key => {
+            const [x, y] = key.split(',').map(Number);
+            const index = hashSeed(`${this.seed}:${frame}:${x}:${y}`) % this.profile.glyphs.length;
+            return { x, y, glyph: this.profile.glyphs[index] };
+        });
+    }
+
+    render(enemy, animationTime) {
+        const frameIndex = Math.floor((animationTime + enemy.genome.pulseOffset) / 6) % this.frames.length;
+        const cells = this.frames[frameIndex];
+        const grid = Array.from({ length: this.height }, () => Array(this.width).fill(' '));
+        for (const cell of cells) {
+            let glyph = cell.glyph;
+            let removed = false;
+            for (const organ of enemy.organs || []) {
+                if (organ.state === OrganState.HEALTHY) continue;
+                const ox = organ.x / Math.max(1, enemy.width) * (this.width - 1);
+                const oy = organ.y / Math.max(1, enemy.height) * (this.height - 1);
+                const distance = Math.hypot(cell.x - ox, cell.y - oy);
+                if (distance > 1.7) continue;
+                const noise = cellNoise(this.seed, frameIndex, cell.x + organ.id.length, cell.y);
+                if (organ.state === OrganState.SEVERED || (organ.state === OrganState.RUPTURED && noise < 0.7)) removed = true;
+                else if (noise < 0.65) glyph = organ.state === OrganState.WOUNDED ? enemy.genome.scarGlyph : 'x';
+            }
+            if (!removed) grid[cell.y][cell.x] = glyph;
+        }
+        const occupiedRows = grid.map((row, y) => ({ row, y })).filter(entry => entry.row.some(glyph => glyph !== ' '));
+        if (!occupiedRows.length) return ['x'];
+        const minX = Math.min(...occupiedRows.flatMap(entry => entry.row.map((glyph, x) => glyph === ' ' ? this.width : x)));
+        const maxX = Math.max(...occupiedRows.flatMap(entry => entry.row.map((glyph, x) => glyph === ' ' ? -1 : x)));
+        return occupiedRows.map(entry => entry.row.slice(minX, maxX + 1).join(''));
+    }
+}
+
 export class Genome {
     constructor(type, seed, adaptations = []) {
         const rng = seededRandom(hashSeed(`${type}:${seed}`));
@@ -74,6 +190,7 @@ export class BodyPlan {
         this.width = width;
         this.height = height;
         this.organs = this.createOrgans();
+        this.organicField = new OrganicField(genome);
     }
 
     createOrgans() {
@@ -128,42 +245,8 @@ export function organModifier(enemy, effect, healthy = 1, wounded = 0.72, disabl
     return healthy;
 }
 
-const stateGlyph = (organState, healthyGlyph, genome) => organState === OrganState.HEALTHY ? healthyGlyph : organState === OrganState.WOUNDED ? genome.scarGlyph : organState === OrganState.RUPTURED ? 'x' : ' ';
-const findOrgan = (enemy, id) => enemy.organs?.find(entry => entry.id === id) || { state: OrganState.HEALTHY };
-
 export function renderCreatureBody(enemy, animationTime = 0) {
-    const g = enemy.genome;
-    const morph = Math.floor((animationTime + g.pulseOffset) / 7) % 4;
-    const pulse = morph < 2;
-    const cache = enemy.bodyPlan?.silhouetteCache || (enemy.bodyPlan ? (enemy.bodyPlan.silhouetteCache = new Map()) : null);
-    const cacheKey = `${morph}:${enemy.attackState || 'idle'}:${(enemy.organs || []).map(entry => entry.state[0]).join('')}`;
-    if (cache?.has(cacheKey)) return cache.get(cacheKey);
-    const remember = rows => { if (cache) cache.set(cacheKey, rows); return rows; };
-    const core = stateGlyph(findOrgan(enemy, 'core').state, g.coreGlyph, g);
-    const sense = stateGlyph(findOrgan(enemy, 'sense').state, g.sensorGlyph, g);
-    const attack = stateGlyph(findOrgan(enemy, 'attack').state, pulse ? '*' : '+', g);
-    const shell = stateGlyph(findOrgan(enemy, 'shell').state, g.shellGlyph, g);
-    const motion = stateGlyph(findOrgan(enemy, 'motion').state, pulse ? '/' : '\\', g);
-    const signal = stateGlyph(findOrgan(enemy, 'signal').state, '^', g);
-    const adapted = g.adaptations.length ? g.adaptations.at(-1).glyph : '';
-    const tissue = g.shellGlyph === '#' ? '%' : g.shellGlyph;
-    const edge = (g.bias < 0 ? [':', ',', ';', "'"] : [';', ':', "'", ','])[morph];
-    const filament = ['~', '-', '_', '~'][morph];
-    const bud = ['.', '*', ':', '+'][morph];
-    switch (g.family) {
-        case SpeciesFamily.SKITTER: return remember([`${morph % 2 ? '' : ' '}${edge}${signal}${bud}${adapted}`, `${motion}${filament}${tissue}${filament}${motion}`, `${morph % 2 ? ' ' : ''}${edge}${sense}${edge}${bud}`]);
-        case SpeciesFamily.BLOOMCASTER: return remember([`${morph === 2 ? ' ' : '  '}${edge}${attack}${bud}${edge}`, `${edge}${tissue}${tissue}${core}${tissue}${edge}`, ` ${filament}|${sense}${filament}${bud}`]);
-        case SpeciesFamily.RIBBON: return remember([`${morph % 2 ? ' ' : ''}${signal}${filament}${tissue}${core}${filament}${attack}${filament}${edge}`, `${morph % 2 ? '' : ' '}${motion}${edge}${motion}${edge}${bud}`]);
-        case SpeciesFamily.PRISM: return remember([`${bud}${edge}+${sense}`, `+${tissue}${core}${edge}`, `${attack}+${edge}${morph === 3 ? '+' : bud}`]);
-        case SpeciesFamily.CARAPACE: return remember([`${morph === 1 ? '' : ' '}${edge}${shell}${shell}${tissue}${edge}${bud}`, `${shell}${tissue}${core}${tissue}${shell}`, `${bud}${edge}${tissue}${motion}${tissue}${edge}`]);
-        case SpeciesFamily.BURST_SAC: return remember([` ${edge}${sense}${bud} `, `${edge}${tissue}${core}${tissue}${edge}`, ` ${bud}${attack}${edge}${morph === 3 ? '!' : ''}`]);
-        case SpeciesFamily.ROOTWEAVER: return remember([`${edge}${signal}${tissue}${bud}${adapted}`, `${tissue}${core}${tissue}${attack}`, `${morph % 2 ? '' : ' '}${filament}|${filament}`, `${motion}|${edge}${motion}${bud}`]);
-        case SpeciesFamily.SPORE: return remember([pulse ? '*' : '.']);
-        case SpeciesFamily.COLONY: return remember([pulse ? 'o' : 'O']);
-        case SpeciesFamily.PARASITE: return remember([pulse ? '~:~' : ':~:']);
-        case SpeciesFamily.AMALGAM: return remember([`${morph % 2 ? '' : ' '}${edge}${tissue}${filament}${sense}${edge}${bud}`, `${tissue}${core}${tissue}${attack}${tissue}`, ` ${edge}${tissue}${motion}${edge}${bud}`, `${morph % 2 ? ' ' : ''}${motion}${filament}${edge}`]);
-        default: return null;
-    }
+    return enemy.bodyPlan?.organicField?.render(enemy, animationTime) || null;
 }
 
 export function getGenomeModifiers(genome) {

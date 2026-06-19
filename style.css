@@ -39,6 +39,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* --- CRT & Terminal Screen Overlays --- */
