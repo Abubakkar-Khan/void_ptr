@@ -413,7 +413,7 @@ export class Player {
                     const dist = Math.sqrt((ex - px) * (ex - px) + (ey - py) * (ey - py));
                     if (dist <= dashRadius + (ew / 2) && !this.dashHitEnemies.has(e)) {
                         this.dashHitEnemies.add(e);
-                        e.takeDamage(dashDamage);
+                        e.takeDamage({ amount: dashDamage, source: 'player_dash', damageType: 'dash', hitX: ex, hitY: ey, directionX: this.dashDx, directionY: this.dashDy, force: this.dashSpeed });
                         effects.spawnImpactSparks(ex, ey);
                     }
                 }
@@ -567,7 +567,7 @@ export class Player {
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist < 20) {
                         // Apply damage
-                        e.takeDamage(1.5 * this.hasElectricDischarge);
+                        e.takeDamage({ amount: 1.5 * this.hasElectricDischarge, source: 'tesla', damageType: 'electric', hitX: e.x + e.width / 2, hitY: e.y + e.height / 2 });
                         // Trigger lightning effect in canvas
                         effects.spawnLightningArc(px, py, e.x + ew/2, e.y + eh/2);
                         zapped++;
@@ -640,7 +640,7 @@ export class Player {
                     const dy = (e.y + eh / 2) - py;
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist <= bombRadius) {
-                        e.takeDamage(5 + (this.bombLevel - 1) * 2);
+                        e.takeDamage({ amount: 5 + (this.bombLevel - 1) * 2, source: 'stack_flush', damageType: 'splash', hitX: e.x + e.width / 2, hitY: e.y + e.height / 2 });
                         e.applyKnockback(dx * 0.15, dy * 0.15);
                         effects.spawnGlitchExplosion(e.x + ew / 2, e.y + eh / 2, '#ff3366', 8);
                     }

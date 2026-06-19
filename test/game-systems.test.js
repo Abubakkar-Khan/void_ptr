@@ -11,6 +11,9 @@ import { EcosystemSystem } from '../src/ecosystem.js';
 import { StatsTracker } from '../src/stats.js';
 import { UIManager } from '../src/ui.js';
 import { resolveAssistedAim, weapons } from '../src/weapons.js';
+import { createBiology, Genome, OrganState, renderCreatureBody, SpeciesFamily } from '../src/biology.js';
+import { EvolutionDirector } from '../src/evolution.js';
+import { ColonyMindSystem } from '../src/colonyMind.js';
 
 const makeUpgradePlayer = (weaponType) => ({
     weaponType,
@@ -134,7 +137,7 @@ test('dash corruption can damage the same target only once per dash', () => {
         height: 1,
         type: 'drone',
         hp: 100,
-        takeDamage(amount) { this.hp -= amount; }
+        takeDamage(amount) { this.hp -= amount?.amount ?? amount; }
     };
     const idle = { x: 0, y: 0 };
     player.update(idle, 100, 100, null, [target]);
@@ -325,4 +328,91 @@ test('visible interface and effect modules use glyphs instead of vector primitiv
     }
     const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
     assert.doesNotMatch(main, /ScreenUI|screenUi/);
+});
+
+test('seeded genomes are reproducible, individual, and family-readable', () => {
+    const first = new Genome('drone', 4242);
+    const same = new Genome('drone', 4242);
+    const sibling = new Genome('drone', 4243);
+    assert.deepEqual(first, same);
+    assert.equal(first.family, SpeciesFamily.SKITTER);
+    assert.notEqual(first.signature, sibling.signature);
+    const a = new Enemy(10, 10, 'drone', { seed: 4242 });
+    const b = new Enemy(10, 10, 'drone', { seed: 4242 });
+    assert.deepEqual(renderCreatureBody(a, 20), renderCreatureBody(b, 20));
+    assert.match(renderCreatureBody(a, 20).join(''), /[<>]/);
+});
+
+test('organ wounds are stable and have functional combat consequences', () => {
+    const shooter = new Enemy(10, 10, 'shooter', { seed: 9 });
+    shooter.introTimer = 0;
+    const attack = shooter.organs.find(organ => organ.type === 'attack');
+    shooter.takeDamage({ amount: 30, damageType: 'bullet', hitX: shooter.x + attack.x, hitY: shooter.y + attack.y });
+    assert.ok([OrganState.RUPTURED, OrganState.SEVERED].includes(attack.state));
+    shooter.fireCooldown = 0;
+    const shots = [];
+    shooter.update(20, 20, 100, 100, shots, { enemies: [shooter], spawn() {} });
+    assert.equal(shots.length, 0);
+    assert.equal(shooter.attackState, 'ruptured');
+
+    const skitter = new Enemy(10, 10, 'drone', { seed: 10 });
+    const social = skitter.organs.find(organ => organ.type === 'social');
+    skitter.packId = 2;
+    skitter.takeDamage({ amount: 30, damageType: 'laser', hitX: skitter.x + social.x, hitY: skitter.y + social.y });
+    assert.equal(skitter.packId, null);
+});
+
+test('run evolution answers dominant pressure with capped visible tradeoffs', () => {
+    const director = new EvolutionDirector(77);
+    const enemy = new Enemy(0, 0, 'drone', { seed: 1 });
+    for (let i = 0; i < 36; i++) {
+        director.recordDamage(enemy, { damageType: 'bullet' }, 10);
+        director.recordDeath(enemy, 300);
+    }
+    const profile = director.profileFor('drone');
+    assert.ok(profile.adaptations.length <= 3);
+    assert.equal(profile.adaptations[0].id, 'angled_shell');
+    assert.ok(profile.adaptations.every(adaptation => adaptation.glyph && adaptation.tradeoff));
+    assert.ok(profile.adaptations.every(adaptation => Object.values(adaptation.modifiers).every(value => value >= 0.78)));
+});
+
+test('colony intelligence uses bounded local queries and breaks on severed signals', () => {
+    const system = new ColonyMindSystem(4);
+    const swarm = Array.from({ length: 30 }, (_, index) => new Enemy(index * 2, 20, 'drone', { seed: index + 1 }));
+    const manager = { enemies: swarm, fuse() { return null; } };
+    for (let i = 0; i < 12; i++) system.update(manager, { x: 30, y: 30 });
+    assert.ok(system.queryCount > 0 && system.queryCount < swarm.length);
+    assert.ok(swarm.some(enemy => enemy.packId));
+    const disconnected = swarm.find(enemy => enemy.packId);
+    disconnected.organs.find(organ => organ.type === 'social').state = OrganState.SEVERED;
+    disconnected.packId = null;
+    system.think(disconnected, manager, { x: 30, y: 30 });
+    assert.equal(disconnected.packId, null);
+});
+
+test('fusion consumes participants once and creates an inherited elite', () => {
+    enemies.reset(123);
+    const a = enemies.spawn(10, 10, 'drone', { seed: 11 });
+    const b = enemies.spawn(11, 10, 'shooter', { seed: 12 });
+    a.hp = 2; b.hp = 2;
+    const fused = enemies.fuse([a, b]);
+    assert.ok(fused);
+    assert.equal(fused.type, 'cell_amalgam');
+    assert.equal(enemies.enemies.includes(a), false);
+    assert.equal(enemies.enemies.includes(b), false);
+    assert.equal(enemies.enemies.filter(enemy => enemy === fused).length, 1);
+});
+
+test('organic bosses expose authored organs and metamorphose through organ failure', () => {
+    for (const type of ['boss_snake', 'boss_eye', 'boss_carrier']) {
+        const boss = new Enemy(20, 20, type, { seed: 808 });
+        assert.ok(boss.organs.length >= 5);
+        assert.ok(boss.organs.some(organ => organ.type === 'core'));
+        boss.introTimer = 0;
+        boss.hp = boss.maxHp * 0.49;
+        const manager = { enemies: [boss], spawn() {}, elapsedSeconds: 400 };
+        boss.update(0, 0, 120, 90, [], manager);
+        assert.equal(boss.phase, 2);
+        assert.ok(boss.weakPoints.length > 0);
+    }
 });

@@ -174,7 +174,7 @@ export class Projectile {
                         const ody = e.y + e.height/2 - this.y;
                         const odist = Math.sqrt(odx*odx + ody*ody);
                         if (odist < blastRadius) {
-                            e.takeDamage(blastDmg);
+                            e.takeDamage({ amount: blastDmg, source: 'seeker_blast', damageType: 'splash', hitX: this.x, hitY: this.y, directionX: odx, directionY: ody, force: 1.5 });
                             e.applyKnockback(odx / (odist || 1) * 1.5, ody / (odist || 1) * 1.5);
                         }
                     }
@@ -333,7 +333,7 @@ class WeaponSystem {
                                 if (collision.checkOverlap(cellHitbox, eBox)) {
                                     hitEnemies.add(enemy);
                                     enemy.applyKnockback(lux * 1.5, luy * 1.5);
-                                    enemy.takeDamage(dmg, tx, ty);
+                                    enemy.takeDamage({ amount: dmg, source: 'null_laser', damageType: 'laser', hitX: tx, hitY: ty, directionX: lux, directionY: luy, force: 0.4 });
                                     effects.spawnImpactSparks(tx, ty);
                                     audio.playHit();
                                 }

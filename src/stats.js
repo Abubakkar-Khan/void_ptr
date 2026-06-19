@@ -19,6 +19,7 @@ const emptyLifetime = () => ({
 const emptyRun = () => ({
     kills: 0,
     killsByType: {},
+    genomeKills: {},
     bossKills: 0,
     damageDealt: 0,
     damageTaken: 0,
@@ -77,9 +78,10 @@ export class StatsTracker {
     recordDistance(amount = 0) { this.run.distanceTravelled += Math.max(0, amount); }
     recordCombo(combo = 0) { this.run.maxCombo = Math.max(this.run.maxCombo, combo); }
 
-    recordKill(type, isBoss = false) {
+    recordKill(type, isBoss = false, genomeSignature = null) {
         this.run.kills++;
         this.run.killsByType[type] = (this.run.killsByType[type] || 0) + 1;
+        if (genomeSignature) this.run.genomeKills[genomeSignature] = (this.run.genomeKills[genomeSignature] || 0) + 1;
         if (isBoss) this.run.bossKills++;
         if (type === 'cell_colony') this.run.coloniesDestroyed++;
         if (type === 'cell_parasite') this.run.parasitesRemoved++;
@@ -90,6 +92,7 @@ export class StatsTracker {
         return {
             ...this.run,
             killsByType: { ...this.run.killsByType },
+            genomeKills: { ...this.run.genomeKills },
             upgradesSelected: [...this.run.upgradesSelected],
             distanceTravelled: Math.round(this.run.distanceTravelled * 10) / 10,
             damageDealt: Math.round(this.run.damageDealt),

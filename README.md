@@ -51,6 +51,14 @@ The arena contains a persistent, population-capped cellular simulation alongside
 
 Enemy deaths leave temporary nutrient residue. Colonies spread into a bounded terrain layer with sector-specific anatomy: STACK roots, HEAP tangles, NULL spores, and KERNEL nodes. Dense growth visibly slows movement, intercepts shots, and can be cut apart by dashing. Collapsed ecosystems are reseeded from map edges, while blooms, migrations, collisions, predator events, and die-offs keep the arena alive without burying combat.
 
+## Synthetic species
+
+Every organism receives a stable seeded genome and an authored family body plan. Skitters flank in packs, Bloomcasters open firing sacs behind Carapaces, Ribbons herd the player, Prisms divide when ruptured, Burst Sacs count down, and Rootweavers replace broken living links. Individual symmetry, limbs, tendrils, organs, scars, glyphs, and mutations stay consistent for that creature's lifetime.
+
+Hits are assigned to nearby functional organs. Damaged legs limp, blinded senses spoil aim, ruptured attack glands stop firing, cracked shells expose cores, and severed signal organs disconnect packs. Badly wounded compatible organisms can fuse into a single inherited Amalgam without duplicating kills or XP.
+
+Species learn during a run. Sustained bullet, laser, splash, dash, or electric pressure produces visible counter-organs with a matching weakness; adaptations are capped and never grant immunity. NULL SERPENT, THE WATCHER, and HEAP CARRIER use the same wound language for molting vertebrae, sensory lobes, gestation bays, carapace, and exposed hearts.
+
 ## Statistics and records
 
 Every run tracks kills by species, boss kills, damage dealt and taken, XP, levels, upgrades, shots, hits, dashes, distance travelled, combo, score, survival time, and ecosystem outcomes.

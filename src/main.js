@@ -354,7 +354,7 @@ class GameEngine {
                     bullet.hitEnemies?.add(enemy);
                     enemy.applyKnockback(bullet.vx, bullet.vy);
                     
-                    const isDead = enemy.takeDamage(bullet.damage, bullet.x, bullet.y);
+                    const isDead = enemy.takeDamage({ amount: bullet.damage, source: bullet.type, damageType: bullet.type === 'rocket' ? 'splash' : 'bullet', hitX: bullet.x, hitY: bullet.y, directionX: bullet.vx, directionY: bullet.vy, force: Math.hypot(bullet.vx, bullet.vy) });
                     if (bullet.type !== 'laser' || Math.random() < 0.15) {
                         effects.spawnImpactSparks(bullet.x, bullet.y);
                     }
@@ -433,7 +433,7 @@ class GameEngine {
         enemy.onDeath(enemies, spawnedProjectiles);
         this.killCombo++;
         this.totalKills++;
-        stats.recordKill(enemy.type, BOSS_TYPES.has(enemy.type));
+        stats.recordKill(enemy.type, BOSS_TYPES.has(enemy.type), enemy.genome?.signature);
         stats.recordCombo(this.killCombo);
         this.comboTimer = 90;
         const comboMultiplier = 1 + Math.floor(this.killCombo / 10) * 0.1;
