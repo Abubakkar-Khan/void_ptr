@@ -290,19 +290,17 @@ test('cellular terrain is sector-aware, bounded, visible, and destructible', () 
     assert.ok(system.terrain.size <= COMBAT_CONFIG.ecosystemTerrainCap);
 });
 
-test('stats persist versioned lifetime records and recover malformed storage', () => {
+test('only a basic per-run summary remains and legacy lifetime storage is removed', () => {
     const values = new Map();
-    const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+    values.set('voidptr_stats_v1', '{"runs":99}');
+    const storage = { removeItem: key => values.delete(key) };
     const tracker = new StatsTracker(storage);
-    tracker.reset('runner');
+    tracker.reset();
     tracker.recordShot(); tracker.recordHit(12); tracker.recordKill('drone'); tracker.recordDash(); tracker.recordDistance(20); tracker.recordCombo(7);
     tracker.finalize({ victory: true, score: 500, level: 6, survivalSeconds: 600 });
-    const restored = new StatsTracker(storage);
-    assert.equal(restored.lifetime.runs, 1);
-    assert.equal(restored.lifetime.wins, 1);
-    assert.equal(restored.lifetime.totalKills, 1);
-    values.set('voidptr_stats_v1', '{broken');
-    assert.equal(new StatsTracker(storage).lifetime.runs, 0);
+    assert.equal(values.has('voidptr_stats_v1'), false);
+    assert.deepEqual(Object.keys(tracker.snapshot()).sort(), ['bossKills', 'finalized', 'kills', 'levelsGained', 'score', 'survivalSeconds', 'victory'].sort());
+    assert.equal(tracker.snapshot().kills, 1);
 });
 
 test('all menus and results stamp into the ASCII grid with no default focus', () => {
@@ -317,7 +315,8 @@ test('all menus and results stamp into the ASCII grid with no default focus', ()
         const asciiUi = new UIManager();
         for (let frame = 0; frame < 20; frame++) asciiUi.stampTitleScreen(grid, -1, -1);
         assert.equal(asciiUi.focusIndex, -1);
-        assert.ok(asciiUi.buttons.some(button => button.id === 'records'));
+        assert.equal(asciiUi.buttons.some(button => button.id === 'records'), false);
+        assert.ok(asciiUi.buttons.some(button => button.id === 'controls'));
         assert.ok(grid.chars.flat().some(char => '╔╗╚╝┌┐└┘'.includes(char)));
         asciiUi.stampResultsScreen(grid, -1, -1, true, new StatsTracker(null).snapshot());
         assert.ok(asciiUi.buttons.some(button => button.id === 'restart'));

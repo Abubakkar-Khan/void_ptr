@@ -9,6 +9,7 @@ This document describes the game as currently implemented, including its rules, 
 ## Contents
 
 - [Game concept](#game-concept)
+- [Opening flow](#opening-flow)
 - [Run structure](#run-structure)
 - [Controls](#controls)
 - [Player hulls](#player-hulls)
@@ -22,8 +23,9 @@ This document describes the game as currently implemented, including its rules, 
 - [Living ecosystem](#living-ecosystem)
 - [Boss encounters](#boss-encounters)
 - [Difficulty director](#difficulty-director)
+- [Enemy arrivals and spawning](#enemy-arrivals-and-spawning)
 - [Experience pickups](#experience-pickups)
-- [Statistics and records](#statistics-and-records)
+- [Game-over summary](#game-over-summary)
 - [ASCII presentation and interface](#ascii-presentation-and-interface)
 - [Mobile and PWA behavior](#mobile-and-pwa-behavior)
 - [Audio](#audio)
@@ -46,6 +48,19 @@ The core loop is:
 
 Combat is intended to feel powerful without becoming automatic. Basic enemies die quickly, while challenge comes from population pressure, positioning, projectile lanes, symbiosis, pack tactics, wounded behavior, evolved generations, and boss organs.
 
+## Opening flow
+
+The game starts with a short terminal-style operating-system handshake rather than dropping directly into combat. The boot sequence reports input readiness, organic memory corruption, and executable status through a progress bar. It completes in roughly 1.75 seconds and can be skipped with any keyboard, pointer, gamepad, or touch input.
+
+The title screen deliberately keeps only four primary choices:
+
+- **Start 10-Min Run:** choose a hull and begin the standard boss run.
+- **Endless Process:** choose a hull and play without a victory timer.
+- **How to Play:** open a device-appropriate keyboard, gamepad, or touch guide.
+- **Settings:** configure music, sound effects, motion, and palette.
+
+There is no Records screen or lifetime statistics system. After selecting a mode, the hull screen explains each movement/weapon profile before the run begins. No card or menu action starts highlighted.
+
 ## Run structure
 
 ### Ten-minute mode
@@ -66,7 +81,7 @@ Endless mode removes the victory condition. Encounter pressure and threat tiers 
 
 ### Game states
 
-The engine uses explicit states for boot, title menu, hull selection, active play, upgrade selection, pause, settings, mobile guide, records, victory, and game over. Combat simulation stops during upgrades, pause screens, mobile instructions, and portrait-orientation blocking.
+The engine uses explicit states for boot, title menu, hull selection, active play, upgrade selection, pause, settings, control guide, victory, and game over. Combat simulation stops during upgrades, pause screens, instructions, and portrait-orientation blocking.
 
 ## Controls
 
@@ -327,6 +342,35 @@ Difficulty is driven by encounter composition and spatial pressure instead of un
 
 The director pauses major spawning during recovery windows and recognizes overtime/final-boss state explicitly.
 
+Authored encounter recipes replace completely arbitrary enemy mixtures:
+
+- **Hunting Ring:** Skitters approach from an arc around the player.
+- **Moving Nest:** Carapaces shelter Bloomcasters in a compact group.
+- **Herding Current:** Ribbons and Skitters arrive along a shared lane.
+- **Division Field:** Prisms enter as mirrored branches.
+- **Parasite Migration:** Parasites travel with potential hosts.
+- **Root Territory:** Carapaces and Rootweavers establish a defended area.
+- **Predator Feed:** An Amalgam arrives near consumable spores.
+- **Panic Bloom:** Burst Sacs and Skitters occupy a warning arc.
+
+Complex encounters receive longer recovery gaps. At most two principal tactical ideas are intended to overlap at once.
+
+## Enemy arrivals and spawning
+
+Enemies can enter the run through several systems:
+
+1. The main encounter director creates edge formations based on the current threat tier.
+2. The ecosystem triggers a cellular event every 90 seconds, placing spores, parasites, colony cells, or an Amalgam on a 25-cell radius around the player.
+3. Prisms reproduce locally when their division cycle completes or a relevant organ ruptures.
+4. Dense colony cells can merge into an Amalgam.
+5. Parasites release spores from a destroyed host.
+6. Brutes divide into smaller Carapaces when their outer body collapses.
+7. Bosses shed tissue, detach sensory lobes, or grow organisms in visible brood bays.
+
+The current encounter-ring and ecosystem-event positions are calculated relative to the player. Because their `birthTimer` displays only a short genome signature instead of concealing and growing the body, formations may appear suddenly within the visible arena. This is a known presentation limitation rather than teleportation behavior or a renderer fault.
+
+The intended follow-up is to reserve an arrival location, stamp a visible seed/rupture warning, grow the organism over several stages, and enable movement, collision, and attacks only after emergence completes.
+
 ## Experience pickups
 
 XP fragments use the blue pickup palette and are distinct from green nutrients.
@@ -343,24 +387,9 @@ XP fragments use the blue pickup palette and are distinct from green nutrients.
 
 The XP bar is always placed at the bottom of the gameplay HUD.
 
-## Statistics and records
+## Game-over summary
 
-The central statistics tracker receives combat, movement, pickup, progression, dash, and ecosystem events once at their source. Internally it tracks:
-
-- Total and per-species kills.
-- Boss kills.
-- Damage dealt and taken.
-- XP collected and levels gained.
-- Selected upgrades.
-- Shots fired and hit events.
-- Dashes and distance travelled.
-- Maximum combo and score.
-- Survival time.
-- Colonies destroyed, parasites removed, and Amalgams killed.
-
-The game-over/victory interface intentionally presents a smaller, readable summary rather than dumping every diagnostic statistic. The Records screen stores lifetime runs, wins, kills, damage, playtime, bosses defeated, high score, highest level, longest survival, largest combo, and per-hull best scores.
-
-Records are local-only. There is no account, server, telemetry service, or online leaderboard.
+The game intentionally avoids lifetime records and detailed telemetry. Victory and Game Over show only the current run’s time, kills, level, and score. No performance history, per-species archive, account, telemetry service, or online leaderboard is maintained.
 
 ## ASCII presentation and interface
 
@@ -383,7 +412,7 @@ The game permits ASCII, terminal box-drawing, and block glyphs. It does not use 
 ### Menus and cards
 
 - The full `VOID* PTR` ASCII banner is used on desktop and mobile landscape.
-- Ship, upgrade, pause, settings, records, guide, victory, and game-over screens are grid-stamped.
+- Ship, upgrade, pause, settings, guide, victory, and game-over screens are grid-stamped.
 - No item is selected when a screen opens (`focusIndex = -1`).
 - Cards calculate wrapped title, values, description, evolution text, padding, and footer space before choosing their height.
 - Wide screens can use multi-column layouts.
@@ -460,7 +489,7 @@ The project uses modern browser JavaScript modules and Vite. Gameplay updates ru
 | `waves.js` | Threat budget, populations, boss schedule, recovery, victory logic |
 | `collision.js` | Projectile, contact, pickup, terrain, and dash collision routing |
 | `pickups.js` | XP attraction, collection state, cleanup, boss vacuum |
-| `stats.js` | Run metrics, summaries, lifetime record persistence |
+| `stats.js` | Minimal non-persistent Game Over summary |
 | `matrixRain.js` | Background rain and occupied-cell word placement |
 | `effects.js` | Glyph-based impacts, warnings, trails, and transient effects |
 | `audio.js` | Synthesized music/SFX and persistent audio settings |
@@ -482,12 +511,11 @@ The living systems are explicitly bounded:
 
 | Key | Purpose |
 | --- | --- |
-| `voidptr_stats_v1` | Versioned lifetime records and per-hull bests |
 | `voidptr_mobile_guide_v1` | First-run mobile control-guide dismissal |
 | `voidptr_music` | Music enabled/disabled |
 | `voidptr_sfx` | Sound effects enabled/disabled |
 
-Missing or malformed statistics data falls back to a valid default record. No gameplay data leaves the device.
+No gameplay records are persisted and no gameplay data leaves the device. Obsolete `voidptr_stats_v1` data is removed when the game starts.
 
 ## Development
 
@@ -548,7 +576,7 @@ Coverage includes:
 - Colony intelligence, signal breaking, and fusion accounting.
 - Evolution pressure, adaptation limits, and tradeoffs.
 - ASCII-only UI rendering and no default focus.
-- Lifetime-record recovery from malformed storage.
+- Basic run-summary output with no lifetime persistence.
 - Floating touch-stick clamping, deadzones, and reset behavior.
 - Full mobile title, card pagination, orientation gate, and compact viewport bounds.
 - Background word counts, brightness, and bounded placement.

@@ -23,7 +23,6 @@ const GAME_STATES = {
     LEVEL_UP: 'level_up',
     GAME_OVER: 'game_over',
     VICTORY: 'victory',
-    RECORDS: 'records',
     PAUSED: 'paused',
     SETTINGS: 'settings',
     MOBILE_GUIDE: 'mobile_guide'
@@ -185,10 +184,6 @@ class GameEngine {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.MENU;
             ui.currentScreen = null;
-        } else if (action === 'records') {
-            audio.playUpgradeSelect();
-            this.state = GAME_STATES.RECORDS;
-            ui.currentScreen = null;
         } else if (action === 'settings') {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.SETTINGS;
@@ -302,8 +297,11 @@ class GameEngine {
 
         if (this.state === GAME_STATES.BOOT) {
             this.bootTicks++;
-            if (this.bootTicks >= 240) {
+            const skipBoot = input.mouse.justClicked || input.moveStick?.active || input.shootStick?.active || input.getMenuKey();
+            if (this.bootTicks >= 105 || skipBoot) {
                 this.state = GAME_STATES.MENU;
+                ui.currentScreen = null;
+                input.resetTransient();
             }
             input.tick();
             return;
@@ -503,10 +501,10 @@ class GameEngine {
     draw() {
         let brightnessFactor = 1.0;
         if (this.state === GAME_STATES.BOOT) {
-            if (this.bootTicks < 180) {
+            if (this.bootTicks < 8) {
                 brightnessFactor = 0.0;
             } else {
-                brightnessFactor = (this.bootTicks - 180) / 60;
+                brightnessFactor = Math.min(1, (this.bootTicks - 8) / 20);
             }
         }
 
@@ -544,7 +542,6 @@ class GameEngine {
         else if (this.state === GAME_STATES.SHIP_SELECT) ui.stampShipSelectScreen(renderer, mx, my);
         else if (this.state === GAME_STATES.LEVEL_UP) ui.stampUpgradeScreen(renderer, mx, my, this.activeUpgradesSelection, this.upgradeRerolls);
         else if (this.state === GAME_STATES.PAUSED) ui.stampPauseScreen(renderer, mx, my);
-        else if (this.state === GAME_STATES.RECORDS) ui.stampRecordsScreen(renderer, mx, my, stats.lifetime);
         else if (this.state === GAME_STATES.SETTINGS) ui.stampSettingsScreen(renderer, mx, my);
         else if (this.state === GAME_STATES.MOBILE_GUIDE) ui.stampMobileGuide(renderer, mx, my);
         else if (this.state === GAME_STATES.GAME_OVER || this.state === GAME_STATES.VICTORY) ui.stampResultsScreen(renderer, mx, my, this.state === GAME_STATES.VICTORY, stats.snapshot());

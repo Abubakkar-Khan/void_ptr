@@ -302,26 +302,21 @@ export class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        // Render boot lines step-by-step
         const messages = [
-            "> INITIALIZING SYSTEM BOOT...",
-            "> MOUNTING CORE STORAGE [/dev/null]... SUCCESS.",
-            "> CONNECTING TO NEURAL PTR NETWORK... ERROR: HE IS WATCHING.",
-            "> RE-ESTABLISHING SECURE STACK SYSTEM... FAILED.",
-            "> WARNING: CORRUPTED MEMORY ADDRESS DETECTED.",
-            "> FORCE INJECTING VOID_PTR.EXE... GO."
+            "> VOID KERNEL // COLD START",
+            "> INPUT ........ MANUAL FIRE ONLINE",
+            "> MEMORY ....... ORGANIC CORRUPTION FOUND",
+            "> VOID_PTR.EXE . READY"
         ];
 
         let visibleCount = 0;
-        if (bootTicks > 20) visibleCount = 1;
-        if (bootTicks > 50) visibleCount = 2;
-        if (bootTicks > 85) visibleCount = 3;
-        if (bootTicks > 115) visibleCount = 4;
-        if (bootTicks > 145) visibleCount = 5;
-        if (bootTicks > 175) visibleCount = 6;
+        if (bootTicks > 8) visibleCount = 1;
+        if (bootTicks > 26) visibleCount = 2;
+        if (bootTicks > 46) visibleCount = 3;
+        if (bootTicks > 68) visibleCount = 4;
 
         const startY = Math.floor(viewRows / 2) - 5;
-        const startX = Math.floor(viewCols / 2) - 30;
+        const startX = Math.max(2, Math.floor(viewCols / 2) - 24);
 
         for (let i = 0; i < visibleCount; i++) {
             this.stampText(renderer, messages[i], startX, startY + i * 2, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
@@ -329,7 +324,7 @@ export class UIManager {
 
         // Blinking terminal cursor
         const cursorBlink = Math.floor(Date.now() / 250) % 2 === 0;
-        if (cursorBlink && bootTicks < 180) {
+        if (cursorBlink && bootTicks < 90) {
             let cursorX = startX;
             let cursorY = startY;
             if (visibleCount > 0 && visibleCount <= messages.length) {
@@ -342,6 +337,9 @@ export class UIManager {
                 renderer.brightness[cursorX][cursorY] = 1.0;
             }
         }
+        const progress = Math.max(0, Math.min(20, Math.floor(bootTicks / 4.5)));
+        this.stampText(renderer, `[${'='.repeat(progress)}${'.'.repeat(20 - progress)}]`, Math.floor(viewCols / 2), startY + 9, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
+        this.stampText(renderer, 'PRESS ANY INPUT TO SKIP', Math.floor(viewCols / 2), startY + 11, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
     }
 
     stampButton(renderer, id, label, x, y, w, h, t, mx, my, parentCc, parentCr) {
@@ -425,46 +423,32 @@ export class UIManager {
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
         if (compact) {
-            const short = viewRows < 35;
             this.stampGlitchyText(renderer, 'VOID* PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-            this.stampText(renderer, 'MAINFRAME THREAT EVASION', cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampText(renderer, 'MANUAL FIRE // SURVIVE // EVOLVE', cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             const buttonX = px + 3;
             const buttonW = panelW - 6;
-            this.stampButton(renderer, 'select_ship_10', '10 Minute Run', buttonX, py + 6, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', buttonX, py + 10, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'records', 'Lifetime Records', buttonX, py + 14, buttonW, 3, t, mx, my, cc, cr);
-            if (short) {
-                const optionW = Math.floor((buttonW - 1) / 2);
-                this.stampButton(renderer, 'toggle_music', `Music ${audio.musicEnabled ? 'ON' : 'OFF'}`, buttonX, py + 18, optionW, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_sfx', `SFX ${audio.sfxEnabled ? 'ON' : 'OFF'}`, buttonX + optionW + 1, py + 18, optionW, 3, t, mx, my, cc, cr);
-            } else {
-                this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, buttonX, py + 18, buttonW, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, buttonX, py + 22, buttonW, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, buttonX, py + 26, buttonW, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, buttonX, py + 30, buttonW, 3, t, mx, my, cc, cr);
-            }
+            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', buttonX, py + 7, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', buttonX, py + 11, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'controls', 'HOW TO PLAY', buttonX, py + 15, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'settings', 'SETTINGS', buttonX, py + 19, buttonW, 3, t, mx, my, cc, cr);
         } else {
             const titleX = px + Math.floor((panelW - 48) / 2);
             for (let i = 0; i < TITLE_LINES.length; i++) {
                 this.stampGlitchyText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
             }
             const playBtnY = py + 19;
-            this.stampButton(renderer, 'select_ship_10', '10 Minute Run', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'Endless Mode', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
             if (mobileLandscape) {
-                this.stampButton(renderer, 'records', 'Records', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'controls', 'How To Play', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
                 this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
                 const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
                 if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', cc, py + 27, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
                 else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', cc - 12, py + 27, 24, 2, t, mx, my, cc, cr);
             } else {
-                this.stampButton(renderer, 'records', 'Lifetime Records', px + 15, py + 23, 24, 3, t, mx, my, cc, cr);
-                const optBtnY = py + 27;
-                this.stampButton(renderer, 'toggle_music', `Music: ${audio.musicEnabled ? 'ON' : 'OFF'}`, px + 3, optBtnY, 23, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_sfx', `Sounds: ${audio.sfxEnabled ? 'ON' : 'OFF'}`, px + 28, optBtnY, 23, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_fx', `Motion: ${this.reducedMotion ? 'SAFE' : 'FULL'}`, px + 3, py + 31, 23, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'toggle_color', `Palette: ${this.colorMode ? 'COLOR' : 'MONO'}`, px + 28, py + 31, 23, 3, t, mx, my, cc, cr);
-                this.stampText(renderer, 'WASD MOVE | ARROWS FIRE | SPACE DASH | P PAUSE', cc, py + 35, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+                this.stampButton(renderer, 'controls', 'How To Play', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
+                this.stampText(renderer, 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH', cc, py + 28, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             }
         }
     }
@@ -595,19 +579,20 @@ export class UIManager {
         const px = Math.floor((renderer.viewCols - panelW) / 2), py = Math.floor((renderer.viewRows - panelH) / 2);
         const cc = px + Math.floor(panelW / 2), cr = py + Math.floor(panelH / 2);
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
-        this.stampText(renderer, '== TOUCH CONTROL GUIDE ==', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        const touch = renderer.isTouchLayout;
+        this.stampText(renderer, touch ? '== TOUCH CONTROL GUIDE ==' : '== OPERATOR GUIDE ==', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         const left = px + 4, right = cc + 2;
         this.stampText(renderer, 'MOVE', left + 8, py + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-        this.stampText(renderer, "   ^   ", left + 8, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-        this.stampText(renderer, '<  @  >', left + 8, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-        this.stampText(renderer, '   v   ', left + 8, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-        this.stampText(renderer, 'Touch anywhere on the left', left, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
+        this.stampText(renderer, touch ? "   ^   " : '   W   ', left + 8, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? '<  @  >' : ' A S D ', left + 8, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? '   v   ' : 'LEFT STICK', left + 8, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? 'Touch anywhere on the left' : 'WASD or gamepad left stick', left, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
         this.stampText(renderer, 'AIM + FIRE', right + 10, py + 5, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-        this.stampText(renderer, "   ^   ", right + 10, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-        this.stampText(renderer, '<  *  >', right + 10, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-        this.stampText(renderer, '   v   ', right + 10, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-        this.stampText(renderer, 'Hold and drag on the right', right, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
-        this.stampText(renderer, '[ DASH ] sits beside FIRE | XP fills the bottom bar', cc, py + 15, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? "   ^   " : '  MOUSE  ', right + 10, py + 7, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? '<  *  >' : '< ARROWS >', right + 10, py + 8, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? '   v   ' : 'RIGHT STICK', right + 10, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, touch ? 'Hold and drag on the right' : 'Hold input to fire manually', right, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr);
+        this.stampText(renderer, touch ? '[ DASH ] sits beside FIRE | XP fills the bottom bar' : 'SPACE / PAD A = DASH | P / ESC = PAUSE', cc, py + 15, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
         this.stampText(renderer, 'Upgrade cards pause combat. Tap a card to install it.', cc, py + 17, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
         this.stampButton(renderer, 'guide_close', 'GOT IT', cc - 10, py + panelH - 4, 20, 3, t, mx, my, cc, cr);
     }
@@ -809,15 +794,6 @@ export class UIManager {
         }
     }
 
-    stampRecordsScreen(renderer, mx, my, lifetime) {
-        const time = Math.floor((lifetime.totalPlaytime || 0) / 60);
-        this.stampDataScreen(renderer, mx, my, 'records', 'LIFETIME RECORDS', 'LOCAL ARCHIVE // voidptr_stats_v1', [
-            { title: 'TOTALS', rows: [['Runs', lifetime.runs], ['Wins', lifetime.wins], ['Kills', lifetime.totalKills], ['Bosses', lifetime.bossesDefeated], ['Damage', lifetime.totalDamage], ['Playtime', `${time}m`]] },
-            { title: 'RECORDS', rows: [['High score', lifetime.highestScore], ['Best level', lifetime.highestLevel], ['Longest', `${Math.floor((lifetime.longestSurvival || 0) / 60)}m`], ['Max combo', lifetime.largestCombo]] },
-            { title: 'HULL BESTS', rows: [['Runner', lifetime.perHullBest?.runner || 0], ['Daemon', lifetime.perHullBest?.daemon || 0], ['Cutter', lifetime.perHullBest?.cutter || 0]] }
-        ]);
-    }
-
     stampResultsScreen(renderer, mx, my, victory, values) {
         this.updateTransition(victory ? 'victory' : 'game_over');
         const t = this.transitionProgress;
@@ -961,7 +937,7 @@ export class UIManager {
         } else if (key === 'Enter' || key === ' ') {
             this.hoveredItem = this.buttons[this.focusIndex]?.id || null;
             this.handleClicks(onActionCallback, cards);
-        } else if (key === 'Escape' && ['ship_select', 'settings', 'records'].includes(this.currentScreen)) {
+        } else if (key === 'Escape' && ['ship_select', 'settings'].includes(this.currentScreen)) {
             onActionCallback('back');
         } else if (key === 'Escape' && this.currentScreen === 'mobile_guide') {
             onActionCallback('guide_close');
