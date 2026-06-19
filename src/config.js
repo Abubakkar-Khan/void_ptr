@@ -105,8 +105,8 @@ export const COMBAT_CONFIG = {
 };
 
 export const PROGRESSION_CONFIG = {
-    startingXp: 70,
-    xpGrowth: 1.32,
+    startingXp: 90,
+    xpGrowth: 1.36,
     pickupMagnetRadius: 28,
     pickupRadiusPerUpgrade: 7
 };

@@ -1,0 +1,9 @@
+{
+  "name": "VOID PTR",
+  "short_name": "VOID PTR",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

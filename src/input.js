@@ -94,6 +94,7 @@ class InputManager {
             this.prevKeys = {};
             this.mouse.isDown = false;
         });
+        window.addEventListener('orientationchange', () => this.lockLandscape());
     }
 
     defaultTouchOrigin(role, rect) {
@@ -108,9 +109,13 @@ class InputManager {
         this.mobileDisplayRequested = true;
         const root = document.documentElement;
         const request = root.requestFullscreen?.({ navigationUI: 'hide' }) || root.webkitRequestFullscreen?.();
-        Promise.resolve(request).then(() => screen.orientation?.lock?.('landscape')).catch(() => {
+        Promise.resolve(request).then(() => this.lockLandscape()).catch(() => {
             // iOS and embedded browsers may deny either API; CSS still fills the safe viewport.
         });
+    }
+
+    lockLandscape() {
+        return screen.orientation?.lock?.('landscape').catch?.(() => undefined);
     }
 
     updateMousePos(e) {

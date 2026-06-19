@@ -736,10 +736,35 @@ export class UIManager {
     }
 
     stampResultsScreen(renderer, mx, my, victory, values) {
+        this.updateTransition(victory ? 'victory' : 'game_over');
+        const t = this.transitionProgress;
+        this.buttons = [];
+        this.hoveredItem = null;
         const time = `${Math.floor(values.survivalSeconds / 60)}:${Math.floor(values.survivalSeconds % 60).toString().padStart(2, '0')}`;
-        this.stampDataScreen(renderer, mx, my, victory ? 'victory' : 'game_over', victory ? 'VICTORY' : 'GAME OVER', victory ? 'THE FINAL ORGANISM IS DEAD' : 'YOUR PROCESS HAS TERMINATED', [
-            { title: 'RUN', rows: [['Time', time], ['Kills', values.kills], ['Level', (values.levelsGained || 0) + 1], ['Score', values.score]] }
-        ], true);
+        const vw = renderer.viewCols;
+        const vh = renderer.viewRows;
+        const wide = vw >= 70 && vh >= 29;
+        const panelW = Math.max(36, Math.min(vw - 2, wide ? 70 : 48));
+        const panelH = Math.max(20, Math.min(vh - 2, wide ? 28 : 22));
+        const px = Math.floor((vw - panelW) / 2);
+        const py = Math.floor((vh - panelH) / 2);
+        const cc = px + Math.floor(panelW / 2);
+        const cr = py + Math.floor(panelH / 2);
+        this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
+        const banner = victory ? VICTORY_LINES : GAME_OVER_LINES;
+        if (wide) {
+            const shown = victory ? banner.slice(0, 6) : banner;
+            for (let i = 0; i < shown.length; i++) this.stampGlitchyText(renderer, shown[i], cc, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        } else {
+            this.stampText(renderer, victory ? '=== VICTORY ===' : '!!! GAME OVER !!!', cc, py + 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        }
+        const statsRow = wide ? py + panelH - 9 : py + 8;
+        this.stampText(renderer, victory ? 'FINAL ORGANISM PURGED' : 'PROCESS TERMINATED', cc, statsRow, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, `TIME ${time}   KILLS ${values.kills}   LEVEL ${(values.levelsGained || 0) + 1}`, cc, statsRow + 2, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+        this.stampText(renderer, `SCORE ${values.score}`, cc, statsRow + 3, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        const bw = Math.min(18, Math.floor((panelW - 7) / 2));
+        this.stampButton(renderer, 'restart', 'RUN AGAIN', cc - bw - 1, py + panelH - 4, bw, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'back', 'MAIN MENU', cc + 1, py + panelH - 4, bw, 3, t, mx, my, cc, cr);
     }
 
     stampHUD(renderer, data) {
@@ -751,8 +776,6 @@ export class UIManager {
         this.stampText(renderer, hp, 1, 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
         this.stampText(renderer, data.timer, Math.floor(w / 2), 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         this.stampText(renderer, `LV${data.level} ${data.threat}`, w - 2, 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'right', 0, 0);
-        const xpLen = Math.max(10, w - 19);
-        this.stampText(renderer, `XP ${data.xp}/${data.xpMax} [${bar(data.xp, data.xpMax, xpLen, '=', '.')}]`, Math.floor(w / 2), 3, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
         if (data.boss) {
             const names = { boss_snake: 'NULL SERPENT', boss_eye: 'THE WATCHER', boss_carrier: 'HEAP CARRIER' };
             const bossLen = Math.max(12, Math.min(42, w - 34));
@@ -760,16 +783,19 @@ export class UIManager {
             this.stampText(renderer, bossLine, Math.floor(w / 2), 5, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         }
         const weapon = `${data.weapon}${data.heat === null ? '' : ` HEAT:${data.heat}%${data.overheated ? '!LOCK' : ''}`} | DASH:${data.dash}`;
-        this.stampText(renderer, weapon, 1, data.touch ? 5 : h - 4, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
+        this.stampText(renderer, weapon, 1, data.touch ? 5 : h - 5, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
+        if (data.controller && !data.touch) this.stampText(renderer, 'PAD: L MOVE | R AIM/FIRE | A DASH | START PAUSE', w - 2, h - 5, RENDER_CELL_TYPES.UI_BORDER, 0.75, 'right', 0, 0);
         if (data.touch) this.stampTouchControls(renderer, data.touch);
         if (data.hint) this.stampText(renderer, data.hint, Math.floor(w / 2), Math.floor(h * 0.72), RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         if (data.debug) this.stampText(renderer, data.debug, 1, data.boss ? 5 : 3, RENDER_CELL_TYPES.UI_BORDER, 1, 'left', 0, 0);
+        const xpLen = Math.max(8, w - 19);
+        this.stampText(renderer, `XP ${data.xp}/${data.xpMax} [${bar(data.xp, data.xpMax, xpLen, '=', '.')}]`, Math.floor(w / 2), h - 3, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
     }
 
     stampTouchControls(renderer, touch) {
         const w = renderer.viewCols;
         const h = renderer.viewRows;
-        const row = Math.max(8, h - 8);
+        const row = Math.max(8, h - 9);
         const direction = vector => {
             if (!vector || Math.hypot(vector.x, vector.y) < 0.12) return '+';
             if (Math.abs(vector.x) > Math.abs(vector.y)) return vector.x > 0 ? '>' : '<';

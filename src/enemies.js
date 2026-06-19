@@ -1255,10 +1255,6 @@ class EnemyManager {
     }
 
     stampToGrid(rendererInstance) {
-        for (const pack of colonyMind.packs.values()) {
-            const members = [...pack.members].filter(enemy => enemy && this.enemies.includes(enemy) && enemy.hp > 0 && colonyMind.socialOrganWorks(enemy)).slice(0, 6);
-            for (let i = 1; i < members.length; i++) stampTendril(rendererInstance, members[i - 1].x + members[i - 1].width / 2, members[i - 1].y + members[i - 1].height / 2, members[i].x + members[i].width / 2, members[i].y + members[i].height / 2, '#a94f8f');
-        }
         for (const enemy of this.enemies) {
             if (enemy) {
                 enemy.stampToGrid(rendererInstance);

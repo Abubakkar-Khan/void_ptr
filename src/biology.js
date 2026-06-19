@@ -133,9 +133,10 @@ const findOrgan = (enemy, id) => enemy.organs?.find(entry => entry.id === id) ||
 
 export function renderCreatureBody(enemy, animationTime = 0) {
     const g = enemy.genome;
-    const pulse = Math.floor((animationTime + g.pulseOffset) / 10) % 2 === 0;
+    const morph = Math.floor((animationTime + g.pulseOffset) / 7) % 4;
+    const pulse = morph < 2;
     const cache = enemy.bodyPlan?.silhouetteCache || (enemy.bodyPlan ? (enemy.bodyPlan.silhouetteCache = new Map()) : null);
-    const cacheKey = `${pulse ? 1 : 0}:${enemy.attackState || 'idle'}:${(enemy.organs || []).map(entry => entry.state[0]).join('')}`;
+    const cacheKey = `${morph}:${enemy.attackState || 'idle'}:${(enemy.organs || []).map(entry => entry.state[0]).join('')}`;
     if (cache?.has(cacheKey)) return cache.get(cacheKey);
     const remember = rows => { if (cache) cache.set(cacheKey, rows); return rows; };
     const core = stateGlyph(findOrgan(enemy, 'core').state, g.coreGlyph, g);
@@ -146,20 +147,21 @@ export function renderCreatureBody(enemy, animationTime = 0) {
     const signal = stateGlyph(findOrgan(enemy, 'signal').state, '^', g);
     const adapted = g.adaptations.length ? g.adaptations.at(-1).glyph : '';
     const tissue = g.shellGlyph === '#' ? '%' : g.shellGlyph;
-    const edge = g.bias < 0 ? ':' : ';';
-    const filament = pulse ? '~' : '-';
+    const edge = (g.bias < 0 ? [':', ',', ';', "'"] : [';', ':', "'", ','])[morph];
+    const filament = ['~', '-', '_', '~'][morph];
+    const bud = ['.', '*', ':', '+'][morph];
     switch (g.family) {
-        case SpeciesFamily.SKITTER: return remember([` ${edge}${signal}${adapted} `, `${motion}${filament}${tissue}${filament}${motion}`, ` ${edge} ${sense}${edge}`]);
-        case SpeciesFamily.BLOOMCASTER: return remember([`  ${edge}${attack}${edge}  `, `${edge}${tissue}${tissue}${core}${tissue}${edge}`, ` ${filament}|${sense}${filament} `]);
-        case SpeciesFamily.RIBBON: return remember([`${signal}${filament}${tissue}${core}${filament}${attack}${filament}${edge}`, `  ${motion}${edge}${motion}${edge}`]);
-        case SpeciesFamily.PRISM: return remember([` ${edge}+${sense}`, `+${tissue}${core}${edge}`, `${attack}+${edge}`]);
-        case SpeciesFamily.CARAPACE: return remember([` ${edge}${shell}${shell}${tissue}${edge}`, `${shell}${tissue}${core}${tissue}${shell}`, `${edge}${tissue}${motion}${tissue}${edge}`]);
-        case SpeciesFamily.BURST_SAC: return remember([` ${edge}${sense}${edge} `, `${edge}${tissue}${core}${tissue}${edge}`, ` ${edge}${attack}${edge} `]);
-        case SpeciesFamily.ROOTWEAVER: return remember([`${edge}${signal}${tissue}${edge}${adapted}`, `${tissue}${core}${tissue}${attack}`, ` ${filament}|${filament}`, `${motion}|${edge}${motion}`]);
+        case SpeciesFamily.SKITTER: return remember([`${morph % 2 ? '' : ' '}${edge}${signal}${bud}${adapted}`, `${motion}${filament}${tissue}${filament}${motion}`, `${morph % 2 ? ' ' : ''}${edge}${sense}${edge}${bud}`]);
+        case SpeciesFamily.BLOOMCASTER: return remember([`${morph === 2 ? ' ' : '  '}${edge}${attack}${bud}${edge}`, `${edge}${tissue}${tissue}${core}${tissue}${edge}`, ` ${filament}|${sense}${filament}${bud}`]);
+        case SpeciesFamily.RIBBON: return remember([`${morph % 2 ? ' ' : ''}${signal}${filament}${tissue}${core}${filament}${attack}${filament}${edge}`, `${morph % 2 ? '' : ' '}${motion}${edge}${motion}${edge}${bud}`]);
+        case SpeciesFamily.PRISM: return remember([`${bud}${edge}+${sense}`, `+${tissue}${core}${edge}`, `${attack}+${edge}${morph === 3 ? '+' : bud}`]);
+        case SpeciesFamily.CARAPACE: return remember([`${morph === 1 ? '' : ' '}${edge}${shell}${shell}${tissue}${edge}${bud}`, `${shell}${tissue}${core}${tissue}${shell}`, `${bud}${edge}${tissue}${motion}${tissue}${edge}`]);
+        case SpeciesFamily.BURST_SAC: return remember([` ${edge}${sense}${bud} `, `${edge}${tissue}${core}${tissue}${edge}`, ` ${bud}${attack}${edge}${morph === 3 ? '!' : ''}`]);
+        case SpeciesFamily.ROOTWEAVER: return remember([`${edge}${signal}${tissue}${bud}${adapted}`, `${tissue}${core}${tissue}${attack}`, `${morph % 2 ? '' : ' '}${filament}|${filament}`, `${motion}|${edge}${motion}${bud}`]);
         case SpeciesFamily.SPORE: return remember([pulse ? '*' : '.']);
         case SpeciesFamily.COLONY: return remember([pulse ? 'o' : 'O']);
         case SpeciesFamily.PARASITE: return remember([pulse ? '~:~' : ':~:']);
-        case SpeciesFamily.AMALGAM: return remember([`${edge}${tissue}${filament}${sense}${edge}`, `${tissue}${core}${tissue}${attack}${tissue}`, ` ${edge}${tissue}${motion}${edge}`, `${motion}${filament}${edge}`]);
+        case SpeciesFamily.AMALGAM: return remember([`${morph % 2 ? '' : ' '}${edge}${tissue}${filament}${sense}${edge}${bud}`, `${tissue}${core}${tissue}${attack}${tissue}`, ` ${edge}${tissue}${motion}${edge}${bud}`, `${morph % 2 ? ' ' : ''}${motion}${filament}${edge}`]);
         default: return null;
     }
 }

@@ -94,6 +94,9 @@ class GridRenderer {
 
         const width = window.innerWidth;
         const height = window.innerHeight;
+        const touchLayout = navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches;
+        this.cellWidth = touchLayout ? (width > height ? 7 : 6) : 9;
+        this.cellHeight = touchLayout ? (width > height ? 11 : 10) : 15;
         this.width = width;
         this.height = height;
         this.dpr = Math.min(2, window.devicePixelRatio || 1);

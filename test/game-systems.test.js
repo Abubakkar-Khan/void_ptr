@@ -90,8 +90,8 @@ test('upgrade selections never offer damage modules for another weapon', () => {
 test('large XP awards queue every earned level', () => {
     const player = new Player();
     player.gainXp(1000);
-    assert.equal(player.pendingLevelUps, 6);
-    for (let i = 0; i < 6; i++) assert.equal(player.consumeLevelUp(), true);
+    assert.equal(player.pendingLevelUps, 5);
+    for (let i = 0; i < 5; i++) assert.equal(player.consumeLevelUp(), true);
     assert.equal(player.pendingLevelUps, 0);
     assert.equal(player.consumeLevelUp(), false);
 });
@@ -158,7 +158,7 @@ test('manual aim assistance never initiates an idle shot', () => {
 });
 
 test('progression and combat baselines match the faster ten-minute cadence', () => {
-    assert.equal(PROGRESSION_CONFIG.startingXp, 70);
+    assert.equal(PROGRESSION_CONFIG.startingXp, 90);
     assert.equal(PROGRESSION_CONFIG.pickupMagnetRadius, 28);
     assert.deepEqual(BOSS_SCHEDULE_TICKS, [9000, 19800, 32400]);
     assert.equal(WEAPON_DEFS.auto_blaster.baseDamage, 10);
@@ -344,6 +344,8 @@ test('seeded genomes are reproducible, individual, and family-readable', () => {
     const organism = renderCreatureBody(a, 20).join('');
     assert.match(organism, /[%H=~:;]/);
     assert.doesNotMatch(organism, /[<>()[\]]/);
+    const breathingFrames = new Set([0, 7, 14, 21].map(frame => renderCreatureBody(a, frame).join('\n')));
+    assert.ok(breathingFrames.size >= 3);
 });
 
 test('XP pickups disappear as soon as magnetic movement reaches the player', () => {
@@ -362,8 +364,20 @@ test('damage numbers are disabled and results are reduced to basic run stats', (
     assert.doesNotMatch(enemySource, /spawnDamageText\(/);
     assert.doesNotMatch(playerSource, /spawnDamageText\(/);
     const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
-    assert.match(uiSource, /'GAME OVER'/);
+    assert.match(uiSource, /GAME OVER/);
     assert.doesNotMatch(uiSource.slice(uiSource.indexOf('stampResultsScreen'), uiSource.indexOf('stampHUD')), /Shots\/hits|Colonies|Damage/);
+});
+
+test('mobile presentation requests fullscreen landscape and keeps XP on the bottom row', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
+    assert.equal(manifest.display, 'fullscreen');
+    assert.equal(manifest.orientation, 'landscape');
+    const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+    assert.match(uiSource, /XP .*h - 3/);
+    const enemySource = readFileSync(new URL('../src/enemies.js', import.meta.url), 'utf8');
+    const mainSource = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(enemySource, /for \(const pack of colonyMind\.packs\.values\(\)\)/);
+    assert.doesNotMatch(mainSource, /shield_fence/);
 });
 
 test('organ wounds are stable and have functional combat consequences', () => {

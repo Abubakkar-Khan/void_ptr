@@ -381,27 +381,6 @@ class GameEngine {
             }
         }
 
-        // Check Shield Projector laser fences
-        for (const enemy of eEnemies) {
-            if (enemy && enemy.type === 'shield_projector' && enemy.hp > 0) {
-                const px = enemy.x + 1.5;
-                const py = enemy.y + 1.5;
-                for (const other of enemy.linkedTargets || []) {
-                    if (other && other.hp > 0) {
-                        const ow = other.width !== undefined ? other.width : 1;
-                        const oh = other.height !== undefined ? other.height : 1;
-                        const tx = other.x + ow/2;
-                        const ty = other.y + oh/2;
-                        
-                        const dist = collision.distToSegment(player.x + 1.5, player.y + 1.5, px, py, tx, ty);
-                        if (dist < 1.2) {
-                            player.takeDamage(1, 'shield_fence');
-                        }
-                    }
-                }
-            }
-        }
-
         // Enemy Bullets vs Player
         const pHitbox = player.getHitbox();
         for (let b = eBullets.length - 1; b >= 0; b--) {
@@ -531,7 +510,8 @@ class GameEngine {
             overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
             boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}` : '',
             hint: !input.touchCapable && waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : '',
-            touch: input.touchCapable ? { move: input.touchMove, shoot: input.touchShoot, dashReady: player.dashCooldown <= 0 } : null
+            touch: input.touchCapable ? { move: input.touchMove, shoot: input.touchShoot, dashReady: player.dashCooldown <= 0 } : null,
+            controller: !!input.getGamepad()
         });
     }
 
