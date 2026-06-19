@@ -463,6 +463,8 @@ class GameEngine {
             effects.spawnGlitchExplosion(player.x + 1.5, player.y + 1.5, '#00ff41', 50);
             stats.finalize({ victory: false, score: player.score, level: player.level, survivalSeconds: waves.elapsedSeconds });
             this.state = GAME_STATES.GAME_OVER;
+            ui.currentScreen = null;
+            input.resetTransient();
         }
     }
 
@@ -528,7 +530,8 @@ class GameEngine {
             heat: player.weaponType === 'null_laser' ? Math.round(player.heat) : null,
             overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
             boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}` : '',
-            hint: waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : ''
+            hint: !input.touchCapable && waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : '',
+            touch: input.touchCapable ? { move: input.touchMove, shoot: input.touchShoot, dashReady: player.dashCooldown <= 0 } : null
         });
     }
 

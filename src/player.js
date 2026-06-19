@@ -317,7 +317,6 @@ export class Player {
         if (this.invincibilityTimer > 0) return false;
         this.hp -= amount;
         stats.recordDamageTaken(amount);
-        effects.spawnDamageText(this.x + 1.5, this.y, `-${amount}`, PALETTE.enemyShot);
         this.invincibilityTimer = this.invincibilityDuration;
         this.pendingDamageEvents.push({ amount, source });
         return true;

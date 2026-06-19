@@ -7,7 +7,10 @@ class InputManager {
         this.touchMove = { x: 0, y: 0 };
         this.touchShoot = { x: 0, y: 0 };
         this.touchOrigins = new Map();
+        this.touchRoles = new Map();
         this.touchDashPressed = false;
+        this.touchCapable = typeof window !== 'undefined' && (navigator.maxTouchPoints > 0 || matchMedia?.('(pointer: coarse)').matches);
+        this.mobileDisplayRequested = false;
         this.prevGamepadButtons = [];
         this.prevGamepadAxes = [0, 0, 0, 0];
     }
@@ -53,25 +56,36 @@ class InputManager {
             this.touchShoot = { x: 0, y: 0 };
             const rect = this.canvas.getBoundingClientRect();
             for (const touch of event.touches) {
-                if (!this.touchOrigins.has(touch.identifier)) {
-                    this.touchOrigins.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
-                }
+                const role = this.touchRoles.get(touch.identifier);
+                if (role === 'dash') continue;
+                if (!this.touchOrigins.has(touch.identifier)) this.touchOrigins.set(touch.identifier, this.defaultTouchOrigin(role, rect));
                 const origin = this.touchOrigins.get(touch.identifier);
-                const vector = { x: (touch.clientX - origin.x) / 45, y: (touch.clientY - origin.y) / 45 };
+                const radius = Math.max(38, Math.min(64, rect.height * 0.14));
+                const vector = { x: (touch.clientX - origin.x) / radius, y: (touch.clientY - origin.y) / radius };
                 const length = Math.hypot(vector.x, vector.y);
                 if (length > 1) { vector.x /= length; vector.y /= length; }
-                if (origin.x - rect.left < rect.width / 2) this.touchMove = vector;
-                else this.touchShoot = vector;
+                if (role === 'move') this.touchMove = vector;
+                else if (role === 'shoot') this.touchShoot = vector;
             }
         };
         canvasElement.addEventListener('touchstart', (event) => {
-            if (event.touches.length >= 2) this.touchDashPressed = true;
+            this.activateMobileDisplay();
+            const rect = this.canvas.getBoundingClientRect();
+            for (const touch of event.changedTouches) {
+                const nx = (touch.clientX - rect.left) / Math.max(1, rect.width);
+                const ny = (touch.clientY - rect.top) / Math.max(1, rect.height);
+                const role = nx > 0.42 && nx < 0.58 && ny > 0.58 ? 'dash' : nx < 0.5 ? 'move' : 'shoot';
+                this.touchRoles.set(touch.identifier, role);
+                if (role === 'dash') this.touchDashPressed = true;
+                else this.touchOrigins.set(touch.identifier, this.defaultTouchOrigin(role, rect));
+            }
             updateTouches(event);
         }, { passive: false });
         canvasElement.addEventListener('touchmove', updateTouches, { passive: false });
         canvasElement.addEventListener('touchend', (event) => {
             const active = new Set([...event.touches].map(t => t.identifier));
             for (const id of this.touchOrigins.keys()) if (!active.has(id)) this.touchOrigins.delete(id);
+            for (const id of this.touchRoles.keys()) if (!active.has(id)) this.touchRoles.delete(id);
             updateTouches(event);
         }, { passive: false });
 
@@ -79,6 +93,23 @@ class InputManager {
             this.keys = {};
             this.prevKeys = {};
             this.mouse.isDown = false;
+        });
+    }
+
+    defaultTouchOrigin(role, rect) {
+        return {
+            x: rect.left + rect.width * (role === 'move' ? 0.18 : 0.82),
+            y: rect.top + rect.height * 0.76
+        };
+    }
+
+    activateMobileDisplay() {
+        if (!this.touchCapable || this.mobileDisplayRequested) return;
+        this.mobileDisplayRequested = true;
+        const root = document.documentElement;
+        const request = root.requestFullscreen?.({ navigationUI: 'hide' }) || root.webkitRequestFullscreen?.();
+        Promise.resolve(request).then(() => screen.orientation?.lock?.('landscape')).catch(() => {
+            // iOS and embedded browsers may deny either API; CSS still fills the safe viewport.
         });
     }
 
@@ -113,6 +144,8 @@ class InputManager {
         this.touchMove = { x: 0, y: 0 };
         this.touchShoot = { x: 0, y: 0 };
         this.touchDashPressed = false;
+        this.touchOrigins.clear();
+        this.touchRoles.clear();
         const gamepad = this.getGamepad();
         if (gamepad) this.prevGamepadButtons = gamepad.buttons.map(button => button.pressed);
     }

@@ -1053,8 +1053,6 @@ export class Enemy {
         this.hp -= context.amount;
         evolution.recordDamage(this, context, context.amount);
         stats.recordHit(context.amount);
-        if (context.amount >= 1) effects.spawnDamageText(this.x + this.width / 2, this.y, `-${Math.round(context.amount * 10) / 10}`, this.color);
-
         if (BOSS_TYPES.has(this.type) && context.amount >= 10 && renderer.shakeTimer <= 0) {
             renderer.triggerShake(2, 0.35);
         }

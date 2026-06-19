@@ -151,9 +151,8 @@ class EffectSystem {
     }
 
     spawnDamageText(gridX, gridY, text, color = '#00ff41') {
-        const screenX = (gridX - renderer.camX) * renderer.cellWidth;
-        const screenY = (gridY - renderer.camY) * renderer.cellHeight;
-        this.damageTexts.push(new DamageText(screenX, screenY, text, color));
+        // Damage is communicated by wounds, recoil, sound, and the HP bar.
+        // Floating numbers are intentionally disabled to preserve ASCII readability.
     }
 
     triggerFlash(duration = 10) {

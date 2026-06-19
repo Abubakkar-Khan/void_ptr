@@ -14,6 +14,7 @@ import { resolveAssistedAim, weapons } from '../src/weapons.js';
 import { createBiology, Genome, OrganState, renderCreatureBody, SpeciesFamily } from '../src/biology.js';
 import { EvolutionDirector } from '../src/evolution.js';
 import { ColonyMindSystem } from '../src/colonyMind.js';
+import { PickupSystem } from '../src/pickups.js';
 
 const makeUpgradePlayer = (weaponType) => ({
     weaponType,
@@ -340,7 +341,29 @@ test('seeded genomes are reproducible, individual, and family-readable', () => {
     const a = new Enemy(10, 10, 'drone', { seed: 4242 });
     const b = new Enemy(10, 10, 'drone', { seed: 4242 });
     assert.deepEqual(renderCreatureBody(a, 20), renderCreatureBody(b, 20));
-    assert.match(renderCreatureBody(a, 20).join(''), /[<>]/);
+    const organism = renderCreatureBody(a, 20).join('');
+    assert.match(organism, /[%H=~:;]/);
+    assert.doesNotMatch(organism, /[<>()[\]]/);
+});
+
+test('XP pickups disappear as soon as magnetic movement reaches the player', () => {
+    const system = new PickupSystem();
+    const player = { x: 0, y: 0, width: 3, height: 3, upgrades: {}, gained: 0, gainXp(value) { this.gained += value; } };
+    system.spawnMemory(4, 1.5, 10);
+    assert.equal(system.items.length, 1);
+    system.update(player, []);
+    assert.equal(system.items.length, 0);
+    assert.equal(player.gained, 10);
+});
+
+test('damage numbers are disabled and results are reduced to basic run stats', () => {
+    const enemySource = readFileSync(new URL('../src/enemies.js', import.meta.url), 'utf8');
+    const playerSource = readFileSync(new URL('../src/player.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(enemySource, /spawnDamageText\(/);
+    assert.doesNotMatch(playerSource, /spawnDamageText\(/);
+    const uiSource = readFileSync(new URL('../src/ui.js', import.meta.url), 'utf8');
+    assert.match(uiSource, /'GAME OVER'/);
+    assert.doesNotMatch(uiSource.slice(uiSource.indexOf('stampResultsScreen'), uiSource.indexOf('stampHUD')), /Shots\/hits|Colonies|Damage/);
 });
 
 test('organ wounds are stable and have functional combat consequences', () => {

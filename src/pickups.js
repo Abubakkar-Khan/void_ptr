@@ -2,7 +2,7 @@ import { RENDER_CELL_TYPES } from './renderer.js';
 import { PALETTE, PROGRESSION_CONFIG } from './config.js';
 import { stats } from './stats.js';
 
-class MemoryPickup {
+export class MemoryPickup {
     constructor(x, y, value) {
         this.x = x;
         this.y = y;
@@ -40,7 +40,8 @@ class MemoryPickup {
                 }
             }
         }
-        return dist < 2.25;
+        const collectedDistance = Math.hypot(px - this.x, py - this.y);
+        return collectedDistance < 2.6;
     }
 
     stamp(renderer) {
@@ -54,7 +55,7 @@ class MemoryPickup {
     }
 }
 
-class PickupSystem {
+export class PickupSystem {
     constructor() {
         this.items = [];
     }

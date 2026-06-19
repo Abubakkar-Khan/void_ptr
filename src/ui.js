@@ -737,11 +737,8 @@ export class UIManager {
 
     stampResultsScreen(renderer, mx, my, victory, values) {
         const time = `${Math.floor(values.survivalSeconds / 60)}:${Math.floor(values.survivalSeconds % 60).toString().padStart(2, '0')}`;
-        this.stampDataScreen(renderer, mx, my, victory ? 'victory' : 'game_over', victory ? 'PROCESS SURVIVED' : 'PROCESS TERMINATED', victory ? 'FINAL THREAT PURGED' : 'RECOMPILE // ADAPT // RETURN', [
-            { title: 'COMBAT', rows: [['Kills', values.kills], ['Bosses', values.bossKills], ['Dealt', values.damageDealt], ['Taken', values.damageTaken], ['Shots/hits', `${values.shotsFired}/${values.hitEvents}`], ['Combo', values.maxCombo]] },
-            { title: 'PROGRESSION', rows: [['XP', values.xpCollected], ['Levels', values.levelsGained], ['Upgrades', values.upgradesSelected?.length || 0], ['Score', values.score]] },
-            { title: 'MOVEMENT', rows: [['Dashes', values.dashes], ['Distance', `${values.distanceTravelled}`], ['Survival', time]] },
-            { title: 'ECOSYSTEM', rows: [['Colonies', values.coloniesDestroyed], ['Parasites', values.parasitesRemoved], ['Amalgams', values.amalgamsKilled]] }
+        this.stampDataScreen(renderer, mx, my, victory ? 'victory' : 'game_over', victory ? 'VICTORY' : 'GAME OVER', victory ? 'THE FINAL ORGANISM IS DEAD' : 'YOUR PROCESS HAS TERMINATED', [
+            { title: 'RUN', rows: [['Time', time], ['Kills', values.kills], ['Level', (values.levelsGained || 0) + 1], ['Score', values.score]] }
         ], true);
     }
 
@@ -754,18 +751,40 @@ export class UIManager {
         this.stampText(renderer, hp, 1, 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
         this.stampText(renderer, data.timer, Math.floor(w / 2), 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         this.stampText(renderer, `LV${data.level} ${data.threat}`, w - 2, 1, RENDER_CELL_TYPES.UI_TEXT, 1, 'right', 0, 0);
+        const xpLen = Math.max(10, w - 19);
+        this.stampText(renderer, `XP ${data.xp}/${data.xpMax} [${bar(data.xp, data.xpMax, xpLen, '=', '.')}]`, Math.floor(w / 2), 3, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
         if (data.boss) {
             const names = { boss_snake: 'NULL SERPENT', boss_eye: 'THE WATCHER', boss_carrier: 'HEAP CARRIER' };
             const bossLen = Math.max(12, Math.min(42, w - 34));
             const bossLine = `${names[data.boss.type] || 'BOSS'} P${data.boss.phase} [${bar(data.boss.hp, data.boss.maxHp, bossLen, '=', '.')}]`;
-            this.stampText(renderer, bossLine, Math.floor(w / 2), 3, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
+            this.stampText(renderer, bossLine, Math.floor(w / 2), 5, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         }
         const weapon = `${data.weapon}${data.heat === null ? '' : ` HEAT:${data.heat}%${data.overheated ? '!LOCK' : ''}`} | DASH:${data.dash}`;
-        this.stampText(renderer, weapon, 1, h - 3, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
-        const xpLen = Math.max(12, w - 12);
-        this.stampText(renderer, `XP[${bar(data.xp, data.xpMax, xpLen, '=', '.')}]`, Math.floor(w / 2), h - 1, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', 0, 0);
+        this.stampText(renderer, weapon, 1, data.touch ? 5 : h - 4, RENDER_CELL_TYPES.UI_TEXT, 1, 'left', 0, 0);
+        if (data.touch) this.stampTouchControls(renderer, data.touch);
         if (data.hint) this.stampText(renderer, data.hint, Math.floor(w / 2), Math.floor(h * 0.72), RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
         if (data.debug) this.stampText(renderer, data.debug, 1, data.boss ? 5 : 3, RENDER_CELL_TYPES.UI_BORDER, 1, 'left', 0, 0);
+    }
+
+    stampTouchControls(renderer, touch) {
+        const w = renderer.viewCols;
+        const h = renderer.viewRows;
+        const row = Math.max(8, h - 8);
+        const direction = vector => {
+            if (!vector || Math.hypot(vector.x, vector.y) < 0.12) return '+';
+            if (Math.abs(vector.x) > Math.abs(vector.y)) return vector.x > 0 ? '>' : '<';
+            return vector.y > 0 ? 'v' : '^';
+        };
+        const box = (x, label, glyph) => {
+            this.stampText(renderer, '+---------+', x, row, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
+            this.stampText(renderer, `| ${label.padEnd(7)} |`, x, row + 1, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
+            this.stampText(renderer, `|    ${glyph}    |`, x, row + 2, RENDER_CELL_TYPES.UI_TEXT, 0.85, 'left', 0, 0);
+            this.stampText(renderer, '+---------+', x, row + 3, RENDER_CELL_TYPES.UI_BORDER, 0.72, 'left', 0, 0);
+        };
+        box(2, 'MOVE', direction(touch.move));
+        box(Math.max(2, w - 13), 'AIM', direction(touch.shoot));
+        this.stampText(renderer, '[ DASH ]', Math.floor(w / 2), row + 2, RENDER_CELL_TYPES.UI_TEXT, touch.dashReady ? 1 : 0.45, 'center', 0, 0);
+        if (renderer.width < renderer.height) this.stampText(renderer, 'ROTATE PHONE FOR LANDSCAPE', Math.floor(w / 2), row - 2, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', 0, 0);
     }
 
     drawText(ctx, text, x, y, size = 20, color = '#00ff41', align = 'center') {
