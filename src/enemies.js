@@ -2,7 +2,8 @@ import { renderer, RENDER_CELL_TYPES } from './renderer.js';
 import { effects } from './effects.js';
 import { matrixRain } from './matrixRain.js';
 import { audio } from './audio.js';
-import { BOSS_TYPES, ENEMY_DEFS, NORMAL_ENEMY_TYPES, PALETTE } from './config.js';
+import { BOSS_TYPES, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, NORMAL_ENEMY_TYPES, PALETTE } from './config.js';
+import { stats } from './stats.js';
 
 const GLYPHS = '01.:;|/\\-_';
 const BRUTE_GLYPHS = ['█', '▓', '▒', '░', '#', '■', '▪', ' ', '█', '█'];
@@ -166,6 +167,9 @@ export class Enemy {
         this.lockedAimAngle = 0;
         this.weakPoints = [];
         this.attackCycle = 0;
+        this.energy = 0;
+        this.parasiteCount = 0;
+        this.symbioteBoosted = false;
 
         this.initType();
     }
@@ -325,6 +329,39 @@ export class Enemy {
                 }
             }
         }
+        else if (this.type === 'cell_spore') {
+            this.waveTime += 0.13;
+            moveX = Math.cos(this.waveTime) * 0.055 + (dx / dist) * 0.018;
+            moveY = Math.sin(this.waveTime * 0.83) * 0.055 + (dy / dist) * 0.018;
+        }
+        else if (this.type === 'cell_colony') {
+            moveX = 0;
+            moveY = 0;
+            this.vx *= 0.4;
+            this.vy *= 0.4;
+        }
+        else if (this.type === 'cell_parasite') {
+            const host = enemyManager?.enemies
+                ?.filter(other => other && other !== this && NORMAL_ENEMY_TYPES.has(other.type) && !ECOSYSTEM_TYPES.has(other.type))
+                .map(other => ({ other, distance: Math.hypot(other.x - this.x, other.y - this.y) }))
+                .sort((a, b) => a.distance - b.distance)[0]?.other;
+            if (host) {
+                const hdx = host.x + host.width / 2 - (this.x + 0.5);
+                const hdy = host.y + host.height / 2 - (this.y + 0.5);
+                const hdist = Math.hypot(hdx, hdy) || 1;
+                moveX = (hdx / hdist) * 0.095;
+                moveY = (hdy / hdist) * 0.095;
+            } else {
+                moveX = (dx / dist) * 0.06;
+                moveY = (dy / dist) * 0.06;
+            }
+        }
+        else if (this.type === 'cell_amalgam') {
+            this.waveTime += 0.05;
+            const sway = Math.sin(this.waveTime) * 0.025;
+            moveX = (dx / dist) * 0.05 - (dy / dist) * sway;
+            moveY = (dy / dist) * 0.05 + (dx / dist) * sway;
+        }
         else if (this.type === 'boss_snake') {
             this.waveTime += 0.04;
             const baseAngle = Math.atan2(dy, dx);
@@ -469,8 +506,9 @@ export class Enemy {
         }
 
         // Collision Check with Obstacles
-        const nextX = this.x + this.vx + moveX;
-        const nextY = this.y + this.vy + moveY;
+        const symbioteSpeed = this.symbioteBoosted ? 1.2 : 1;
+        const nextX = this.x + this.vx + moveX * symbioteSpeed;
+        const nextY = this.y + this.vy + moveY * symbioteSpeed;
         let collides = false;
 
         for (let w = 0; w < this.width; w++) {
@@ -531,14 +569,16 @@ export class Enemy {
 
     stampAuthored(rendererInstance, brightMult) {
         const blink = Math.floor(rendererInstance.animationTime / 10) % 2 === 0;
+        const wounded = this.hp / Math.max(1, this.maxHp) < 0.5;
         if (this.type === 'drone') {
-            stampPattern(rendererInstance, this.x, this.y, [this.vx < 0 ? '<o>' : '<o>'], brightMult, this.color);
+            const rows = this.vx < 0 ? [' /|', '<@|', ' \\|'] : ['|\\ ', '|@>', '|/ '];
+            stampPattern(rendererInstance, this.x - 1, this.y - 1, rows, brightMult, this.color);
         } else if (this.type === 'brute') {
-            stampPattern(rendererInstance, this.x, this.y, ['#####', '#===#', '#[X]#', '#===#', '#####'], brightMult, this.color);
+            stampPattern(rendererInstance, this.x, this.y, wounded ? ['#/\\/#', '#|x|#', '<[X]>', '#|x|#', '#\\//#'] : ['#/==\\#', '#|##|#', '<[X]>', '#|##|#', '#\\==/#'], brightMult, this.color);
         } else if (this.type === 'brute_medium') {
-            stampPattern(rendererInstance, this.x, this.y, ['###', '#X#', '###'], brightMult, this.color);
+            stampPattern(rendererInstance, this.x, this.y, ['/##\\', '<X=>', '\\##/'], brightMult, this.color);
         } else if (this.type === 'shooter') {
-            stampPattern(rendererInstance, this.x, this.y, ['[+]', blink ? '-X-' : '=X=', '[+]'], brightMult, this.color);
+            stampPattern(rendererInstance, this.x - 1, this.y, ['/[+]\\', blink ? '<-X->' : '<=X=>', '\\[+]/'], brightMult, this.color);
         } else if (this.type === 'worm') {
             for (let i = 2; i < this.trail.length; i += 3) {
                 const pos = this.trail[i];
@@ -546,19 +586,27 @@ export class Enemy {
             }
             stampPattern(rendererInstance, this.x, this.y, [this.vx < 0 ? '<S=' : '=S>'], brightMult, this.color);
         } else if (this.type === 'virus') {
-            stampPattern(rendererInstance, this.x, this.y, [blink ? '\*/' : '/#\\', '*X*', blink ? '/*\\' : '\#/'], brightMult, this.color);
+            stampPattern(rendererInstance, this.x - 1, this.y - 1, [blink ? ' \\|/ ' : '  |  ', '--{X}--', blink ? ' /|\\ ' : '  |  '], brightMult, this.color);
         } else if (this.type === 'kamikaze') {
             const count = this.detonationTimer === null ? '!' : String(Math.max(1, Math.ceil(this.detonationTimer / 20)));
             stampPattern(rendererInstance, this.x, this.y, [blink ? `<${count}>` : `[${count}]`], brightMult, this.color);
         } else if (this.type === 'shield_projector') {
-            stampPattern(rendererInstance, this.x, this.y, ['/A\\', '<+>', '\\V/'], brightMult, this.color);
+            stampPattern(rendererInstance, this.x - 1, this.y, [' /A\\ ', '<{+}>', ' \\V/ ', ' _|_ '], brightMult, this.color);
+        } else if (this.type === 'cell_spore') {
+            stampPattern(rendererInstance, this.x, this.y, [blink ? '*' : '.'], brightMult, PALETTE.pickup);
+        } else if (this.type === 'cell_colony') {
+            stampPattern(rendererInstance, this.x, this.y, [blink ? 'o' : 'O'], brightMult, '#8cff7a');
+        } else if (this.type === 'cell_parasite') {
+            stampPattern(rendererInstance, this.x, this.y, [blink ? '~' : '^'], brightMult, '#ff9de2');
+        } else if (this.type === 'cell_amalgam') {
+            stampPattern(rendererInstance, this.x - 1, this.y - 1, [blink ? ' /o-o\\ ' : ' /O=O\\ ', '<{oXo}>', ' \\o_o/ ', '  /|\\  '], brightMult, '#8cff7a');
         } else if (this.type === 'boss_snake') {
             for (let i = 8; i < this.trail.length; i += this.phase === 2 ? 10 : 7) {
                 const pos = this.trail[i];
                 stampPattern(rendererInstance, pos.x + 4, pos.y + 4, [' /#\\ ', '<=== >', ' \\#/ '], Math.max(0.35, brightMult * (1 - i / this.trail.length)), this.color);
             }
-            const jaw = this.attackState === 'charge' ? '\\  V  /' : '\\_===_/';
-            stampPattern(rendererInstance, this.x, this.y + 1, ['  /#####\\  ', ' /##o#o##\\ ', '<###/X\\###>', ' \\##===##/ ', `  ${jaw}  `], brightMult, this.color);
+            const jaw = this.attackState === 'charge' ? '\\  V  /' : wounded ? '\\_x=x_/' : '\\_===_/';
+            stampPattern(rendererInstance, this.x, this.y + 1, this.phase === 2 ? ['  /##/\\##\\  ', ' /#o####o#\\ ', '<##/[X]\\##>', ' \\#\\===/#/ ', `  ${jaw}  `] : ['  /#####\\  ', ' /##o#o##\\ ', '<###/X\\###>', ' \\##===##/ ', `  ${jaw}  `], brightMult, this.color);
         } else if (this.type === 'boss_eye') {
             const pupil = this.attackState === 'gaze' ? '!' : '@';
             const offset = this.phase === 2 ? (blink ? 1 : -1) : 0;
@@ -568,6 +616,10 @@ export class Enemy {
             stampPattern(rendererInstance, this.x, this.y, [' /================\\ ', '/[T]====[T]====[T]\\', '|################|', '|==\\          /==|', `|===\\  ${core}  /===|`, '|====\\======/====|', '|[B]  |====|  [B]|', '\\____/|====|\\____/', '  v v  |====|  v v ', '   *   /====\\   *  ', '      <<<<<<      '], brightMult, this.color);
         } else {
             return false;
+        }
+        if (this.symbioteBoosted) {
+            stampPattern(rendererInstance, this.x - 1, this.y - 1, [blink ? '~^~' : '^~^'], 1, '#ff9de2');
+            stampPattern(rendererInstance, this.x + this.width, this.y + this.height, ['\\~'], 0.9, '#ff9de2');
         }
         return true;
     }
@@ -820,6 +872,7 @@ export class Enemy {
         );
         if (weakPointHit) amount *= 1.35;
         this.hp -= amount;
+        stats.recordHit(amount);
         if (amount >= 1) effects.spawnDamageText(this.x + this.width / 2, this.y, `-${Math.round(amount * 10) / 10}`, this.color);
 
         if (BOSS_TYPES.has(this.type) && amount >= 10 && renderer.shakeTimer <= 0) {
@@ -884,12 +937,15 @@ class EnemyManager {
     spawn(x, y, type) {
         if (NORMAL_ENEMY_TYPES.has(type)) {
             let normalCount = 0;
+            let ecosystemCost = 0;
             for (const e of this.enemies) {
                 if (e && NORMAL_ENEMY_TYPES.has(e.type)) {
                     normalCount++;
+                    if (ECOSYSTEM_TYPES.has(e.type)) ecosystemCost += ENEMY_DEFS[e.type]?.populationCost || 1;
                 }
             }
-            if (normalCount >= 45) return null;
+            if (normalCount >= COMBAT_CONFIG.normalPopulationCap) return null;
+            if (ECOSYSTEM_TYPES.has(type) && ecosystemCost + (ENEMY_DEFS[type]?.populationCost || 1) > COMBAT_CONFIG.ecosystemPopulationCap) return null;
         }
         const enemy = new Enemy(x, y, type);
         this.enemies.push(enemy);
@@ -921,7 +977,10 @@ class EnemyManager {
             }
         }
 
-        for (const proj of spawnedProjectiles) this.projectiles.push(proj);
+        for (const proj of spawnedProjectiles) {
+            if ((this.elapsedSeconds || 0) >= 300) { proj.vx *= 1.1; proj.vy *= 1.1; }
+            this.projectiles.push(proj);
+        }
 
         // Gentle separation keeps silhouettes from collapsing into unreadable red clumps.
         for (let i = 0; i < this.enemies.length; i++) {

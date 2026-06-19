@@ -19,7 +19,7 @@ export const HULL_DEFS = {
         maxHp: 12,
         baseSpeed: 1.1,
         acceleration: 0.08,
-        dashDistance: 12,
+        dashDistance: 20,
         description: 'Balanced execution hull. Fast recovery, precise blaster and reliable dash.'
     },
     daemon: {
@@ -29,7 +29,7 @@ export const HULL_DEFS = {
         maxHp: 15,
         baseSpeed: 0.94,
         acceleration: 0.065,
-        dashDistance: 9,
+        dashDistance: 17,
         description: 'Armored autonomous hull. Homing payloads trade speed for target control.'
     },
     cutter: {
@@ -39,7 +39,7 @@ export const HULL_DEFS = {
         maxHp: 9,
         baseSpeed: 1.22,
         acceleration: 0.095,
-        dashDistance: 14,
+        dashDistance: 23,
         description: 'Fragile precision hull. Piercing beam uses heat and rewards clean lines.'
     }
 };
@@ -76,25 +76,32 @@ export const WEAPON_DEFS = {
 };
 
 export const ENEMY_DEFS = {
-    drone: { hp: 8, xp: 18, width: 3, height: 1, mass: 0.8, cost: 1 },
-    brute: { hp: 48, xp: 60, width: 5, height: 5, mass: 3, cost: 5 },
+    drone: { hp: 12, xp: 18, width: 3, height: 1, mass: 0.8, cost: 1 },
+    brute: { hp: 72, xp: 60, width: 5, height: 5, mass: 3, cost: 5 },
     brute_medium: { hp: 24, xp: 26, width: 3, height: 3, mass: 1.5, cost: 2 },
-    shooter: { hp: 18, xp: 28, width: 3, height: 3, mass: 1, cost: 3 },
-    worm: { hp: 22, xp: 34, width: 3, height: 1, mass: 1.1, cost: 3 },
-    virus: { hp: 20, xp: 38, width: 3, height: 3, mass: 1.2, cost: 4 },
+    shooter: { hp: 28, xp: 28, width: 3, height: 3, mass: 1, cost: 3 },
+    worm: { hp: 30, xp: 34, width: 3, height: 1, mass: 1.1, cost: 3 },
+    virus: { hp: 32, xp: 38, width: 3, height: 3, mass: 1.2, cost: 4 },
     kamikaze: { hp: 6, xp: 22, width: 3, height: 1, mass: 0.6, cost: 2 },
-    shield_projector: { hp: 28, xp: 46, width: 3, height: 3, mass: 2, cost: 5 },
+    shield_projector: { hp: 50, xp: 46, width: 3, height: 3, mass: 2, cost: 5 },
+    cell_spore: { hp: 7, xp: 8, width: 1, height: 1, mass: 0.25, cost: 1, ecosystem: true, populationCost: 1 },
+    cell_colony: { hp: 10, xp: 10, width: 1, height: 1, mass: 2, cost: 1, ecosystem: true, populationCost: 1 },
+    cell_parasite: { hp: 9, xp: 14, width: 1, height: 1, mass: 0.35, cost: 1, ecosystem: true, populationCost: 1 },
+    cell_amalgam: { hp: 85, xp: 90, width: 5, height: 3, mass: 4, cost: 7, ecosystem: true, populationCost: 5 },
     boss_snake: { hp: 800, xp: 1000, width: 11, height: 11, mass: 15, cost: 0 },
     boss_eye: { hp: 900, xp: 1000, width: 15, height: 15, mass: 12, cost: 0 },
     boss_carrier: { hp: 1000, xp: 1200, width: 18, height: 11, mass: 12, cost: 0 }
 };
 
 export const COMBAT_CONFIG = {
-    autoTargetDelayTicks: 15,
-    autoTargetRadius: 24,
-    manualAssistConeRadians: Math.PI * (40 / 180),
-    manualAssistStrength: 0.32,
-    projectileHitboxScale: 1.4
+    aimAssistRadius: 32,
+    aimAssistConeRadians: Math.PI * (32 / 180),
+    aimAssistStrength: 0.22,
+    projectileHitboxScale: 1.25,
+    normalPopulationCap: 60,
+    ecosystemPopulationCap: 28,
+    ecosystemTerrainCap: 240,
+    ecosystemDenseThreshold: 3
 };
 
 export const PROGRESSION_CONFIG = {
@@ -108,8 +115,11 @@ export const BOSS_SCHEDULE_TICKS = [150 * 60, 330 * 60, 540 * 60];
 
 export const BOSS_TYPES = new Set(['boss_snake', 'boss_eye', 'boss_carrier']);
 export const NORMAL_ENEMY_TYPES = new Set([
-    'drone', 'brute', 'brute_medium', 'shooter', 'worm', 'virus', 'kamikaze', 'shield_projector'
+    'drone', 'brute', 'brute_medium', 'shooter', 'worm', 'virus', 'kamikaze', 'shield_projector',
+    'cell_spore', 'cell_colony', 'cell_parasite', 'cell_amalgam'
 ]);
+
+export const ECOSYSTEM_TYPES = new Set(['cell_spore', 'cell_colony', 'cell_parasite', 'cell_amalgam']);
 
 export const isWeaponUpgradeApplicable = (upgradeId, weaponType) => {
     if (upgradeId === 'upg_blaster_dmg') return weaponType === 'auto_blaster';

@@ -6,6 +6,8 @@ import { ProjectileBase } from './weapons.js';
 import { effects } from './effects.js';
 import { enemies } from './enemies.js';
 import { BOSS_TYPES, HULL_DEFS, PALETTE, PROGRESSION_CONFIG, WEAPON_DEFS } from './config.js';
+import { stats } from './stats.js';
+import { ecosystem } from './ecosystem.js';
 
 const GLYPHS = '01.:;|/\\-_';
 
@@ -100,9 +102,9 @@ export class Player {
         
         // Dash settings
         this.dashTimer = 0;
-        this.dashDuration = 10; // 60 FPS scaling
+        this.dashDuration = 8;
         this.dashCooldown = 0;
-        this.dashSpeed = 2.4;
+        this.dashSpeed = HULL_DEFS.runner.dashDistance / 7.3;
         this.dashGhosts = []; // ghost smear frames
         this.dashHitEnemies = new Set();
 
@@ -190,11 +192,12 @@ export class Player {
         const chaosSpeed = 1 + (this.upgrades.chaosSpeed || 0);
         this.speed = (hull.baseSpeed + this.upgrades.speedBoost * hull.baseSpeed * 0.15) * kernelMult * chaosSpeed;
         this.acceleration = hull.acceleration * kernelMult;
-        this.dashSpeed = hull.dashDistance / 4.6;
+        this.dashSpeed = hull.dashDistance / 7.3;
         this.fireRate = Math.max(5, this.baseFireRate - this.upgrades.fireRateBoost * 3.0);
     }
 
     applyUpgrade(upgradeId) {
+        stats.recordUpgrade(upgradeId);
         if (upgradeId === 'thread') this.upgrades.extraThreads++;
         else if (upgradeId === 'speed') this.upgrades.speedBoost++;
         else if (upgradeId === 'fire_rate') this.upgrades.fireRateBoost++;
@@ -274,6 +277,7 @@ export class Player {
             this.level++;
             this.xpToNextLevel = Math.floor(this.xpToNextLevel * PROGRESSION_CONFIG.xpGrowth);
             this.pendingLevelUps++;
+            stats.recordLevel();
             gained++;
         }
         this.pendingLevelUp = this.pendingLevelUps > 0;
@@ -312,6 +316,7 @@ export class Player {
         }
         if (this.invincibilityTimer > 0) return false;
         this.hp -= amount;
+        stats.recordDamageTaken(amount);
         effects.spawnDamageText(this.x + 1.5, this.y, `-${amount}`, PALETTE.enemyShot);
         this.invincibilityTimer = this.invincibilityDuration;
         this.pendingDamageEvents.push({ amount, source });
@@ -325,6 +330,9 @@ export class Player {
     }
 
     update(moveVec, gridCols, gridRows, weaponsInstance, enemiesList) {
+        const frameStartX = this.x;
+        const frameStartY = this.y;
+        const dashActiveAtFrameStart = this.dashTimer > 0;
         if (this.invincibilityTimer > 0) this.invincibilityTimer--;
         if (this.fireCooldown > 0) this.fireCooldown--;
         if (this.dashCooldown > 0) this.dashCooldown--;
@@ -339,9 +347,10 @@ export class Player {
         if (this.dashInputBuffer > 0 && this.dashCooldown === 0 && this.dashTimer === 0) {
             this.dashInputBuffer = 0;
             this.dashTimer = this.dashDuration;
-            this.dashCooldown = 90; // 60 FPS scaling
+            this.dashCooldown = 72;
             this.dashHitEnemies = new Set();
             audio.playDash();
+            stats.recordDash();
 
             let dx = moveVec.x;
             let dy = moveVec.y;
@@ -378,17 +387,15 @@ export class Player {
 
         // Apply normal physics if not dashing
         if (this.dashTimer > 0) {
+            const remainingBeforeStep = this.dashTimer;
             this.dashTimer--;
-            // Invincibility during dash
-            this.invincibilityTimer = Math.max(this.invincibilityTimer, 2);
+            this.invincibilityTimer = Math.max(this.invincibilityTimer, this.dashTimer + 6);
             // Spawn smear frames
             this.dashGhosts.push({ x: this.x, y: this.y, pattern: this.currentPattern, life: 12 });
             // Flashy spark particle trail
             effects.spawnImpactSparks(this.x + 1.5, this.y + 1.5, '#00ff41');
 
-            // Apply smooth dash deceleration (decay curve)
-            const progress = this.dashTimer / this.dashDuration;
-            const currentDashSpd = this.dashSpeed * (0.4 + 0.6 * progress);
+            const currentDashSpd = this.dashSpeed * (remainingBeforeStep > 2 ? 1 : 0.65);
             this.vx = (this.dashDx || 0) * currentDashSpd;
             this.vy = (this.dashDy || 0) * currentDashSpd;
 
@@ -421,6 +428,9 @@ export class Player {
                 maxSpd *= 0.5;
                 fric *= 0.7; // stronger friction inside glitch field
             }
+            const growthMultiplier = ecosystem.movementMultiplier(cx_cell, cy_cell);
+            accel *= growthMultiplier;
+            maxSpd *= growthMultiplier;
  
             this.vx += moveVec.x * accel;
             this.vy += moveVec.y * accel;
@@ -435,9 +445,24 @@ export class Player {
             }
         }
 
-        // Obstacle Collision Check
         const nextX = this.x + this.vx;
         const nextY = this.y + this.vy;
+        if (dashActiveAtFrameStart || this.dashTimer > 0) {
+            const steps = Math.max(1, Math.ceil(Math.max(Math.abs(this.vx), Math.abs(this.vy))));
+            for (let step = 0; step < steps; step++) {
+                this.x += this.vx / steps;
+                this.y += this.vy / steps;
+                for (let ox = 0; ox < this.width; ox++) for (let oy = 0; oy < this.height; oy++) {
+                    const gx = Math.floor(this.x + ox);
+                    const gy = Math.floor(this.y + oy);
+                    if (matrixRain.obstacles?.[gx]?.[gy]) {
+                        matrixRain.damageObstacle(gx, gy, 999);
+                        effects.spawnImpactSparks(gx, gy, '#55dfff');
+                    }
+                    if (ecosystem.damageTerrain(gx, gy, 4)) effects.spawnImpactSparks(gx, gy, '#8cff7a');
+                }
+            }
+        } else {
         let collides = false;
         
         for (let dx = 0; dx < this.width; dx++) {
@@ -461,12 +486,14 @@ export class Player {
             this.x = nextX;
             this.y = nextY;
         }
+        }
 
         // Keep inside bounds
         if (this.x < 1) { this.x = 1; this.vx *= -0.5; }
         if (this.x > gridCols - this.width - 1) { this.x = gridCols - this.width - 1; this.vx *= -0.5; }
         if (this.y < 1) { this.y = 1; this.vy *= -0.5; }
         if (this.y > gridRows - this.height - 1) { this.y = gridRows - this.height - 1; this.vy *= -0.5; }
+        stats.recordDistance(Math.hypot(this.x - frameStartX, this.y - frameStartY));
 
         // Update dash ghosts
         for (let i = this.dashGhosts.length - 1; i >= 0; i--) {

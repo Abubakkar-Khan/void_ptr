@@ -80,7 +80,7 @@ export class Director {
 
     spawnEncounter(rendererInstance) {
         const normalCount = enemies.enemies.filter(e => e && NORMAL_ENEMY_TYPES.has(e.type)).length;
-        if (normalCount >= 45) return;
+        if (normalCount >= 60) return;
 
         const available = this.getAvailableTypes();
         const tier = this.threatTier;
@@ -97,9 +97,9 @@ export class Director {
             : { name: 'WILD PROCESSES', types: available, bonus: 0 };
         this.encounterName = recipe.name;
 
-        let budget = Math.min(18, 3 + tier * 1.5 + recipe.bonus);
+        let budget = Math.min(26, 5 + tier * 2 + recipe.bonus);
         let safety = 0;
-        while (budget >= 1 && safety++ < 18 && enemies.enemies.length < 48) {
+        while (budget >= 1 && safety++ < 24 && enemies.enemies.length < 63) {
             const affordable = recipe.types.filter(type => (ENEMY_DEFS[type]?.cost || 1) <= budget);
             if (!affordable.length) break;
             const type = affordable[Math.floor(Math.random() * affordable.length)];

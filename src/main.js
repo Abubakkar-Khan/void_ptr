@@ -11,7 +11,9 @@ import { upgrades } from './upgrades.js';
 import { ui } from './ui.js';
 import { audio } from './audio.js';
 import { pickups } from './pickups.js';
-import { BOSS_TYPES, HULL_DEFS, PALETTE, WEAPON_DEFS } from './config.js';
+import { ecosystem } from './ecosystem.js';
+import { stats } from './stats.js';
+import { BOSS_TYPES, HULL_DEFS, WEAPON_DEFS } from './config.js';
 
 const GAME_STATES = {
     BOOT: 'boot',
@@ -21,6 +23,7 @@ const GAME_STATES = {
     LEVEL_UP: 'level_up',
     GAME_OVER: 'game_over',
     VICTORY: 'victory',
+    RECORDS: 'records',
     PAUSED: 'paused'
 };
 
@@ -37,7 +40,6 @@ class GameEngine {
         this.killCombo = 0;
         this.comboTimer = 0;
         this.totalKills = 0;
-        this.manualAimIdleTicks = 0;
         this.upgradeRerolls = 1;
     }
 
@@ -132,11 +134,12 @@ class GameEngine {
         pickups.reset();
         waves.reset(minutes);
         waves.startGame();
+        ecosystem.reset(renderer.cols, renderer.rows, enemies);
+        stats.reset(chosenHull);
         input.resetTransient();
         this.killCombo = 0;
         this.comboTimer = 0;
         this.totalKills = 0;
-        this.manualAimIdleTicks = 0;
         renderer.snapCamera(player.x + player.width / 2, player.y + player.height / 2);
         this.state = GAME_STATES.PLAYING;
         ui.currentScreen = null;
@@ -170,11 +173,16 @@ class GameEngine {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.MENU;
             ui.currentScreen = null;
+        } else if (action === 'records') {
+            audio.playUpgradeSelect();
+            this.state = GAME_STATES.RECORDS;
+            ui.currentScreen = null;
         } else if (action === 'restart') {
             audio.playUpgradeSelect();
             this.startGame(this.selectedMinutes);
         } else if (action === 'quit') {
             audio.playUpgradeSelect();
+            stats.finalize({ victory: false, score: player.score, level: player.level, survivalSeconds: waves.elapsedSeconds });
             this.state = GAME_STATES.MENU;
             ui.currentScreen = null;
         } else if (action === 'resume') {
@@ -250,7 +258,9 @@ class GameEngine {
 
         if (this.state !== GAME_STATES.PLAYING) {
             const menuKey = input.getMenuKey();
-            if (menuKey) ui.handleKeyPress(menuKey, (action) => this.processMenuAction(action), this.activeUpgradesSelection);
+            if (menuKey) {
+                ui.handleKeyPress(menuKey, (action) => this.processMenuAction(action), this.activeUpgradesSelection);
+            }
             input.tick();
             return;
         }
@@ -270,9 +280,16 @@ class GameEngine {
         // Update camera to follow player
         renderer.updateCamera(player.x + player.width / 2, player.y + player.height / 2);
 
-        const shootVec = input.getShootingVector();
-        this.manualAimIdleTicks = shootVec ? 0 : this.manualAimIdleTicks + 1;
-        const aimTarget = weapons.resolveTarget(player, shootVec, enemies.enemies, this.manualAimIdleTicks);
+        let shootVec = input.getShootingVector();
+        if (!shootVec && input.mouse.isDown) {
+            const mouseGridX = renderer.camX + input.mouse.x / renderer.cellWidth;
+            const mouseGridY = renderer.camY + input.mouse.y / renderer.cellHeight;
+            const dx = mouseGridX - (player.x + player.width / 2);
+            const dy = mouseGridY - (player.y + player.height / 2);
+            const distance = Math.hypot(dx, dy) || 1;
+            shootVec = { x: dx / distance, y: dy / distance };
+        }
+        const aimTarget = weapons.resolveTarget(player, shootVec, enemies.enemies);
         if (aimTarget) {
             player.aimAngle = Math.atan2(aimTarget.y - (player.y + player.height / 2), aimTarget.x - (player.x + player.width / 2));
             const fired = weapons.fire(player, aimTarget.x, aimTarget.y);
@@ -281,6 +298,8 @@ class GameEngine {
 
         weapons.update(enemies.enemies);
         enemies.update(player, renderer.cols, renderer.rows);
+        enemies.elapsedSeconds = waves.elapsedSeconds;
+        ecosystem.update(enemies, player);
         pickups.update(player, enemies.enemies);
         waves.update(renderer);
         if (waves.timeElapsed % 120 === 0) audio.setIntensity(waves.threatTier, enemies.enemies.some(e => e && BOSS_TYPES.has(e.type) && e.hp > 0));
@@ -299,6 +318,7 @@ class GameEngine {
         }
 
         if (waves.isVictory()) {
+            stats.finalize({ victory: true, score: player.score, level: player.level, survivalSeconds: waves.elapsedSeconds });
             this.state = GAME_STATES.VICTORY;
         }
 
@@ -413,10 +433,13 @@ class GameEngine {
         enemy.onDeath(enemies, spawnedProjectiles);
         this.killCombo++;
         this.totalKills++;
+        stats.recordKill(enemy.type, BOSS_TYPES.has(enemy.type));
+        stats.recordCombo(this.killCombo);
         this.comboTimer = 90;
         const comboMultiplier = 1 + Math.floor(this.killCombo / 10) * 0.1;
         player.score += Math.round(enemy.xpValue * comboMultiplier);
         pickups.spawnMemory(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.xpValue);
+        ecosystem.onEntityDeath(enemy, enemies);
         if (BOSS_TYPES.has(enemy.type)) pickups.vacuumAll(player);
         if (enemy.type === 'kamikaze' && enemy.detonated) {
             const dist = Math.hypot(player.x + 1.5 - (enemy.x + 0.5), player.y + 1.5 - (enemy.y + 0.5));
@@ -438,6 +461,7 @@ class GameEngine {
 
         if (player.hp <= 0) {
             effects.spawnGlitchExplosion(player.x + 1.5, player.y + 1.5, '#00ff41', 50);
+            stats.finalize({ victory: false, score: player.score, level: player.level, survivalSeconds: waves.elapsedSeconds });
             this.state = GAME_STATES.GAME_OVER;
         }
     }
@@ -468,28 +492,21 @@ class GameEngine {
         }
         
         if (this.state === GAME_STATES.PLAYING || this.state === GAME_STATES.LEVEL_UP || this.state === GAME_STATES.PAUSED) {
+            ecosystem.stampToGrid(renderer, player);
             player.stampToGrid(renderer);
             weapons.stampToGrid(renderer);
             enemies.stampToGrid(renderer);
             pickups.stampToGrid(renderer);
         }
 
-        // Stamp UI screens to the ASCII grid
-        if (this.state === GAME_STATES.BOOT) {
-            ui.stampBootScreen(renderer, this.bootTicks);
-        } else if (this.state === GAME_STATES.MENU) {
-            ui.stampTitleScreen(renderer, mx, my);
-        } else if (this.state === GAME_STATES.SHIP_SELECT) {
-            ui.stampShipSelectScreen(renderer, mx, my);
-        } else if (this.state === GAME_STATES.PAUSED) {
-            ui.stampPauseScreen(renderer, mx, my);
-        } else if (this.state === GAME_STATES.LEVEL_UP) {
-            ui.stampUpgradeScreen(renderer, mx, my, this.activeUpgradesSelection, this.upgradeRerolls);
-        } else if (this.state === GAME_STATES.GAME_OVER) {
-            ui.stampGameOverScreen(renderer, mx, my, false, player.score, this.getRunSummary());
-        } else if (this.state === GAME_STATES.VICTORY) {
-            ui.stampGameOverScreen(renderer, mx, my, true, player.score, this.getRunSummary());
-        }
+        if (this.state === GAME_STATES.BOOT) ui.stampBootScreen(renderer, this.bootTicks);
+        else if (this.state === GAME_STATES.MENU) ui.stampTitleScreen(renderer, mx, my);
+        else if (this.state === GAME_STATES.SHIP_SELECT) ui.stampShipSelectScreen(renderer, mx, my);
+        else if (this.state === GAME_STATES.LEVEL_UP) ui.stampUpgradeScreen(renderer, mx, my, this.activeUpgradesSelection, this.upgradeRerolls);
+        else if (this.state === GAME_STATES.PAUSED) ui.stampPauseScreen(renderer, mx, my);
+        else if (this.state === GAME_STATES.RECORDS) ui.stampRecordsScreen(renderer, mx, my, stats.lifetime);
+        else if (this.state === GAME_STATES.GAME_OVER || this.state === GAME_STATES.VICTORY) ui.stampResultsScreen(renderer, mx, my, this.state === GAME_STATES.VICTORY, stats.snapshot());
+        else if (this.state === GAME_STATES.PLAYING) this.stampHUD();
 
         renderer.draw();
 
@@ -498,197 +515,23 @@ class GameEngine {
         
         effects.draw(ctx);
 
-        if (this.state === GAME_STATES.PLAYING || this.state === GAME_STATES.LEVEL_UP || this.state === GAME_STATES.PAUSED) {
-            this.drawHUD(ctx);
-        }
-
-        // Keyboard aiming does not require a mouse crosshair during gameplay
+        // All visible interface geometry is already part of the glyph grid.
     }
 
-    drawHUD(ctx) {
-        {
-            ctx.save();
-            const screenW = renderer.width;
-            const screenH = renderer.height;
-            const hpRatio = Math.max(0, player.hp / player.maxHp);
-            const hpWidth = Math.min(260, screenW * 0.28);
-            ctx.fillStyle = 'rgba(2, 12, 16, 0.82)';
-            ctx.fillRect(16, 15, hpWidth, 24);
-            ctx.fillStyle = hpRatio > 0.3 ? PALETTE.player : PALETTE.enemyShot;
-            ctx.fillRect(18, 17, (hpWidth - 4) * hpRatio, 20);
-            ui.drawText(ctx, `HULL ${Math.ceil(player.hp)}/${player.maxHp}`, 24, 33, 14, PALETTE.ui, 'left');
-
-            const overtime = !waves.endless && waves.timeElapsed >= waves.modeTimeLimit && !waves.isVictory();
-            ui.drawText(ctx, overtime ? `OVERTIME +${Math.floor((waves.timeElapsed - waves.modeTimeLimit) / 60)}s` : waves.getTimeRemainingFormatted(), screenW / 2, 34, 24, overtime ? PALETTE.enemyShot : PALETTE.ui, 'center');
-            ui.drawText(ctx, `LV ${player.level}  //  ${waves.getThreatLabel()}`, screenW - 18, 31, 13, PALETTE.enemyShot, 'right');
-
-            if (waves.elapsedSeconds < 12) ui.drawText(ctx, 'WASD MOVE  //  ARROWS AIM  //  IDLE AUTO-TARGET  //  SPACE DASH', screenW / 2, screenH * 0.72, 15, PALETTE.ui, 'center');
-
-            const weapon = WEAPON_DEFS[player.weaponType];
-            const dashState = player.dashCooldown <= 0 ? 'DASH READY' : `DASH ${Math.ceil(player.dashCooldown / 60)}s`;
-            let weaponState = weapon.name;
-            if (player.weaponType === 'null_laser') weaponState += `  HEAT ${Math.round(player.heat)}%${player.overheated ? ' LOCKED' : ''}`;
-            ui.drawText(ctx, `${weaponState}  //  ${dashState}`, 18, screenH - 29, 13, PALETTE.player, 'left');
-
-            const boss = enemies.enemies.find(enemy => enemy && enemy.hp > 0 && BOSS_TYPES.has(enemy.type));
-            if (boss) {
-                const names = { boss_snake: 'NULL SERPENT', boss_eye: 'THE WATCHER', boss_carrier: 'HEAP CARRIER' };
-                const ratio = Math.max(0, boss.hp / boss.maxHp);
-                const barW = Math.min(720, screenW * 0.62);
-                const barX = (screenW - barW) / 2;
-                ctx.fillStyle = 'rgba(24, 0, 8, 0.88)';
-                ctx.fillRect(barX, 51, barW, 20);
-                ctx.fillStyle = PALETTE.boss;
-                ctx.fillRect(barX + 2, 53, (barW - 4) * ratio, 16);
-                ui.drawText(ctx, `${names[boss.type]}  //  PHASE ${boss.phase}  //  ${Math.ceil(ratio * 100)}%`, screenW / 2, 67, 13, PALETTE.ui, 'center');
-            }
-
-            const xpRatio = player.xp / player.xpToNextLevel;
-            ctx.fillStyle = 'rgba(0, 18, 28, 0.85)';
-            ctx.fillRect(0, screenH - 9, screenW, 9);
-            ctx.fillStyle = PALETTE.pickup;
-            ctx.fillRect(0, screenH - 9, screenW * xpRatio, 9);
-            if (this.debugVisible) ui.drawText(ctx, `F1 DEBUG  E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}`, 18, 91, 12, PALETTE.ui, 'left');
-            ctx.restore();
-        }
-        return;
-        ctx.save();
-        
-        // Time remaining top right
-        const screenW = renderer.width;
-        const screenH = renderer.height;
-        const timeStr = waves.getTimeRemainingFormatted();
-        ui.drawText(ctx, timeStr, screenW - 20, 30, 24, PALETTE.environment, 'right');
-
-        // HP top left
-        let hpBar = '';
-        for (let i = 0; i < player.maxHp; i++) hpBar += i < player.hp ? '█' : '░';
-        ui.drawText(ctx, `HP [${hpBar}]`, 20, 30, 18, PALETTE.player, 'left');
-
-        // Level top center
-        ui.drawText(ctx, `LVL ${player.level}  SCORE ${player.score}`, screenW / 2, 30, 18, PALETTE.ui, 'center');
-        if (this.killCombo >= 3) ui.drawText(ctx, `GC CHAIN x${this.killCombo}`, screenW - 20, 54, 13, PALETTE.pickup, 'right');
-        ui.drawText(ctx, waves.getThreatLabel(), screenW / 2, 50, 12, PALETTE.enemyShot, 'center');
-        if (waves.elapsedSeconds < 15) {
-            ui.drawText(ctx, 'WASD MOVE  //  ARROWS FIRE  //  SPACE DASH', screenW / 2, screenH * 0.72, 16, PALETTE.ui, 'center');
-        }
-
-        const hull = HULL_DEFS[player.hullType] || HULL_DEFS.runner;
-        const sector = matrixRain.getSectorName(player.x, player.y);
-        const dashState = player.dashCooldown <= 0 ? 'DASH READY' : `DASH ${Math.ceil(player.dashCooldown / 60)}s`;
-        const shieldState = player.shieldLevel ? (player.shieldActive ? 'SHIELD READY' : `SHIELD ${Math.ceil(player.shieldCooldown / 60)}s`) : '';
-        ui.drawText(ctx, `${hull.name} // ${sector} // ${dashState}${shieldState ? ` // ${shieldState}` : ''}`, 20, screenH - 38, 12, PALETTE.player, 'left');
-
-        if (player.weaponType === 'null_laser') {
-            const heatRatio = player.heat / WEAPON_DEFS.null_laser.maxHeat;
-            ui.drawText(ctx, `HEAT [${'='.repeat(Math.round(heatRatio * 10)).padEnd(10, '.')}]${player.overheated ? ' LOCKED' : ''}`, screenW - 20, screenH - 38, 12, player.overheated ? PALETTE.enemyShot : PALETTE.playerShot, 'right');
-        }
-
-        // Boss health bar
-        const activeBosses = enemies.enemies.filter(e => e && e.hp > 0 && BOSS_TYPES.has(e.type));
-        const boss = activeBosses[0];
-        if (boss) {
-            const ratio = Math.max(0, boss.hp / boss.maxHp);
-            const screenW = renderer.width;
-
-            // Blinking red alert warning ticker
-            const warningTicks = Math.floor(Date.now() / 150) % 2;
-            const warningColor = warningTicks === 0 ? '#ff0033' : '#aa0011';
-
-            // Pulse warning banner at the top
-            ctx.fillStyle = 'rgba(255, 0, 51, 0.08)';
-            ctx.fillRect(0, 50, screenW, 40);
-
-            // Warning text with random character glitches
-            const warningTexts = [
-                "⚠️ CRITICAL SYSTEM INSTABILITY DETECTED ⚠️",
-                "⚠️ FATAL PROCESS EXCEPTION AT ADDR_0x4F8E ⚠️",
-                "⚠️ UNAUTHORIZED OVERLORD THREAT DETECTED ⚠️",
-                "⚠️ EXECUTING SYSTEM PURGE COMMAND: DESTRUCT ⚠️"
-            ];
-            const warningIndex = Math.floor(Date.now() / 2000) % warningTexts.length;
-            let warningText = warningTexts[warningIndex];
-            if (Math.random() < 0.15) {
-                const idx = Math.floor(Math.random() * warningText.length);
-                warningText = warningText.substring(0, idx) + String.fromCharCode(33 + Math.floor(Math.random() * 93)) + warningText.substring(idx + 1);
-            }
-
-            ui.drawText(ctx, warningText, screenW / 2, 60, 14, warningColor, 'center');
-
-            // Bar dimensions
-            const barW = Math.floor(screenW * 0.65);
-            const barH = 14;
-            const barX = Math.floor((screenW - barW) / 2);
-            const barY = 74;
-
-            // Background
-            ctx.fillStyle = 'rgba(40, 0, 0, 0.7)';
-            ctx.fillRect(barX, barY, barW, barH);
-
-            // Shake effect if boss is low or random twitch
-            let glitchOffsetX = 0;
-            if ((ratio < 0.35 || Math.random() < 0.08)) {
-                glitchOffsetX = (Math.random() - 0.5) * 6;
-            }
-
-            // Fill
-            ctx.fillStyle = '#ff0033';
-            ctx.shadowColor = 'rgba(255, 0, 51, 0.8)';
-            ctx.shadowBlur = 8;
-            ctx.fillRect(barX + glitchOffsetX, barY, barW * ratio, barH);
-            ctx.shadowBlur = 0;
-
-            // Border
-            ctx.strokeStyle = '#ff0033';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(barX + glitchOffsetX, barY, barW, barH);
-
-            // Determine boss executable system name
-            let bossName = "SYSTEM_CORRUPTION.EXE";
-            if (boss.type === 'boss_snake') {
-                bossName = "SEGMENTED_VOID_DEVOURER [FATAL_SNAKE.EXE]";
-            } else if (boss.type === 'boss_eye') {
-                bossName = "INTRUSION_DETECTION_CORE [SYS_OBSERVER.BAT]";
-            } else if (boss.type === 'boss_carrier') {
-                bossName = "MAINFRAME_REPLICATOR_MOTHER [SPAM_INJECTOR.SYS]";
-            }
-
-            // Draw title below bar
-            const percentText = `${Math.ceil(ratio * 100)}%`;
-            const additional = activeBosses.length > 1 ? ` +${activeBosses.length - 1} ACTIVE` : '';
-            ui.drawText(ctx, `${bossName}${additional} - CORRUPTION LEVEL: ${percentText}`, screenW / 2, barY + barH + 12, 12, '#ff0033', 'center');
-
-            const bossScreenX = (boss.x + boss.width / 2 - renderer.camX) * renderer.cellWidth;
-            const bossScreenY = (boss.y + boss.height / 2 - renderer.camY) * renderer.cellHeight;
-            if (bossScreenX < 20 || bossScreenX > screenW - 20 || bossScreenY < 110 || bossScreenY > screenH - 40) {
-                const markerX = Math.max(28, Math.min(screenW - 28, bossScreenX));
-                const markerY = Math.max(115, Math.min(screenH - 45, bossScreenY));
-                ui.drawText(ctx, '[!]', markerX, markerY, 18, PALETTE.boss, 'center');
-            }
-        }
-
-        // XP Bar bottom
-        const xpRatio = player.xp / player.xpToNextLevel;
-        const barW = screenW - 40;
-        ctx.fillStyle = 'rgba(0, 50, 0, 0.5)';
-        ctx.fillRect(20, screenH - 20, barW, 10);
-        ctx.fillStyle = '#00ff41';
-        ctx.shadowColor = 'rgba(0, 255, 65, 0.5)';
-        ctx.shadowBlur = 4;
-        ctx.fillRect(20, screenH - 20, barW * xpRatio, 10);
-        ctx.shadowBlur = 0;
-
-        if (this.debugVisible) {
-            ui.drawText(ctx, `F1 DEBUG | WORLD:${matrixRain.seed} E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length} XP:${pickups.items.length} CELL:${renderer.viewCols}x${renderer.viewRows}`, 20, 70, 12, PALETTE.ui, 'left');
-        }
-        
-        ctx.restore();
+    stampHUD() {
+        const boss = enemies.enemies.find(enemy => enemy && enemy.hp > 0 && BOSS_TYPES.has(enemy.type));
+        const overtime = !waves.endless && waves.timeElapsed >= waves.modeTimeLimit && !waves.isVictory();
+        ui.stampHUD(renderer, {
+            hp: player.hp, maxHp: player.maxHp, xp: player.xp, xpMax: player.xpToNextLevel,
+            level: player.level, timer: overtime ? `OVERTIME+${Math.floor((waves.timeElapsed - waves.modeTimeLimit) / 60)}s` : waves.getTimeRemainingFormatted(),
+            threat: waves.getThreatLabel(), weapon: WEAPON_DEFS[player.weaponType]?.name || player.weaponType,
+            heat: player.weaponType === 'null_laser' ? Math.round(player.heat) : null,
+            overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
+            boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length}` : '',
+            hint: waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : ''
+        });
     }
 
-    getRunSummary() {
-        const hull = HULL_DEFS[player.hullType] || HULL_DEFS.runner;
-        return `${hull.name} | LVL ${player.level} | ${this.totalKills} KILLS | ${Math.floor(waves.elapsedSeconds / 60)}:${Math.floor(waves.elapsedSeconds % 60).toString().padStart(2, '0')}`;
-    }
 }
 
 const game = new GameEngine();

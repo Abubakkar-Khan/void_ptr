@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import { Director } from '../src/waves.js';
 import { Player } from '../src/player.js';
 import { upgrades } from '../src/upgrades.js';
-import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ENEMY_DEFS, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
+import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
 import { Enemy, enemies } from '../src/enemies.js';
+import { EcosystemSystem } from '../src/ecosystem.js';
+import { StatsTracker } from '../src/stats.js';
 import { UIManager } from '../src/ui.js';
 import { resolveAssistedAim, weapons } from '../src/weapons.js';
 
@@ -139,13 +142,15 @@ test('dash corruption can damage the same target only once per dash', () => {
     assert.equal(target.hp, 94);
 });
 
-test('hybrid targeting preserves manual direction and acquires nearby idle targets', () => {
+test('manual aim assistance never initiates an idle shot', () => {
     const target = { x: 10, y: 1, width: 3, height: 1, hp: 8, introTimer: 0 };
     const assisted = resolveAssistedAim(0, 0, { x: 1, y: 0 }, [target], 'auto_blaster');
     assert.ok(assisted.x > 0.95);
     const player = { x: 0, y: 0, width: 3, height: 3, weaponType: 'auto_blaster' };
-    assert.equal(weapons.resolveTarget(player, null, [target], COMBAT_CONFIG.autoTargetDelayTicks - 1), null);
-    assert.equal(weapons.resolveTarget(player, null, [target], COMBAT_CONFIG.autoTargetDelayTicks).target, target);
+    assert.equal(weapons.resolveTarget(player, null, [target]), null);
+    assert.equal(weapons.resolveTarget(player, { x: 1, y: 0 }, [target]).target, target);
+    const outsideCone = resolveAssistedAim(0, 0, { x: 0, y: 1 }, [target], 'auto_blaster');
+    assert.deepEqual(outsideCone, { x: 0, y: 1, target: null });
 });
 
 test('progression and combat baselines match the faster ten-minute cadence', () => {
@@ -153,7 +158,7 @@ test('progression and combat baselines match the faster ten-minute cadence', () 
     assert.equal(PROGRESSION_CONFIG.pickupMagnetRadius, 28);
     assert.deepEqual(BOSS_SCHEDULE_TICKS, [9000, 19800, 32400]);
     assert.equal(WEAPON_DEFS.auto_blaster.baseDamage, 10);
-    assert.ok(ENEMY_DEFS.drone.hp <= WEAPON_DEFS.auto_blaster.baseDamage);
+    assert.ok(ENEMY_DEFS.drone.hp <= WEAPON_DEFS.auto_blaster.baseDamage * 2);
     assert.equal('blackhole' in ENEMY_DEFS, false);
 });
 
@@ -204,4 +209,120 @@ test('the Watcher uses gaze and iris attacks without spawning helper hazards', (
     boss.update(50, 50, 100, 100, projectiles, manager);
     assert.ok(projectiles.length > 0);
     assert.deepEqual(manager.spawns, []);
+});
+
+test('dash distance is derived from each hull configuration', () => {
+    for (const [hull, expected] of [['runner', 20], ['daemon', 17], ['cutter', 23]]) {
+        const player = new Player();
+        player.hullType = hull;
+        player.reset(200, 200);
+        player.x = 50; player.y = 50;
+        player.dashTimer = 8; player.dashDx = 1; player.dashDy = 0;
+        const start = player.x;
+        for (let frame = 0; frame < 8; frame++) player.update({ x: 0, y: 0 }, 200, 200, null, []);
+        assert.ok(Math.abs((player.x - start) - expected) < 0.25, `${hull} travelled ${player.x - start}`);
+        assert.ok(player.invincibilityTimer > 0);
+    }
+});
+
+test('cellular ecosystem seeds, merges, and respects its population budget', () => {
+    const manager = {
+        enemies: [],
+        spawn(x, y, type) {
+            const enemy = new Enemy(x, y, type);
+            this.enemies.push(enemy);
+            return enemy;
+        }
+    };
+    const system = new EcosystemSystem();
+    system.reset(120, 80, manager);
+    assert.ok(manager.enemies.some(enemy => enemy.type === 'cell_colony'));
+    assert.ok(system.count(manager) <= COMBAT_CONFIG.ecosystemPopulationCap);
+    system.tick = 120;
+    system.mergeColonies(manager);
+    assert.ok(manager.enemies.some(enemy => enemy.type === 'cell_amalgam'));
+    assert.ok([...ECOSYSTEM_TYPES].every(type => ENEMY_DEFS[type]?.ecosystem));
+});
+
+test('parasites attach to normal hosts and release spores when the host dies', () => {
+    const manager = {
+        enemies: [],
+        spawn(x, y, type) {
+            const enemy = new Enemy(x, y, type);
+            this.enemies.push(enemy);
+            return enemy;
+        }
+    };
+    const system = new EcosystemSystem();
+    system.reset(100, 100);
+    const host = manager.spawn(20, 20, 'drone');
+    manager.spawn(20.5, 20, 'cell_parasite');
+    const originalMax = host.maxHp;
+    system.attachParasites(manager);
+    assert.equal(host.parasiteCount, 1);
+    assert.equal(host.maxHp, originalMax * 1.25);
+    system.onEntityDeath(host, manager);
+    assert.equal(manager.enemies.filter(enemy => enemy.type === 'cell_spore').length, 2);
+});
+
+test('cellular terrain is sector-aware, bounded, visible, and destructible', () => {
+    const system = new EcosystemSystem();
+    system.reset(120, 80);
+    system.addTerrain(10, 10, 3);
+    system.addTerrain(90, 10, 3);
+    system.addTerrain(10, 60, 1);
+    system.addTerrain(90, 60, 3);
+    assert.equal(system.terrainAt(10, 10).mutation, 'STACK');
+    assert.equal(system.terrainAt(90, 10).mutation, 'HEAP');
+    assert.equal(system.terrainAt(10, 60).mutation, 'NULL');
+    assert.equal(system.terrainAt(90, 60).mutation, 'KERNEL');
+    assert.equal(system.blocksProjectile(10, 10), true);
+    assert.ok(system.movementMultiplier(10, 10) < 1);
+    assert.equal(system.damageTerrain(10, 10, 4), true);
+    assert.equal(system.terrainAt(10, 10), null);
+    system.seedTerrain(COMBAT_CONFIG.ecosystemTerrainCap * 2);
+    assert.ok(system.terrain.size <= COMBAT_CONFIG.ecosystemTerrainCap);
+});
+
+test('stats persist versioned lifetime records and recover malformed storage', () => {
+    const values = new Map();
+    const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+    const tracker = new StatsTracker(storage);
+    tracker.reset('runner');
+    tracker.recordShot(); tracker.recordHit(12); tracker.recordKill('drone'); tracker.recordDash(); tracker.recordDistance(20); tracker.recordCombo(7);
+    tracker.finalize({ victory: true, score: 500, level: 6, survivalSeconds: 600 });
+    const restored = new StatsTracker(storage);
+    assert.equal(restored.lifetime.runs, 1);
+    assert.equal(restored.lifetime.wins, 1);
+    assert.equal(restored.lifetime.totalKills, 1);
+    values.set('voidptr_stats_v1', '{broken');
+    assert.equal(new StatsTracker(storage).lifetime.runs, 0);
+});
+
+test('all menus and results stamp into the ASCII grid with no default focus', () => {
+    const makeRenderer = (viewCols, viewRows) => ({
+        viewCols, viewRows, worldCols: 140, worldRows: 100, camX: 0, camY: 0, cellWidth: 9, cellHeight: 15,
+        chars: Array.from({ length: 140 }, () => Array(100).fill(' ')),
+        types: Array.from({ length: 140 }, () => Array(100).fill(0)),
+        brightness: Array.from({ length: 140 }, () => Array(100).fill(0))
+    });
+    for (const [cols, rows] of [[120, 60], [72, 48], [46, 42]]) {
+        const grid = makeRenderer(cols, rows);
+        const asciiUi = new UIManager();
+        for (let frame = 0; frame < 20; frame++) asciiUi.stampTitleScreen(grid, -1, -1);
+        assert.equal(asciiUi.focusIndex, -1);
+        assert.ok(asciiUi.buttons.some(button => button.id === 'records'));
+        assert.ok(grid.chars.flat().some(char => '╔╗╚╝┌┐└┘'.includes(char)));
+        asciiUi.stampResultsScreen(grid, -1, -1, true, new StatsTracker(null).snapshot());
+        assert.ok(asciiUi.buttons.some(button => button.id === 'restart'));
+    }
+});
+
+test('visible interface and effect modules use glyphs instead of vector primitives', () => {
+    for (const file of ['src/main.js', 'src/ui.js', 'src/effects.js']) {
+        const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+        assert.doesNotMatch(source, /\.(?:fillRect|strokeRect|arc|lineTo|moveTo|roundRect)\s*\(/, file);
+    }
+    const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(main, /ScreenUI|screenUi/);
 });

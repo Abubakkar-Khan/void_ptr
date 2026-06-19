@@ -21,8 +21,8 @@ class GridRenderer {
         this.ctx = null;
         
         // Cell sizing - good readability
-        this.cellWidth = 8;
-        this.cellHeight = 14;
+        this.cellWidth = 9;
+        this.cellHeight = 15;
 
         // World grid dimensions (large)
         this.worldCols = 300;
@@ -314,7 +314,7 @@ class GridRenderer {
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, this.width, this.height);
 
-        ctx.font = `bold ${this.cellHeight}px 'Fira Code', 'JetBrains Mono', monospace`;
+        ctx.font = `500 ${this.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
         ctx.textBaseline = 'top';
 
         const batches = new Map();
@@ -356,14 +356,14 @@ class GridRenderer {
 
                 // UI_TEXT and UI_BORDER — draw characters fixed to screen
                 if (type === CELL_TYPES.UI_TEXT || type === CELL_TYPES.UI_BORDER) {
-                    const drawX = (x - this.camX) * this.cellWidth;
-                    const drawY = (y - this.camY) * this.cellHeight;
+                    const drawX = (x - Math.floor(this.camX)) * this.cellWidth;
+                    const drawY = (y - Math.floor(this.camY)) * this.cellHeight;
                     const batchKey = type === CELL_TYPES.UI_TEXT ? 'ui_text' : 'ui_border';
                     if (!batches.has(batchKey)) {
                         batches.set(batchKey, {
                             color: type === CELL_TYPES.UI_TEXT ? '#ffffff' : '#00ff41',
-                            shadow: 'rgba(0, 255, 65, 0.95)',
-                            shadowBlur: type === CELL_TYPES.UI_TEXT ? 7 : 4,
+                            shadow: type === CELL_TYPES.UI_TEXT ? 'transparent' : 'rgba(0, 255, 65, 0.45)',
+                            shadowBlur: type === CELL_TYPES.UI_TEXT ? 0 : 2,
                             cells: []
                         });
                     }

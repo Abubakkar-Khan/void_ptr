@@ -5,8 +5,10 @@ import { enemies } from './enemies.js';
 import { audio } from './audio.js';
 import { collision } from './collision.js';
 import { COMBAT_CONFIG, PALETTE, WEAPON_DEFS } from './config.js';
+import { stats } from './stats.js';
+import { ecosystem } from './ecosystem.js';
 
-export function findNearestTarget(originX, originY, enemiesList, maxRadius = COMBAT_CONFIG.autoTargetRadius) {
+export function findNearestTarget(originX, originY, enemiesList, maxRadius = COMBAT_CONFIG.aimAssistRadius) {
     let target = null;
     let bestDistance = maxRadius;
     for (const enemy of enemiesList || []) {
@@ -25,13 +27,13 @@ export function findNearestTarget(originX, originY, enemiesList, maxRadius = COM
 export function resolveAssistedAim(originX, originY, manualVector, enemiesList, weaponType = 'auto_blaster') {
     const fallback = { x: manualVector.x, y: manualVector.y, target: null };
     let best = null;
-    let bestAngle = COMBAT_CONFIG.manualAssistConeRadians;
+    let bestAngle = COMBAT_CONFIG.aimAssistConeRadians;
     for (const enemy of enemiesList || []) {
         if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0) continue;
         const dx = enemy.x + (enemy.width || 1) / 2 - originX;
         const dy = enemy.y + (enemy.height || 1) / 2 - originY;
         const distance = Math.hypot(dx, dy);
-        if (!distance || distance > COMBAT_CONFIG.autoTargetRadius * 1.5) continue;
+        if (!distance || distance > COMBAT_CONFIG.aimAssistRadius) continue;
         const dot = Math.max(-1, Math.min(1, (manualVector.x * dx + manualVector.y * dy) / distance));
         const angle = Math.acos(dot);
         if (angle < bestAngle) {
@@ -40,7 +42,7 @@ export function resolveAssistedAim(originX, originY, manualVector, enemiesList, 
         }
     }
     if (!best) return fallback;
-    const strength = weaponType === 'null_laser' ? 0.55 : COMBAT_CONFIG.manualAssistStrength;
+    const strength = weaponType === 'null_laser' ? 0.4 : COMBAT_CONFIG.aimAssistStrength;
     const x = manualVector.x * (1 - strength) + best.x * strength;
     const y = manualVector.y * (1 - strength) + best.y * strength;
     const length = Math.hypot(x, y) || 1;
@@ -206,8 +208,13 @@ class WeaponSystem {
                 const iy = Math.floor(p.y);
                 if (ix >= 0 && ix < matrixRain.cols && iy >= 0 && iy < matrixRain.rows) {
                     if (matrixRain.obstacles && matrixRain.obstacles[ix][iy]) {
-                        matrixRain.damageObstacle(ix, iy, p.damage);
+                        const destroyed = matrixRain.damageObstacle(ix, iy, p.damage);
+                        if (destroyed) ecosystem.addTerrain(ix, iy, 1);
                         effects.spawnImpactSparks(p.x, p.y);
+                        p.life = 0;
+                    } else if (ecosystem.blocksProjectile(ix, iy)) {
+                        ecosystem.damageTerrain(ix, iy, Math.max(1, p.damage / 8));
+                        effects.spawnImpactSparks(p.x, p.y, '#8cff7a');
                         p.life = 0;
                     }
                 }
@@ -223,24 +230,15 @@ class WeaponSystem {
     resolveTarget(playerInstance, manualVector, enemiesList, idleTicks) {
         const px = playerInstance.x + playerInstance.width / 2;
         const py = playerInstance.y + playerInstance.height / 2;
-        if (manualVector) {
-            const assisted = resolveAssistedAim(px, py, manualVector, enemiesList, playerInstance.weaponType);
-            return { x: px + assisted.x * 50, y: py + assisted.y * 50, target: assisted.target, automatic: false };
-        }
-        if (idleTicks < COMBAT_CONFIG.autoTargetDelayTicks) return null;
-        const target = findNearestTarget(px, py, enemiesList);
-        if (!target) return null;
-        return {
-            x: target.x + target.width / 2,
-            y: target.y + target.height / 2,
-            target,
-            automatic: true
-        };
+        if (!manualVector) return null;
+        const assisted = resolveAssistedAim(px, py, manualVector, enemiesList, playerInstance.weaponType);
+        return { x: px + assisted.x * 50, y: py + assisted.y * 50, target: assisted.target, automatic: false };
     }
 
     fire(playerInstance, targetX, targetY) {
         if (playerInstance.fireCooldown > 0) return false;
         if (playerInstance.weaponType === 'null_laser' && playerInstance.overheated) return false;
+        stats.recordShot();
         
         const px = playerInstance.x + playerInstance.width / 2;
         const py = playerInstance.y + playerInstance.height / 2;
@@ -261,7 +259,7 @@ class WeaponSystem {
             for (let i = 0; i < streams; i++) {
                 const spread = (Math.random() - 0.5) * 0.2 * streams;
                 const angle = Math.atan2(uy, ux) + spread;
-                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'bullet', life: 120, width: 1.4, height: 1.4, piercing: (playerInstance.upgrades.blasterDmg || 0) >= 4 }));
+                this.projectiles.push(new Projectile(px, py, Math.cos(angle)*speed, Math.sin(angle)*speed, { damage: dmg, type: 'bullet', life: 120, width: COMBAT_CONFIG.projectileHitboxScale, height: COMBAT_CONFIG.projectileHitboxScale, piercing: (playerInstance.upgrades.blasterDmg || 0) >= 4 }));
             }
             playerInstance.fireCooldown = playerInstance.fireRate;
         } 
@@ -303,7 +301,8 @@ class WeaponSystem {
                     }
                     
                     if (matrixRain.obstacles && matrixRain.obstacles[ix][iy]) {
-                        matrixRain.damageObstacle(ix, iy, 0.5);
+                        const destroyed = matrixRain.damageObstacle(ix, iy, 0.5);
+                        if (destroyed) ecosystem.addTerrain(ix, iy, 1);
                         effects.spawnImpactSparks(tx, ty);
                         if (playerInstance.upgrades.pointerArithmetic && !reflected) {
                             const prevX = Math.floor(tx - lux);
@@ -317,6 +316,11 @@ class WeaponSystem {
                             d = 0;
                             continue;
                         }
+                        break;
+                    }
+                    if (ecosystem.blocksProjectile(ix, iy)) {
+                        ecosystem.damageTerrain(ix, iy, Math.max(1, dmg / 10));
+                        effects.spawnImpactSparks(tx, ty, '#8cff7a');
                         break;
                     }
 

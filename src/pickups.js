@@ -1,5 +1,6 @@
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { PALETTE, PROGRESSION_CONFIG } from './config.js';
+import { stats } from './stats.js';
 
 class MemoryPickup {
     constructor(x, y, value) {
@@ -80,6 +81,7 @@ class PickupSystem {
             const item = this.items[i];
             if (item.update(player, enemyList)) {
                 player.gainXp(item.value);
+                stats.recordXp(item.value);
                 this.items.splice(i, 1);
             }
         }

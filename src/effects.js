@@ -29,7 +29,7 @@ class Particle {
     draw(ctx) {
         const alpha = Math.max(0, this.life / this.maxLife);
         ctx.save();
-        ctx.font = `bold ${this.size}px 'VT323', monospace`;
+        ctx.font = `500 ${renderer.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
         ctx.fillStyle = this.color;
         ctx.globalAlpha = alpha;
         
@@ -38,7 +38,7 @@ class Particle {
             ctx.shadowBlur = 6;
         }
         
-        ctx.fillText(this.char, this.px, this.py);
+        ctx.fillText(this.char, Math.round(this.px / renderer.cellWidth) * renderer.cellWidth, Math.round(this.py / renderer.cellHeight) * renderer.cellHeight);
         ctx.restore();
     }
 }
@@ -62,9 +62,9 @@ class DamageText {
         ctx.save();
         ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
         ctx.fillStyle = this.color;
-        ctx.font = "bold 14px 'Fira Code', monospace";
+        ctx.font = `500 ${renderer.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.text, this.px, this.py);
+        ctx.fillText(this.text, Math.round(this.px / renderer.cellWidth) * renderer.cellWidth, Math.round(this.py / renderer.cellHeight) * renderer.cellHeight);
         ctx.restore();
     }
 }
@@ -199,42 +199,36 @@ class EffectSystem {
             dt.draw(ctx);
         }
 
-        // Draw Tesla lightning discharges
+        // Tesla discharges are sampled into terminal glyphs, never vector lines.
         for (const arc of this.lightningArcs) {
             ctx.save();
-            ctx.strokeStyle = '#00ff41';
-            ctx.lineWidth = 1.5;
+            ctx.fillStyle = '#00ff41';
+            ctx.font = `500 ${renderer.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
             ctx.shadowColor = 'rgba(0, 255, 65, 0.95)';
-            ctx.shadowBlur = 8;
-            ctx.beginPath();
-            ctx.moveTo(arc.x1, arc.y1);
-
+            ctx.shadowBlur = 4;
             const dx = arc.x2 - arc.x1;
             const dy = arc.y2 - arc.y1;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            const steps = Math.floor(dist / 8) || 1;
-            let cx = arc.x1;
-            let cy = arc.y1;
-            for (let i = 1; i < steps; i++) {
+            const dist = Math.hypot(dx, dy) || 1;
+            const steps = Math.max(1, Math.floor(dist / Math.min(renderer.cellWidth, renderer.cellHeight)));
+            const glyph = Math.abs(dx) > Math.abs(dy) * 1.8 ? '-' : Math.abs(dy) > Math.abs(dx) * 1.2 ? '|' : dx * dy > 0 ? '\\' : '/';
+            for (let i = 0; i <= steps; i++) {
                 const t = i / steps;
-                const targetX = arc.x1 + dx * t;
-                const targetY = arc.y1 + dy * t;
-                const px = -dy / dist;
-                const py = dx / dist;
-                const offset = (Math.random() - 0.5) * 12;
-                cx = targetX + px * offset;
-                cy = targetY + py * offset;
-                ctx.lineTo(cx, cy);
+                const jitter = i > 0 && i < steps ? ((i + arc.life) % 3 - 1) : 0;
+                const x = Math.round((arc.x1 + dx * t - dy / dist * jitter * renderer.cellWidth) / renderer.cellWidth) * renderer.cellWidth;
+                const y = Math.round((arc.y1 + dy * t + dx / dist * jitter * renderer.cellHeight) / renderer.cellHeight) * renderer.cellHeight;
+                ctx.fillText(i === 0 || i === steps ? '*' : glyph, x, y);
             }
-            ctx.lineTo(arc.x2, arc.y2);
-            ctx.stroke();
             ctx.restore();
         }
 
         if (this.scanlineFlash > 0 && ctx.canvas) {
             ctx.save();
             ctx.fillStyle = `rgba(0, 255, 65, ${this.scanlineFlash})`;
-            ctx.fillRect(0, 0, renderer.width, renderer.height);
+            ctx.font = `500 ${renderer.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
+            for (let y = 0; y < renderer.height; y += renderer.cellHeight * 3) {
+                const offset = ((y / renderer.cellHeight + renderer.animationTime) % 5) * renderer.cellWidth;
+                for (let x = offset; x < renderer.width; x += renderer.cellWidth * 5) ctx.fillText(':', x, y);
+            }
             ctx.restore();
         }
     }

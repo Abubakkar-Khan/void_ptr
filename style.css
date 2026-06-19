@@ -14,8 +14,9 @@
     --ui-white: #ffffff;
     --ui-white-glow: rgba(255, 255, 255, 0.4);
 
-    --font-monospace: 'JetBrains Mono', 'Fira Code', monospace;
-    --font-retro: 'VT323', monospace;
+    --font-monospace: 'JetBrains Mono', Consolas, monospace;
+    --font-ui: var(--font-monospace);
+    --font-retro: var(--font-monospace);
 }
 
 /* --- Base Setup --- */
@@ -31,6 +32,7 @@ body {
     background-color: var(--bg-color);
     color: var(--matrix-green);
     font-family: var(--font-monospace);
+    font-variant-ligatures: none;
     overflow: hidden;
     width: 100vw;
     height: 100vh;

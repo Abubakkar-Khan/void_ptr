@@ -147,7 +147,24 @@ export const upgrades = {
                 break;
         }
 
-        return { id: uId, icon, title, description, tag: baseUpgrade?.tag || 'MODULE', level: nextLvl };
+        let currentValue = `L${nextLvl - 1}`;
+        let nextValue = `L${nextLvl}`;
+        let evolutionText = '';
+        if (uId === 'upg_blaster_dmg') {
+            currentValue = `${WEAPON_DEFS.auto_blaster.baseDamage + (nextLvl - 1) * WEAPON_DEFS.auto_blaster.damagePerLevel} DMG`;
+            nextValue = `${WEAPON_DEFS.auto_blaster.baseDamage + nextLvl * WEAPON_DEFS.auto_blaster.damagePerLevel} DMG`;
+            if (nextLvl === 4) evolutionText = 'EVOLUTION: PIERCING ROUNDS';
+        } else if (uId === 'upg_seeker_dmg') {
+            currentValue = `${WEAPON_DEFS.seeker_rockets.baseDamage + (nextLvl - 1) * WEAPON_DEFS.seeker_rockets.damagePerLevel} DMG`;
+            nextValue = `${WEAPON_DEFS.seeker_rockets.baseDamage + nextLvl * WEAPON_DEFS.seeker_rockets.damagePerLevel} DMG`;
+            if (nextLvl === 4) evolutionText = 'EVOLUTION: NOVA PAYLOAD';
+        } else if (uId === 'upg_laser_dmg') {
+            currentValue = `${WEAPON_DEFS.null_laser.baseDamage + (nextLvl - 1) * WEAPON_DEFS.null_laser.damagePerLevel} DMG`;
+            nextValue = `${WEAPON_DEFS.null_laser.baseDamage + nextLvl * WEAPON_DEFS.null_laser.damagePerLevel} DMG`;
+            if (nextLvl === 4) evolutionText = 'EVOLUTION: COLD OVERDRIVE';
+        }
+        const shortDescription = description.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+        return { id: uId, icon, title, description, shortDescription, currentValue, nextValue, evolutionText, tag: baseUpgrade?.tag || 'MODULE', level: nextLvl };
     },
     getRandomSelection: (playerInstance, count) => {
         // Filter out fully upgraded ones
