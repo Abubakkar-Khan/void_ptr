@@ -46,6 +46,7 @@ class GameEngine {
         this.portraitBlocked = false;
         this.stateBeforePortrait = null;
         this.guideReturnState = GAME_STATES.PLAYING;
+        this.lastRenderTime = 0;
     }
 
     init() {
@@ -191,6 +192,8 @@ class GameEngine {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.SETTINGS;
             ui.currentScreen = null;
+        } else if (action === 'fullscreen') {
+            input.activateMobileDisplay(true);
         } else if (action === 'controls') {
             this.guideReturnState = this.state === GAME_STATES.PAUSED ? GAME_STATES.PAUSED : GAME_STATES.MENU;
             this.state = GAME_STATES.MOBILE_GUIDE;
@@ -258,7 +261,11 @@ class GameEngine {
             }
         }
 
-        this.draw();
+        const renderInterval = renderer.lowPowerMode ? 1000 / 30 : 0;
+        if (!renderInterval || time - this.lastRenderTime >= renderInterval) {
+            this.draw();
+            this.lastRenderTime = time;
+        }
         requestAnimationFrame((t) => this.loop(t));
     }
 

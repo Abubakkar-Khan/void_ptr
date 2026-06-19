@@ -33,7 +33,7 @@ class Particle {
         ctx.fillStyle = this.color;
         ctx.globalAlpha = alpha;
         
-        if (this.glow) {
+        if (this.glow && !renderer.lowPowerMode) {
             ctx.shadowColor = this.color === '#ff3366' ? 'rgba(255, 51, 102, 0.8)' : 'rgba(0, 255, 65, 0.8)';
             ctx.shadowBlur = 6;
         }
@@ -88,7 +88,7 @@ class EffectSystem {
         const screenX = (gridX - renderer.camX) * renderer.cellWidth;
         const screenY = (gridY - renderer.camY) * renderer.cellHeight;
 
-        const actualCount = renderer.reducedMotion ? Math.ceil(count * 0.35) : count;
+        const actualCount = renderer.lowPowerMode ? Math.ceil(count * 0.28) : renderer.reducedMotion ? Math.ceil(count * 0.35) : count;
         for (let i = 0; i < actualCount; i++) {
             const angle = Math.random() * Math.PI * 2;
             const speed = 0.5 + Math.random() * 4.0;
@@ -203,8 +203,8 @@ class EffectSystem {
             ctx.save();
             ctx.fillStyle = '#00ff41';
             ctx.font = `500 ${renderer.cellHeight}px 'JetBrains Mono', Consolas, monospace`;
-            ctx.shadowColor = 'rgba(0, 255, 65, 0.95)';
-            ctx.shadowBlur = 4;
+            ctx.shadowColor = renderer.lowPowerMode ? 'transparent' : 'rgba(0, 255, 65, 0.95)';
+            ctx.shadowBlur = renderer.lowPowerMode ? 0 : 4;
             const dx = arc.x2 - arc.x1;
             const dy = arc.y2 - arc.y1;
             const dist = Math.hypot(dx, dy) || 1;

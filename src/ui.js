@@ -454,8 +454,9 @@ export class UIManager {
             if (mobileLandscape) {
                 this.stampButton(renderer, 'records', 'Records', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
                 this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
-                const fullscreen = typeof document !== 'undefined' && document.fullscreenElement;
-                this.stampText(renderer, fullscreen ? 'FULLSCREEN ACTIVE' : 'TAP FOR FULLSCREEN | INSTALL FOR TRUE FULLSCREEN', cc, py + 27, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
+                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', cc, py + 27, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', cc - 12, py + 27, 24, 2, t, mx, my, cc, cr);
             } else {
                 this.stampButton(renderer, 'records', 'Lifetime Records', px + 15, py + 23, 24, 3, t, mx, my, cc, cr);
                 const optBtnY = py + 27;

@@ -62,6 +62,25 @@ export const ORGANIC_FIELD_PROFILES = Object.freeze({
     carrier: { width: 18, height: 11, glyphs: ['#', '%', ':', 'Y'], density: 0.62, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 112 }
 });
 
+// These are growth grammars, not sprites. Each mark is a preferred tissue site;
+// the automaton mutates its edges while preserving the family's visual rhythm.
+const FAMILY_GROWTH_GRAMMARS = Object.freeze({
+    skitter: ['  x x ', ' xxx  ', 'x xx x', '  x   '],
+    bloomcaster: ['  xxx  ', ' xxxxx ', 'xx x xx', ' xxxxx ', '  x x  '],
+    ribbon: ['xx       ', ' xxxx    ', '   xxxx  ', '      xxx'],
+    prism: ['  x x ', ' xxxxx', 'xx x x', ' xxxxx', 'x x x ', '  x   '],
+    carapace: ['  xxxx  ', ' xxxxxx ', 'xxxxxxxx', 'xxx  xxx', ' xxxxxx ', '  xxxx  '],
+    burst_sac: ['  xx  ', ' xxxx ', 'xx xx ', ' xxxx ', '  xx  '],
+    rootweaver: ['   x   ', ' xxxxx ', '  xxx  ', 'xxxxxxx', '  xxx  ', ' x x x ', 'x  x  x'],
+    spore: [' x ', 'xxx', ' x '],
+    colony: [' xx  ', 'xxxx ', ' xxx ', '  xxx', ' x x '],
+    parasite: ['xx   ', ' xxxx', 'xx x '],
+    amalgam: ['  xxx xxx ', ' xxxxxxxx ', 'xxx xx xxx', ' xxxxxxxx ', 'xxx xxxx  ', ' xx  xxxx ', '  xx xx   '],
+    serpent: ['   xxxx     ', ' xxxxxxxx   ', 'xxx  xxxxx  ', ' xxxxx xxxxx', '  xxxxx xxxx', ' xxxx xxx   ', '  xxxxx     ', '   xxx      ', '    x       '],
+    watcher: ['    xxxxxxx    ', '  xxxxxxxxxxx  ', 'xxxxxx   xxxxxx', ' xxxx xxx xxxx ', 'xxx  xxxxx  xxx', ' xxxx xxx xxxx ', 'xxxxxx   xxxxxx', '  xxxxxxxxxxx  ', '    xxxxxxx    ', ' x   xxx   x   ', '   x  x  x     '],
+    carrier: ['   xxxx  xxxx   ', ' xxxxxxxxxxxxxxxx ', 'xxxx  xxxxxx  xxxx', 'xxxxxxxxxxxxxxxxxx', 'xxx xxxx  xxxx xxx', 'xxxxxxxxxxxxxxxxxx', ' xxxx xxxxxx xxxx ', '  xxxxxxxxxxxxxx  ', ' xx  xxxxxxxx  xx ', 'x x   xxxxxx   x x', ' x     xxxx     x ']
+});
+
 const cellKey = (x, y) => `${x},${y}`;
 const cellNoise = (seed, frame, x, y) => seededRandom(hashSeed(`${seed}:${frame}:${x}:${y}`))();
 
@@ -79,13 +98,22 @@ export class OrganicField {
         const profile = this.profile;
         const rng = seededRandom(hashSeed(`field:${this.seed}:${this.family}`));
         let cells = new Set();
-        const cx = (this.width - 1) / 2;
-        const cy = (this.height - 1) / 2;
-        for (let y = 0; y < this.height; y++) for (let x = 0; x < this.width; x++) {
-            const nx = (x - cx) / Math.max(1, cx);
-            const ny = (y - cy) / Math.max(1, cy);
-            const organicDistance = nx * nx + ny * ny + (rng() - 0.5) * 0.48;
-            if (organicDistance < 1.08 && rng() < profile.density) cells.add(cellKey(x, y));
+        const grammar = FAMILY_GROWTH_GRAMMARS[this.family];
+        if (grammar) for (let y = 0; y < Math.min(this.height, grammar.length); y++) {
+            for (let x = 0; x < Math.min(this.width, grammar[y].length); x++) {
+                if (grammar[y][x] !== ' ') cells.add(cellKey(x, y));
+            }
+        }
+        // Genome variation removes a few peripheral sites and grows a few new ones.
+        // The central grammar remains, so variation reads as a species instead of noise.
+        for (const key of [...cells]) {
+            const [x, y] = key.split(',').map(Number);
+            const edge = x === 0 || y === 0 || x === this.width - 1 || y === this.height - 1;
+            if ((edge ? 0.24 : 0.07) > rng()) cells.delete(key);
+        }
+        for (let i = 0; i < Math.ceil(profile.maxCells * 0.12); i++) {
+            const x = Math.floor(rng() * this.width), y = Math.floor(rng() * this.height);
+            if ([...cells].some(key => { const [cx, cy] = key.split(',').map(Number); return Math.abs(cx - x) <= 1 && Math.abs(cy - y) <= 1; })) cells.add(cellKey(x, y));
         }
         this.reseed(cells, 0);
         const frames = [];

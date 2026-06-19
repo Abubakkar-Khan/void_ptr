@@ -57,6 +57,7 @@ class GridRenderer {
         this.reducedMotion = storage?.getItem('voidptr_reduced_motion') === 'true';
         this.monochrome = storage?.getItem('voidptr_color_mode') === 'mono';
         this.animationTime = 0;
+        this.lowPowerMode = false;
     }
 
     // Backward compat: renderer.cols / renderer.rows return world size
@@ -101,11 +102,13 @@ class GridRenderer {
         const height = Math.max(1, (viewport?.height || window.innerHeight) - verticalInset);
         const touchLayout = navigator.maxTouchPoints > 0 || window.matchMedia?.('(pointer: coarse)').matches;
         this.isTouchLayout = touchLayout;
+        this.lowPowerMode = touchLayout;
         this.cellWidth = touchLayout ? (width > height ? 7 : 6) : 9;
         this.cellHeight = touchLayout ? (width > height ? 11 : 10) : 15;
         this.width = width;
         this.height = height;
-        this.dpr = Math.min(2, window.devicePixelRatio || 1);
+        // A 2x full-screen canvas costs roughly four times the fill work.
+        this.dpr = touchLayout ? 1 : Math.min(2, window.devicePixelRatio || 1);
 
         this.canvas.width = Math.floor(width * this.dpr);
         this.canvas.height = Math.floor(height * this.dpr);
@@ -297,6 +300,7 @@ class GridRenderer {
 
     triggerShake(duration = 10, intensity = 5) {
         if (this.reducedMotion) return;
+        if (this.lowPowerMode) { duration = Math.min(duration, 8); intensity = Math.min(intensity, 2); }
         this.shakeTimer = Math.max(this.shakeTimer, duration);
         this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
     }
@@ -348,6 +352,7 @@ class GridRenderer {
                 }
 
                 if (type === CELL_TYPES.UI_VOID || !char || char === ' ') {
+                    if (this.lowPowerMode) continue;
                     const drawX = (x - this.camX) * this.cellWidth;
                     const drawY = (y - this.camY) * this.cellHeight;
                     const batchKey = 'dull_dot';
@@ -389,8 +394,8 @@ class GridRenderer {
                     if (!batches.has(batchKey)) {
                         batches.set(batchKey, {
                             color: chosenColor,
-                            shadow: chosenColor,
-                            shadowBlur: 6,
+                            shadow: this.lowPowerMode ? 'transparent' : chosenColor,
+                            shadowBlur: this.lowPowerMode ? 0 : 6,
                             cells: []
                         });
                     }
@@ -441,6 +446,7 @@ class GridRenderer {
                     batches.get(colorKey).cells.push({ drawX, drawY, char });
                 } else {
                     // RAIN cell — GREEN
+                    if (this.lowPowerMode && ((x + y + this.animationTime) & 1)) continue;
                     const bVal = Math.round(brt * 20) / 20;
                     colorKey = `rain_${bVal}`;
 

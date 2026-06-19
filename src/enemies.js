@@ -104,7 +104,10 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
             const cluster = phase === 0 ? [' ~=:', '  %~'] : phase === 1 ? [' :=% ', '~='] : [' %~', '=::~'];
             stampPattern(rendererInstance, pos.x + 3, pos.y + 3, cluster, Math.max(0.3, brightness * (1 - i / enemy.trail.length)), enemy.color);
         }
-        stampPattern(rendererInstance, enemy.x + 5, enemy.y + 4, [[living('sense', blink ? '*' : ':'), living('core', '%'), living('attack', enemy.attackState === 'charge' ? '!' : '~')].join('')], 1, PALETTE.boss);
+        const maw = enemy.attackState === 'charge' ? [' :\!/: ', '=={%}==', ' :/!\: '] : blink ? ['  :*:  ', '~={%}=~', '  :~:  '] : [' ~:::~ ', '=={%}==', ' ~:::~ '];
+        maw[1] = maw[1].replace('%', living('core', '%'));
+        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 3, maw, 1, PALETTE.boss);
+        stampPattern(rendererInstance, enemy.x + (enemy.genome.bias > 0 ? 9 : 0), enemy.y + 2, [[living('sense', blink ? '*' : ':')]], 1, '#ff9de2');
     } else if (enemy.type === 'boss_eye') {
         const lobes = enemy.phase === 2 ? Math.min(4, 2 + enemy.genome.tendrilCount) : 1;
         for (let i = 0; i < lobes; i++) {
@@ -114,12 +117,21 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
             const lobe = i % 2 ? living('lobe', blink ? 'o:*' : '*:o') : living('sense', blink ? ':!:' : '*o*');
             stampPattern(rendererInstance, lx - 1, ly, [lobe], 0.78, enemy.color);
         }
-        stampPattern(rendererInstance, enemy.x + 6, enemy.y + 6, [`:${living('core', enemy.attackState === 'gaze' ? '!' : '@')}:`], 1, PALETTE.boss);
+        const pupil = living('core', enemy.attackState === 'gaze' ? '!' : '@');
+        const iris = enemy.phase === 2
+            ? [blink ? 'x :   : x' : ':  x x  :', `  ::${pupil}::  `, blink ? ':  x x  :' : 'x :   : x']
+            : [blink ? '  :***:  ' : '  *:::*  ', `:::{${pupil}}:::`, blink ? '  *:::*  ' : '  :***:  '];
+        stampPattern(rendererInstance, enemy.x + 3, enemy.y + 4, iris, 1, PALETTE.boss);
+        const cilia = blink ? ["'  |  '  |  '"] : [' |  `  |  ` '];
+        stampPattern(rendererInstance, enemy.x + 1, enemy.y + 1, cilia, 0.65, '#ff9de2');
+        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 10, [cilia[0].split('').reverse().join('')], 0.65, '#ff9de2');
     } else if (enemy.type === 'boss_carrier') {
         const bay = living('bay', blink ? 'o%:' : '%:o');
-        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 2, [bay], 0.92, enemy.color);
-        stampPattern(rendererInstance, enemy.x + 12, enemy.y + 6, [bay.split('').reverse().join('')], 0.92, enemy.color);
-        stampPattern(rendererInstance, enemy.x + 8, enemy.y + 5, [`:${living('core', '@')}:`], 1, PALETTE.boss);
+        const heart = living('core', enemy.phase === 2 ? (blink ? '@' : '*') : '%');
+        stampPattern(rendererInstance, enemy.x + 1, enemy.y + 2, [`:${bay}:`, '%%::%%', blink ? ':o::o:' : '::oo::'], 0.92, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 11, enemy.y + 5, [`:${bay.split('').reverse().join('')}:`, '%%::%%', blink ? '::oo::' : ':o::o:'], 0.92, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 6, enemy.y + 4, [blink ? '::%%%%::' : ':%::::%:', `%%:{${heart}}:%%`, blink ? ':%::::%:' : '::%%%%::'], 1, PALETTE.boss);
+        stampPattern(rendererInstance, enemy.x + 3, enemy.y + 9, [blink ? 'Y  |  Y  |  Y' : '|  Y  |  Y  |'], 0.72, '#ff9de2');
         if (enemy.broodRuptured) stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, ['x : x', ' ,x, '], 1, '#ff9de2');
     }
     if (enemy.signal) stampPattern(rendererInstance, enemy.x + enemy.width / 2, enemy.y - 2, [enemy.signal], 1, PALETTE.enemyShot);
@@ -773,6 +785,11 @@ export class Enemy {
     }
 
     stampToGrid(rendererInstance) {
+        const margin = BOSS_TYPES.has(this.type) ? 28 : 10;
+        if (this.x + this.width < rendererInstance.camX - margin ||
+            this.y + this.height < rendererInstance.camY - margin ||
+            this.x > rendererInstance.camX + rendererInstance.viewCols + margin ||
+            this.y > rendererInstance.camY + rendererInstance.viewRows + margin) return;
         const brightMult = this.frozenTimer > 0 ? 0.35 : 1.0;
         this.stampDirectionalTelegraph(rendererInstance);
         if (this.stampAuthored(rendererInstance, brightMult)) return;
@@ -1205,13 +1222,6 @@ class EnemyManager {
         for (const enemy of this.enemies) {
             if (enemy) {
                 enemy.stampToGrid(rendererInstance);
-                const minX = Math.max(0, Math.floor(enemy.x - 7));
-                const maxX = Math.min(rendererInstance.cols - 1, Math.ceil(enemy.x + enemy.width + 7));
-                const minY = Math.max(0, Math.floor(enemy.y - 7));
-                const maxY = Math.min(rendererInstance.rows - 1, Math.ceil(enemy.y + enemy.height + 7));
-                for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) {
-                    if (rendererInstance.types[x][y] === RENDER_CELL_TYPES.ENEMY_GLITCH) rendererInstance.customColors[x][y] = enemy.color;
-                }
             }
         }
         for (const p of this.projectiles) {

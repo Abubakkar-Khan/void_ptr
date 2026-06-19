@@ -29,7 +29,7 @@ class InputManager {
         this.touchDashPressed = false;
         this.touchCapable = typeof window !== 'undefined' && (navigator.maxTouchPoints > 0 || matchMedia?.('(pointer: coarse)').matches);
         const storage = typeof localStorage !== 'undefined' ? localStorage : null;
-        this.mobile = { isTouch: this.touchCapable, isPortrait: false, isFullscreen: false, fullscreenAttempted: false, guideDismissed: storage?.getItem('voidptr_mobile_guide_v1') === 'done', viewportWidth: 0, viewportHeight: 0 };
+        this.mobile = { isTouch: this.touchCapable, isPortrait: false, isFullscreen: false, fullscreenAttempted: false, fullscreenRejected: false, lastFullscreenAttempt: 0, guideDismissed: storage?.getItem('voidptr_mobile_guide_v1') === 'done', viewportWidth: 0, viewportHeight: 0 };
         this.prevGamepadButtons = [];
         this.prevGamepadAxes = [0, 0, 0, 0];
     }
@@ -127,12 +127,37 @@ class InputManager {
         return { x: (rect?.left || 0) + (rect?.width || 720) * 0.58, y: (rect?.top || 0) + (rect?.height || 400) * 0.58, width, height };
     }
 
-    activateMobileDisplay() {
-        if (!this.touchCapable || this.mobile.fullscreenAttempted || this.mobile.isPortrait) return;
+    activateMobileDisplay(force = false) {
+        if (!this.touchCapable || this.mobile.isPortrait || this.mobile.isFullscreen) return Promise.resolve(false);
+        const now = Date.now();
+        if (!force && now - this.mobile.lastFullscreenAttempt < 1200) return Promise.resolve(false);
+        this.mobile.lastFullscreenAttempt = now;
         this.mobile.fullscreenAttempted = true;
         const root = document.documentElement;
-        const request = root.requestFullscreen?.({ navigationUI: 'hide' }) || root.webkitRequestFullscreen?.();
-        Promise.resolve(request).catch(() => undefined).finally(() => this.updateMobileDisplay());
+        let request;
+        try {
+            if (root.requestFullscreen) request = root.requestFullscreen({ navigationUI: 'hide' });
+            else if (root.webkitRequestFullscreen) request = root.webkitRequestFullscreen();
+            else {
+                this.mobile.fullscreenRejected = true;
+                window.scrollTo?.(0, 1);
+                return Promise.resolve(false);
+            }
+        } catch {
+            this.mobile.fullscreenRejected = true;
+            return Promise.resolve(false);
+        }
+        return Promise.resolve(request).then(() => {
+            this.mobile.fullscreenRejected = false;
+            screen.orientation?.lock?.('landscape').catch?.(() => undefined);
+            this.updateMobileDisplay();
+            return true;
+        }).catch(() => {
+            this.mobile.fullscreenRejected = true;
+            window.scrollTo?.(0, 1);
+            this.updateMobileDisplay();
+            return false;
+        });
     }
 
     updateMobileDisplay() {

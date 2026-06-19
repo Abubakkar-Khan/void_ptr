@@ -41,6 +41,8 @@ body {
     align-items: center;
     overscroll-behavior: none;
     -webkit-text-size-adjust: 100%;
+    position: fixed;
+    inset: 0;
 }
 
 /* --- CRT & Terminal Screen Overlays --- */
@@ -104,8 +106,9 @@ body {
 }
 
 @media (pointer: coarse) {
-    .crt-overlay { opacity: 0.45; }
-    .crt-scanlines { opacity: 0.35; }
+    .crt-overlay { display: none; }
+    .crt-scanlines { display: none; }
+    #game-container { animation: none; }
     #game-container { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 }
 

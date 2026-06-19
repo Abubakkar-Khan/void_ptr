@@ -3,6 +3,7 @@
   "short_name": "VOID PTR",
   "start_url": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "landscape",
   "background_color": "#000000",
   "theme_color": "#000000"

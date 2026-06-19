@@ -293,6 +293,7 @@ export class EcosystemSystem {
             const x = cell.x;
             const y = cell.y;
             if (x < 0 || x >= renderer.cols || y < 0 || y >= renderer.rows) continue;
+            if (x < renderer.camX - 2 || y < renderer.camY - 2 || x > renderer.camX + renderer.viewCols + 2 || y > renderer.camY + renderer.viewRows + 2) continue;
             if (player && Math.hypot(x - (player.x + player.width / 2), y - (player.y + player.height / 2)) < 4) continue;
             const north = this.terrain.has(terrainKey(x, y - LATTICE));
             const south = this.terrain.has(terrainKey(x, y + LATTICE));
@@ -312,6 +313,7 @@ export class EcosystemSystem {
             const x = Math.floor(nutrient.x);
             const y = Math.floor(nutrient.y);
             if (x < 0 || x >= renderer.cols || y < 0 || y >= renderer.rows) continue;
+            if (x < renderer.camX - 2 || y < renderer.camY - 2 || x > renderer.camX + renderer.viewCols + 2 || y > renderer.camY + renderer.viewRows + 2) continue;
             renderer.types[x][y] = RENDER_CELL_TYPES.GLITCH;
             renderer.chars[x][y] = nutrient.value > 2 ? ';' : ',';
             renderer.brightness[x][y] = 0.24;
