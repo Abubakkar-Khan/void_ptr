@@ -405,50 +405,95 @@ export class UIManager {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
-        const messages = [
-            '> VOID KERNEL // GERMINATION SEQUENCE',
-            '> INPUT ........ MANUAL FIRE LINKED',
-            '> MEMORY ....... CELLULAR LIFE DETECTED',
-            '> COLONY ....... B3/S23 MUTATION STABLE',
-            '> VOID_PTR.EXE . HUNGRY // READY'
+        const bootSequence = [
+            { t: 0,   text: 'sys_init: VOID OS kernel v4.11.2-void starting...' },
+            { t: 10,  text: 'sys_init: Copyright (c) 2084 Synthetic Systems Corp.' },
+            { t: 25,  text: 'sys_init: Mounting virtual file systems... [ OK ]' },
+            { t: 35,  text: 'sys_init: Scanning neural interfaces... found 1.' },
+            { t: 45,  text: 'sys_init: Display linked via optic nerve.' },
+            { t: 60,  text: 'mem_test: Verifying integrity... 1048576 TB Passed.' },
+            { t: 75,  text: 'cell_fw : Loading B3/S23 simulation constraints...' },
+            { t: 85,  text: 'cell_fw : Simulation constraints stable.' },
+            { t: 100, text: 'sec_auth: Establishing manual fire override...' },
+            { t: 110, text: 'sec_auth: Direct control authorized (Root Access).' },
+            { t: 125, text: 'proc_mgr: Spawning process VOID_PTR.EXE...' },
+            { t: 135, text: 'proc_mgr: PID 4092 allocated. Yielding to scheduler.' }
         ];
 
-        let visibleCount = 0;
-        if (bootTicks > 8) visibleCount = 1;
-        if (bootTicks > 28) visibleCount = 2;
-        if (bootTicks > 50) visibleCount = 3;
-        if (bootTicks > 74) visibleCount = 4;
-        if (bootTicks > 100) visibleCount = 5;
-
-        const startY = Math.floor(viewRows / 2) - 7;
-        const startX = Math.max(2, Math.floor(viewCols / 2) - 23);
-
-        this.stampText(renderer, ':: SYNTHETIC BIOS INITIALIZATION ::', Math.floor(viewCols / 2), startY - 3, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', startX, startY);
-        this.stampLivingBand(renderer, startY - 1, Math.max(1, startX - 2), Math.min(viewCols - 2, startX + 47), bootTicks, 0.48);
-
-        for (let i = 0; i < visibleCount; i++) {
-            this.stampText(renderer, messages[i], startX, startY + i * 2, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
+        let startX = 2;
+        let startY = 2;
+        
+        // System stats in the top right for that authentic BIOS feel
+        if (viewCols >= 60) {
+            const statsX = viewCols - 25;
+            this.stampText(renderer, 'CPU: Neuro-Quantum Core', statsX, 2, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', 0, 0);
+            this.stampText(renderer, 'MEM: 1048576 TB OK', statsX, 3, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', 0, 0);
+            this.stampText(renderer, 'NET: OFFLINE', statsX, 4, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', 0, 0);
+            this.stampText(renderer, 'PWR: 100% STABLE', statsX, 5, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', 0, 0);
         }
 
-        // Blinking terminal cursor
-        const cursorBlink = Math.floor(Date.now() / 250) % 2 === 0;
-        if (cursorBlink && bootTicks < 125) {
-            let cursorX = startX;
-            let cursorY = startY;
-            if (visibleCount > 0 && visibleCount <= messages.length) {
-                cursorX = startX + messages[visibleCount - 1].length;
-                cursorY = startY + (visibleCount - 1) * 2;
+        let lastPrintedY = startY;
+        let lastPrintedLength = 0;
+
+        for (let i = 0; i < bootSequence.length; i++) {
+            if (bootTicks >= bootSequence[i].t) {
+                const line = bootSequence[i].text;
+                
+                // Draw everything in a dim border color first
+                this.stampText(renderer, line, startX, startY + i, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', startX, startY);
+                
+                // Highlight the process prefix in the main text color
+                let prefixLen = line.indexOf(':');
+                if (prefixLen !== -1) {
+                    const prefix = line.substring(0, prefixLen + 1);
+                    this.stampText(renderer, prefix, startX, startY + i, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
+                }
+                
+                // Highlight specific success keywords
+                const highlights = ['[ OK ]', 'Passed.', 'stable.', '(Root Access).', 'found 1.'];
+                for (let h of highlights) {
+                    const idx = line.indexOf(h);
+                    if (idx !== -1) {
+                        this.stampText(renderer, h, startX + idx, startY + i, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
+                    }
+                }
+
+                lastPrintedY = startY + i;
+                lastPrintedLength = line.length;
             }
+        }
+
+        // Memory scan bar at the bottom
+        if (bootTicks > 60 && bootTicks < 135) {
+            const barY = Math.min(startY + bootSequence.length + 2, viewRows - 4);
+            const barW = Math.max(10, Math.min(40, viewCols - 25));
+            const scanProgress = Math.min(barW, Math.floor(((bootTicks - 60) / 75) * barW));
+            
+            const scanStr = `[${'#'.repeat(scanProgress)}${'-'.repeat(barW - scanProgress)}]`;
+            this.stampText(renderer, 'MEM_SCAN:', startX, barY, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, barY);
+            this.stampText(renderer, scanStr, startX + 10, barY, RENDER_CELL_TYPES.UI_BORDER, 1.0, 'left', startX, barY);
+            
+            const randomHex = `0x${Math.floor(Math.random()*0xFFFFFF).toString(16).toUpperCase().padStart(6, '0')}`;
+            this.stampText(renderer, randomHex, startX + 10 + barW + 2, barY, RENDER_CELL_TYPES.UI_BORDER, 0.5, 'left', startX, barY);
+        }
+
+        // Blinking cursor
+        const cursorBlink = Math.floor(Date.now() / 150) % 2 === 0;
+        if (cursorBlink) {
+            let cursorX = startX + lastPrintedLength + 1;
+            let cursorY = lastPrintedY;
             if (cursorX >= 0 && cursorX < viewCols && cursorY >= 0 && cursorY < viewRows) {
                 renderer.types[cursorX][cursorY] = RENDER_CELL_TYPES.UI_TEXT;
                 renderer.chars[cursorX][cursorY] = '█';
                 renderer.brightness[cursorX][cursorY] = 1.0;
             }
         }
-        const progress = Math.max(0, Math.min(24, Math.floor(bootTicks / 5.5)));
-        this.stampText(renderer, `[${'='.repeat(progress)}${'.'.repeat(24 - progress)}]`, Math.floor(viewCols / 2), startY + 11, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
-        this.stampLivingBand(renderer, startY + 13, Math.max(1, startX - 2), Math.min(viewCols - 2, startX + 47), bootTicks + 41, 0.42);
-        this.stampText(renderer, 'ANY INPUT: SKIP BIOS', Math.floor(viewCols / 2), startY + 15, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
+
+        // Pulsing "skip" hint
+        if (bootTicks > 20) {
+            const pulse = 0.5 + Math.sin(bootTicks * 0.1) * 0.5;
+            this.stampText(renderer, 'ANY INPUT TO SKIP', Math.max(2, viewCols - 20), viewRows - 2, RENDER_CELL_TYPES.UI_BORDER, 0.3 + pulse * 0.5, 'left', viewCols - 20, viewRows - 2);
+        }
     }
 
     stampButton(renderer, id, label, x, y, w, h, t, mx, my, parentCc, parentCr) {
@@ -540,6 +585,43 @@ export class UIManager {
         }
     }
 
+    stampMobileLogo(renderer, cc, startY, t, parentCc, parentCr) {
+        const lines = [
+            '██╗   ██╗ ██████╗ ██╗██████╗',
+            '██║   ██║██╔═══██╗██║██╔══██╗',
+            '██║   ██║██║   ██║██║██║  ██║',
+            '╚██╗ ██╔╝██║   ██║██║██║  ██║',
+            ' ╚████╔╝ ╚██████╔╝██║██████╔╝',
+            '  ╚═══╝   ╚═════╝ ╚═╝╚═════╝',
+            '                            ',
+            '██████╗ ████████╗██████╗    ',
+            '██╔══██╗╚══██╔══╝██╔══██╗   ',
+            '██████╔╝   ██║   ██████╔╝   ',
+            '██╔═══╝    ██║   ██╔══██╗   ',
+            '██║        ██║   ██║  ██║   ',
+            '╚═╝        ╚═╝   ╚═╝  ╚═╝   '
+        ];
+        const totalWidth = 28;
+        const startX = cc - Math.floor(totalWidth / 2);
+
+        for (let row = 0; row < lines.length; row++) {
+            const line = lines[row];
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === ' ') continue;
+                
+                const targetX = startX + i;
+                const targetY = startY + row;
+
+                const mx = Math.round(parentCc + (targetX - parentCc) * t);
+                const my = Math.round(parentCr + (targetY - parentCr) * t);
+                
+                const charUI = this.getUIChar(char, t);
+                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, 1.0);
+            }
+        }
+    }
+
     stampTitleScreen(renderer, mx, my) {
         this.updateTransition('menu');
         const t = this.transitionProgress;
@@ -564,17 +646,39 @@ export class UIManager {
 
         if (compact) {
             const hasFilledLogo = panelW >= 58;
-            if (hasFilledLogo) this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
-            else this.stampGlitchyText(renderer, 'VOID * PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            if (hasFilledLogo) {
+                this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
+            } else {
+                this.stampMobileLogo(renderer, cc, py + 2, t, cc, cr);
+            }
             
-            const buttonX = px + 3;
-            const buttonW = panelW - 6;
-            const buttonStart = hasFilledLogo ? py + 11 : py + 7;
-            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', buttonX, buttonStart, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', buttonX, buttonStart + 4, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'bestiary', 'ORGANISM WIKI', buttonX, buttonStart + 8, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'controls', 'HOW TO PLAY', buttonX, buttonStart + 12, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'settings', 'SETTINGS', buttonX, buttonStart + 16, buttonW, 3, t, mx, my, cc, cr);
+            // Layout identical to PC mode (two columns side-by-side)
+            const buttonStart = hasFilledLogo ? py + 11 : py + 16;
+            const btnW = Math.floor((panelW - 5) / 2);
+            const leftX = px + 2;
+            const rightX = cc + 1;
+
+            if (panelW >= 46) {
+                this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, buttonStart, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, buttonStart, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, buttonStart + 4, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'controls', 'How To Play', rightX, buttonStart + 4, btnW, 3, t, mx, my, cc, cr);
+                
+                const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
+                this.stampButton(renderer, 'settings', 'Settings', leftX, buttonStart + 8, btnW, 3, t, mx, my, cc, cr);
+                if (fullscreen) this.stampText(renderer, 'FULLSCREEN', rightX + Math.floor(btnW/2), buttonStart + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'Fullscreen', rightX, buttonStart + 8, btnW, 3, t, mx, my, cc, cr);
+            } else {
+                this.stampButton(renderer, 'select_ship_10', '10-MIN', leftX, buttonStart, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'select_ship_endless', 'ENDLESS', rightX, buttonStart, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'bestiary', 'WIKI', leftX, buttonStart + 4, btnW, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'controls', 'CONTROLS', rightX, buttonStart + 4, btnW, 3, t, mx, my, cc, cr);
+                
+                const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
+                this.stampButton(renderer, 'settings', 'SETTINGS', leftX, buttonStart + 8, btnW, 3, t, mx, my, cc, cr);
+                if (fullscreen) this.stampText(renderer, 'FULL', rightX + Math.floor(btnW/2), buttonStart + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'EXPAND', rightX, buttonStart + 8, btnW, 3, t, mx, my, cc, cr);
+            }
         } else {
             this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
             
