@@ -1,7 +1,8 @@
 import { prepareWithSegments, layoutWithLines } from '@chenglou/pretext';
 import { RENDER_CELL_TYPES } from './renderer.js';
 import { audio } from './audio.js';
-import { HULL_DEFS, WEAPON_DEFS } from './config.js';
+import { ENEMY_DEFS, HULL_DEFS, WEAPON_DEFS } from './config.js';
+import { createBiology, renderCreatureBody } from './biology.js';
 
 const TITLE_LINES = [
     '╭──────────────────────────────────────────────╮',
@@ -22,6 +23,31 @@ const TITLE_LINES = [
     '│                                              │',
     '╰──────────────────────────────────────────────╯'
 ];
+
+const REFINED_TITLE_LINES = [
+    'V   V  OOO  I DDDD       *      PPPP  TTTTT RRRR ',
+    'V   V O   O I D   D             P   P   T   R   R',
+    ' V V  O   O I D   D      *      PPPP    T   RRRR ',
+    ' V V  O   O I D   D             P       T   R R  ',
+    '  V    OOO  I DDDD       *      P       T   R  RR'
+];
+
+export const ENEMY_ARCHIVE = Object.freeze([
+    { type: 'drone', name: 'SKITTER', family: 'PACK SCOUT', glyphs: "' ~ -", behavior: 'Marks prey, then attacks in alternating lateral lunges.', weakness: 'Break locomotion tissue to ruin its flank rhythm.' },
+    { type: 'shooter', name: 'BLOOMCASTER', family: 'SEED ARTILLERY', glyphs: '* : %', behavior: 'Shelters behind Carapaces and swells before firing seed fans.', weakness: 'Rupture the bright firing sac to cancel its volley.' },
+    { type: 'worm', name: 'RIBBON', family: 'HERDING CURRENT', glyphs: '~ = .', behavior: 'Curves around escape lanes and commits to visible side sweeps.', weakness: 'Sever locomotion tissue to unthread the chain.' },
+    { type: 'virus', name: 'PRISM', family: 'DIVIDING AUTOMATON', glyphs: '+ : x', behavior: 'Phase-steps, mirrors shots, and grows a second organism.', weakness: 'Attack while its division tissue is reorganizing.' },
+    { type: 'brute', name: 'CARAPACE', family: 'LIVING BULWARK', glyphs: '# % ;', behavior: 'Faces armor toward fire and protects nearby Bloomcasters.', weakness: 'Circle around its plates and expose the porous core.' },
+    { type: 'kamikaze', name: 'BURST SAC', family: 'VOLATILE ORGAN', glyphs: '! * :', behavior: 'Contracts into a dense core before directional rupture.', weakness: 'Knock it into a formation or destroy it from range.' },
+    { type: 'shield_projector', name: 'ROOTWEAVER', family: 'TERRAIN SUPPORT', glyphs: '| : Y', behavior: 'Roots into territory and pulses protection into allies.', weakness: 'Destroy support tissue before engaging its nest.' },
+    { type: 'cell_spore', name: 'SPORE', family: 'ECOSYSTEM SEED', glyphs: ". ' *", behavior: 'Wanders toward nutrients and developing colonies.', weakness: 'Fragile, but dangerous when allowed to settle.' },
+    { type: 'cell_colony', name: 'COLONY CELL', family: 'CELLULAR TERRAIN', glyphs: 'o : +', behavior: 'Lives by local cellular rules and forms dense growth.', weakness: 'Dash through dense terrain before it matures.' },
+    { type: 'cell_parasite', name: 'PARASITE', family: 'HOST CORRUPTION', glyphs: '~ : ^', behavior: 'Seeks wounded hosts and crawls across their visible tissue.', weakness: 'Kill it during travel or its host-escape animation.' },
+    { type: 'cell_amalgam', name: 'AMALGAM', family: 'FUSED PREDATOR', glyphs: '% ~ : #', behavior: 'Inherits patterns and abilities from consumed organisms.', weakness: 'Destroy its dominant inherited organ first.' },
+    { type: 'boss_snake', name: 'NULL SERPENT', family: 'BOSS // LIVING CURRENT', glyphs: '~ = : %', behavior: 'Charges, sweeps the arena, sheds spores, and migrates weak organs.', weakness: 'Follow the travelling bright tissue along its body.' },
+    { type: 'boss_eye', name: 'THE WATCHER', family: 'BOSS // SENSORY COLONY', glyphs: ': o * +', behavior: 'Uses gaze lanes, iris gaps, and delayed echo-lobe volleys.', weakness: 'Ruptured sensory lobes create genuine blind sectors.' },
+    { type: 'boss_carrier', name: 'HEAP CARRIER', family: 'BOSS // BROOD ECOSYSTEM', glyphs: '# % : Y', behavior: 'Alternates broods, broadsides, heartbursts, feeding, and repair.', weakness: 'Break gestation bays, then chase the relocating heart.' }
+]);
 
 const GAME_OVER_LINES = [
     '   ██████╗  █████╗ ███╗   ███╗███████╗',
@@ -63,6 +89,7 @@ export class UIManager {
         this.focusIndex = -1;
         this.page = 0;
         this.pageCount = 0;
+        this.archiveBodies = new Map();
     }
 
     updateTransition(screenName) {
@@ -298,25 +325,41 @@ export class UIManager {
         }
     }
 
+    stampLivingBand(renderer, y, left, right, tick, brightness = 0.65) {
+        tick = Number.isFinite(tick) ? tick : 0;
+        const glyphs = ['.', ':', 'o', '+', 'Y', '+', 'o', ':'];
+        for (let x = left; x <= right; x++) {
+            const wave = Math.sin(x * 0.41 + tick * 0.09) + Math.sin(x * 0.17 - tick * 0.05);
+            if (wave < -0.72) continue;
+            const index = Math.abs(Math.floor(x * 3 + tick / 5 + wave * 4)) % glyphs.length;
+            this.stampCell(renderer, x, y + (wave > 1.25 ? -1 : wave < 0 ? 1 : 0), glyphs[index], RENDER_CELL_TYPES.UI_BORDER, brightness + Math.max(0, wave) * 0.1);
+        }
+    }
+
     stampBootScreen(renderer, bootTicks) {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
 
         const messages = [
-            "> VOID KERNEL // COLD START",
-            "> INPUT ........ MANUAL FIRE ONLINE",
-            "> MEMORY ....... ORGANIC CORRUPTION FOUND",
-            "> VOID_PTR.EXE . READY"
+            '> VOID KERNEL // GERMINATION SEQUENCE',
+            '> INPUT ........ MANUAL FIRE LINKED',
+            '> MEMORY ....... CELLULAR LIFE DETECTED',
+            '> COLONY ....... B3/S23 MUTATION STABLE',
+            '> VOID_PTR.EXE . HUNGRY // READY'
         ];
 
         let visibleCount = 0;
         if (bootTicks > 8) visibleCount = 1;
-        if (bootTicks > 26) visibleCount = 2;
-        if (bootTicks > 46) visibleCount = 3;
-        if (bootTicks > 68) visibleCount = 4;
+        if (bootTicks > 28) visibleCount = 2;
+        if (bootTicks > 50) visibleCount = 3;
+        if (bootTicks > 74) visibleCount = 4;
+        if (bootTicks > 100) visibleCount = 5;
 
-        const startY = Math.floor(viewRows / 2) - 5;
-        const startX = Math.max(2, Math.floor(viewCols / 2) - 24);
+        const startY = Math.floor(viewRows / 2) - 7;
+        const startX = Math.max(2, Math.floor(viewCols / 2) - 23);
+
+        this.stampText(renderer, ':: SYNTHETIC BIOS INITIALIZATION ::', Math.floor(viewCols / 2), startY - 3, RENDER_CELL_TYPES.UI_TEXT, 1, 'center', startX, startY);
+        this.stampLivingBand(renderer, startY - 1, Math.max(1, startX - 2), Math.min(viewCols - 2, startX + 47), bootTicks, 0.48);
 
         for (let i = 0; i < visibleCount; i++) {
             this.stampText(renderer, messages[i], startX, startY + i * 2, RENDER_CELL_TYPES.UI_TEXT, 1.0, 'left', startX, startY);
@@ -324,7 +367,7 @@ export class UIManager {
 
         // Blinking terminal cursor
         const cursorBlink = Math.floor(Date.now() / 250) % 2 === 0;
-        if (cursorBlink && bootTicks < 90) {
+        if (cursorBlink && bootTicks < 125) {
             let cursorX = startX;
             let cursorY = startY;
             if (visibleCount > 0 && visibleCount <= messages.length) {
@@ -337,9 +380,10 @@ export class UIManager {
                 renderer.brightness[cursorX][cursorY] = 1.0;
             }
         }
-        const progress = Math.max(0, Math.min(20, Math.floor(bootTicks / 4.5)));
-        this.stampText(renderer, `[${'='.repeat(progress)}${'.'.repeat(20 - progress)}]`, Math.floor(viewCols / 2), startY + 9, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
-        this.stampText(renderer, 'PRESS ANY INPUT TO SKIP', Math.floor(viewCols / 2), startY + 11, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
+        const progress = Math.max(0, Math.min(24, Math.floor(bootTicks / 5.5)));
+        this.stampText(renderer, `[${'='.repeat(progress)}${'.'.repeat(24 - progress)}]`, Math.floor(viewCols / 2), startY + 11, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
+        this.stampLivingBand(renderer, startY + 13, Math.max(1, startX - 2), Math.min(viewCols - 2, startX + 47), bootTicks + 41, 0.42);
+        this.stampText(renderer, 'ANY INPUT: SKIP BIOS', Math.floor(viewCols / 2), startY + 15, RENDER_CELL_TYPES.UI_BORDER, 1, 'center', startX, startY);
     }
 
     stampButton(renderer, id, label, x, y, w, h, t, mx, my, parentCc, parentCr) {
@@ -412,8 +456,8 @@ export class UIManager {
 
         const mobileLandscape = renderer.isTouchLayout && renderer.width >= renderer.height;
         const compact = !mobileLandscape && (viewCols < 58 || viewRows < 35);
-        const panelW = compact ? Math.max(30, viewCols - 2) : 54;
-        const panelH = compact ? Math.min(36, viewRows - 2) : mobileLandscape ? Math.min(30, viewRows - 2) : 38;
+        const panelW = compact ? Math.max(30, viewCols - 2) : Math.min(64, viewCols - 2);
+        const panelH = compact ? Math.min(31, viewRows - 2) : Math.min(30, viewRows - 2);
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -423,34 +467,109 @@ export class UIManager {
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
         if (compact) {
-            this.stampGlitchyText(renderer, 'VOID* PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-            this.stampText(renderer, 'MANUAL FIRE // SURVIVE // EVOLVE', cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampGlitchyText(renderer, 'VOID * PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampText(renderer, 'LIVING TERMINAL BIOLOGY', cc, py + 4, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampLivingBand(renderer, py + 5, px + 2, px + panelW - 3, renderer.animationTime, 0.4);
             const buttonX = px + 3;
             const buttonW = panelW - 6;
             this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', buttonX, py + 7, buttonW, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', buttonX, py + 11, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'controls', 'HOW TO PLAY', buttonX, py + 15, buttonW, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'settings', 'SETTINGS', buttonX, py + 19, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'bestiary', 'ORGANISM WIKI', buttonX, py + 15, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'controls', 'HOW TO PLAY', buttonX, py + 19, buttonW, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'settings', 'SETTINGS', buttonX, py + 23, buttonW, 3, t, mx, my, cc, cr);
         } else {
-            const titleX = px + Math.floor((panelW - 48) / 2);
-            for (let i = 0; i < TITLE_LINES.length; i++) {
-                this.stampGlitchyText(renderer, TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            const titleX = cc - Math.floor(REFINED_TITLE_LINES[0].length / 2);
+            for (let i = 0; i < REFINED_TITLE_LINES.length; i++) {
+                this.stampGlitchyText(renderer, REFINED_TITLE_LINES[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
             }
-            const playBtnY = py + 19;
-            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', px + 3, playBtnY, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', px + 28, playBtnY, 23, 3, t, mx, my, cc, cr);
+            this.stampLivingBand(renderer, py + 8, px + 3, px + panelW - 4, renderer.animationTime, 0.45);
+            this.stampText(renderer, 'MANUAL FIRE // LIVING ENEMIES // NO SAFE BUILD', cc, py + 9, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            const leftX = px + 3;
+            const rightX = px + panelW - 26;
+            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, py + 11, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, py + 11, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, py + 15, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'controls', 'How To Play', rightX, py + 15, 23, 3, t, mx, my, cc, cr);
             if (mobileLandscape) {
-                this.stampButton(renderer, 'controls', 'How To Play', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', leftX, py + 19, 23, 3, t, mx, my, cc, cr);
                 const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
-                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', cc, py + 27, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', cc - 12, py + 27, 24, 2, t, mx, my, cc, cr);
+                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', rightX + 11, py + 20, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', rightX, py + 19, 23, 3, t, mx, my, cc, cr);
             } else {
-                this.stampButton(renderer, 'controls', 'How To Play', px + 3, py + 23, 23, 3, t, mx, my, cc, cr);
-                this.stampButton(renderer, 'settings', 'Settings', px + 28, py + 23, 23, 3, t, mx, my, cc, cr);
-                this.stampText(renderer, 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH', cc, py + 28, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', cc - 11, py + 19, 23, 3, t, mx, my, cc, cr);
             }
+            this.stampText(renderer, 'WASD MOVE | HOLD AIM TO FIRE | SPACE DASH', cc, py + 24, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            this.stampLivingBand(renderer, py + 26, px + 4, px + panelW - 5, renderer.animationTime + 73, 0.32);
         }
+    }
+
+    getArchiveCreature(entry) {
+        if (this.archiveBodies.has(entry.type)) return this.archiveBodies.get(entry.type);
+        const def = ENEMY_DEFS[entry.type];
+        const biology = createBiology(entry.type, 0xB105 + this.archiveBodies.size * 97, def.width, def.height, []);
+        const creature = {
+            type: entry.type,
+            width: def.width,
+            height: def.height,
+            genome: biology.genome,
+            bodyPlan: biology.bodyPlan,
+            organs: biology.bodyPlan.organs,
+            attackState: 'idle'
+        };
+        this.archiveBodies.set(entry.type, creature);
+        return creature;
+    }
+
+    stampBestiaryScreen(renderer, mx, my) {
+        this.updateTransition('bestiary');
+        const t = this.transitionProgress;
+        this.buttons = [];
+        this.hoveredItem = null;
+        this.pageCount = ENEMY_ARCHIVE.length;
+        this.page = (this.page + this.pageCount) % this.pageCount;
+
+        const viewCols = renderer.viewCols;
+        const viewRows = renderer.viewRows;
+        const panelW = Math.min(82, Math.max(34, viewCols - 2));
+        const panelH = Math.min(38, Math.max(18, viewRows - 2));
+        const px = Math.floor((viewCols - panelW) / 2);
+        const py = Math.floor((viewRows - panelH) / 2);
+        const cc = px + Math.floor(panelW / 2);
+        const cr = py + Math.floor(panelH / 2);
+        const compact = panelW < 62 || panelH < 30;
+        const entry = ENEMY_ARCHIVE[this.page];
+        const creature = this.getArchiveCreature(entry);
+        const rows = renderCreatureBody(creature, renderer.animationTime || 0) || [':'];
+
+        this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
+        this.stampText(renderer, 'ORGANISM WIKI // LIVING SPECIMEN ARCHIVE', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, `${String(this.page + 1).padStart(2, '0')}/${this.pageCount}  ${entry.name}`, cc, py + 4, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+        this.stampText(renderer, `${entry.family}  //  GLYPHS ${entry.glyphs}`, cc, py + 5, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+
+        if (compact) {
+            const maxArtRows = Math.max(2, Math.min(rows.length, panelH - 16));
+            for (let i = 0; i < maxArtRows; i++) this.stampText(renderer, rows[i], cc, py + 7 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            const textY = py + 8 + maxArtRows;
+            const description = this.wrapText(entry.behavior, panelW - 8).slice(0, 2);
+            description.forEach((line, i) => this.stampText(renderer, line, cc, textY + i, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr));
+            const weakness = this.wrapText(`BREAK: ${entry.weakness}`, panelW - 8).slice(0, 2);
+            weakness.forEach((line, i) => this.stampText(renderer, line, cc, textY + description.length + i, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr));
+        } else {
+            const dividerX = px + 31;
+            for (let y = py + 7; y < py + panelH - 6; y++) this.stampCell(renderer, dividerX, y, ':', RENDER_CELL_TYPES.UI_BORDER, 0.45);
+            const artCenterX = px + 16;
+            const artStartY = py + 9 + Math.max(0, Math.floor((panelH - 18 - rows.length) / 2));
+            rows.forEach((row, i) => this.stampText(renderer, row, artCenterX, artStartY + i, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr));
+            this.stampText(renderer, 'BEHAVIOR', dividerX + 3, py + 9, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            this.wrapText(entry.behavior, panelW - 39).slice(0, 5).forEach((line, i) => this.stampText(renderer, line, dividerX + 3, py + 11 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr));
+            this.stampText(renderer, 'DISRUPTION', dividerX + 3, py + 18, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
+            this.wrapText(entry.weakness, panelW - 39).slice(0, 5).forEach((line, i) => this.stampText(renderer, line, dividerX + 3, py + 20 + i, RENDER_CELL_TYPES.UI_BORDER, t, 'left', cc, cr));
+        }
+
+        const buttonY = py + panelH - 4;
+        this.stampButton(renderer, 'page_prev', '< PREV', px + 3, buttonY, 14, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'back', 'BACK', cc - 7, buttonY, 14, 3, t, mx, my, cc, cr);
+        this.stampButton(renderer, 'page_next', 'NEXT >', px + panelW - 17, buttonY, 14, 3, t, mx, my, cc, cr);
     }
 
     stampShipSelectScreen(renderer, mx, my) {
@@ -937,7 +1056,7 @@ export class UIManager {
         } else if (key === 'Enter' || key === ' ') {
             this.hoveredItem = this.buttons[this.focusIndex]?.id || null;
             this.handleClicks(onActionCallback, cards);
-        } else if (key === 'Escape' && ['ship_select', 'settings'].includes(this.currentScreen)) {
+        } else if (key === 'Escape' && ['ship_select', 'settings', 'bestiary'].includes(this.currentScreen)) {
             onActionCallback('back');
         } else if (key === 'Escape' && this.currentScreen === 'mobile_guide') {
             onActionCallback('guide_close');

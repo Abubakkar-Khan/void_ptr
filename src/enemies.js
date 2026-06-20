@@ -132,19 +132,19 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
             const pos = enemy.trail[i];
             const phase = Math.floor(rendererInstance.animationTime / 5 + i) % 3;
             const cluster = phase === 0 ? [' ~=:', '  %~'] : phase === 1 ? [' :=% ', '~='] : [' %~', '=::~'];
-            stampPattern(rendererInstance, pos.x + 3, pos.y + 3, cluster, Math.max(0.3, brightness * (1 - i / enemy.trail.length)), enemy.color);
+            stampPattern(rendererInstance, pos.x + enemy.width * 0.3, pos.y + enemy.height * 0.3, cluster, Math.max(0.3, brightness * (1 - i / enemy.trail.length)), enemy.color);
         }
         const contraction = enemy.attackState === 'charge'
             ? ['  !  ', ':%%%:', ' ~=~ ']
             : blink ? [' ~:~ ', `:${living('core', '%')}:`, '  =  '] : ['  ~  ', `~${living('core', '%')}~`, ' :=: '];
-        stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, contraction, 1, enemy.attackState === 'charge' ? PALETTE.enemyShot : PALETTE.boss);
-        stampPattern(rendererInstance, enemy.x + (enemy.genome.bias > 0 ? 9 : 1), enemy.y + 2, [living('sense', blink ? '*' : ':')], 1, '#ff9de2');
+        stampPattern(rendererInstance, enemy.x + enemy.width * 0.38, enemy.y + enemy.height * 0.32, contraction, 1, enemy.attackState === 'charge' ? PALETTE.enemyShot : PALETTE.boss);
+        stampPattern(rendererInstance, enemy.x + (enemy.genome.bias > 0 ? enemy.width - 3 : 2), enemy.y + 2, [living('sense', blink ? '*' : ':')], 1, '#ff9de2');
     } else if (enemy.type === 'boss_eye') {
         const lobes = enemy.phase === 2 ? Math.min(5, 2 + enemy.genome.tendrilCount) : 3;
         for (let i = 0; i < lobes; i++) {
             const angle = i / lobes * Math.PI * 2 + rendererInstance.animationTime * 0.012 * enemy.genome.bias;
-            const lx = enemy.x + 7 + Math.cos(angle) * (5 + i % 2 * 2);
-            const ly = enemy.y + 7 + Math.sin(angle) * (3 + i % 2);
+            const lx = enemy.x + enemy.width / 2 + Math.cos(angle) * (enemy.width * 0.3 + i % 2 * 2);
+            const ly = enemy.y + enemy.height / 2 + Math.sin(angle) * (enemy.height * 0.22 + i % 2);
             const lobe = i % 2 ? [blink ? ': *' : '* :', ' : '] : [blink ? '*:' : ':*', ' :'];
             stampPattern(rendererInstance, lx - 1, ly, lobe, 0.74, state('lobe') === OrganState.HEALTHY ? enemy.color : '#9b315f');
         }
@@ -152,12 +152,12 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
         const sensory = enemy.phase === 2
             ? [blink ? ':  * :  x' : 'x :  *  :', `   :${focus}:   `, blink ? 'x :  :  *' : '*  : : x']
             : [blink ? ' : * : ' : '* : : *', `  :${focus}:  `, blink ? '* : : *' : ' : * : '];
-        stampPattern(rendererInstance, enemy.x + 4, enemy.y + 5, sensory, 1, enemy.attackState === 'gaze' ? PALETTE.enemyShot : PALETTE.boss);
+        stampPattern(rendererInstance, enemy.x + enemy.width / 2 - 4, enemy.y + enemy.height / 2 - 1, sensory, 1, enemy.attackState === 'gaze' ? PALETTE.enemyShot : PALETTE.boss);
     } else if (enemy.type === 'boss_carrier') {
         const bay = living('bay', blink ? 'o' : '%');
         const heart = living('core', enemy.phase === 2 ? (blink ? '@' : '*') : '%');
-        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 2, [`:${bay}:`, blink ? '% ::' : ':: %', ' :%'], 0.9, enemy.color);
-        stampPattern(rendererInstance, enemy.x + 12, enemy.y + 6, [`${bay}:`, blink ? ':: %' : '% ::', ': %'], 0.9, enemy.color);
+        stampPattern(rendererInstance, enemy.x + 2, enemy.y + 3, [`:${bay}:`, blink ? '% ::' : ':: %', ' :%'], 0.9, enemy.color);
+        stampPattern(rendererInstance, enemy.x + enemy.width - 7, enemy.y + enemy.height - 6, [`${bay}:`, blink ? ':: %' : '% ::', ': %'], 0.9, enemy.color);
         const heartOrgan = enemy.organs?.find(entry => entry.id === 'core');
         const heartX = enemy.x + Math.floor((heartOrgan?.x ?? 9) - 2);
         const heartY = enemy.y + Math.floor((heartOrgan?.y ?? 5) - 1);
@@ -165,9 +165,9 @@ function stampOrganicBoss(enemy, rendererInstance, brightness, blink, wounded) {
         if (enemy.attackState === 'broadside' && enemy.broodType) {
             const broodGlyph = enemy.broodType === 'virus' ? '+' : enemy.broodType === 'kamikaze' ? '!' : '~';
             stampPattern(rendererInstance, enemy.x + 2, enemy.y + 1, [`:${broodGlyph}  ${broodGlyph}:`], 1, PALETTE.enemyShot);
-            stampPattern(rendererInstance, enemy.x + 12, enemy.y + 8, [`${broodGlyph}: ${broodGlyph}`], 1, PALETTE.enemyShot);
+            stampPattern(rendererInstance, enemy.x + enemy.width - 7, enemy.y + enemy.height - 4, [`${broodGlyph}: ${broodGlyph}`], 1, PALETTE.enemyShot);
         }
-        stampPattern(rendererInstance, enemy.x + 3, enemy.y + 9, [blink ? 'Y  :   Y  |' : '|   Y  :  Y'], 0.65, '#ff9de2');
+        stampPattern(rendererInstance, enemy.x + enemy.width * 0.25, enemy.y + enemy.height - 2, [blink ? 'Y  :   Y  |' : '|   Y  :  Y'], 0.65, '#ff9de2');
         if (enemy.broodRuptured) stampPattern(rendererInstance, enemy.x + 3, enemy.y + 3, ['x : x', ' ,x, '], 1, '#ff9de2');
     }
     for (const point of enemy.weakPoints || []) {
@@ -303,9 +303,9 @@ export class Enemy {
         if (this.type === 'kamikaze') this.color = PALETTE.enemyShot;
         if (this.type === 'shield_projector') this.color = PALETTE.pickup;
         if (BOSS_TYPES.has(this.type)) this.color = PALETTE.boss;
-        if (this.type === 'boss_snake') this.weakPoints = [{ x: 4, y: 2, width: 3, height: 2, phase: 1 }];
-        if (this.type === 'boss_eye') this.weakPoints = [{ x: 6, y: 4, width: 3, height: 3, phase: 1 }];
-        if (this.type === 'boss_carrier') this.weakPoints = [{ x: 7, y: 4, width: 5, height: 3, phase: 2 }];
+        if (this.type === 'boss_snake') this.weakPoints = [{ x: this.width * 0.36, y: this.height * 0.22, width: 4, height: 3, phase: 1 }];
+        if (this.type === 'boss_eye') this.weakPoints = [{ x: this.width * 0.42, y: this.height * 0.38, width: 4, height: 4, phase: 1 }];
+        if (this.type === 'boss_carrier') this.weakPoints = [{ x: this.width * 0.4, y: this.height * 0.38, width: 6, height: 4, phase: 2 }];
         this.maxHp = this.hp;
         const biology = createBiology(this.type, this.genomeSeed, this.width, this.height, this.inheritedAdaptations);
         this.genome = biology.genome;
@@ -404,16 +404,16 @@ export class Enemy {
             renderer.triggerShake(10, 2.5);
             if (this.type === 'boss_snake') {
                 this.molted = true;
-                this.weakPoints.push({ x: 2, y: 2, width: 2, height: 2, phase: 2 }, { x: 8, y: 3, width: 2, height: 2, phase: 2 });
+                this.weakPoints.push({ x: 2, y: 2, width: 3, height: 3, phase: 2 }, { x: this.width - 5, y: 4, width: 3, height: 3, phase: 2 });
                 for (let i = 0; i < 3; i++) enemyManager?.spawn(this.x - 2 - i * 2, this.y + 4 + i, 'cell_spore', { seed: hashSeed(`${this.genomeSeed}:shed:${i}`) });
             } else if (this.type === 'boss_eye') {
                 this.fractured = true;
-                for (let i = 0; i < 2; i++) enemyManager?.spawn(this.x + (i ? 13 : -2), this.y + 5 + i * 3, 'virus', { seed: hashSeed(`${this.genomeSeed}:lobe:${i}`), birthTimer: 60 });
+                for (let i = 0; i < 2; i++) enemyManager?.spawn(this.x + (i ? this.width - 2 : -2), this.y + this.height * 0.4 + i * 3, 'virus', { seed: hashSeed(`${this.genomeSeed}:lobe:${i}`), birthTimer: 60 });
             } else if (this.type === 'boss_carrier') {
                 this.broodRuptured = true;
                 const shell = this.organs.find(entry => entry.effect === 'armor');
                 if (shell) { shell.hp = -1; shell.state = OrganState.RUPTURED; }
-                this.weakPoints.push({ x: 3, y: 3, width: 4, height: 3, phase: 2 });
+                this.weakPoints.push({ x: 3, y: 3, width: 5, height: 4, phase: 2 });
             }
         }
         if (this.phaseTransitionTimer > 0) {
@@ -600,20 +600,28 @@ export class Enemy {
             moveX = Math.cos(slitherAngle) * 0.04 * speedMult;
             moveY = Math.sin(slitherAngle) * 0.04 * speedMult;
             if (this.fireCooldown <= 30 && this.fireCooldown > 0) {
-                this.attackState = 'charge';
+                this.attackState = this.attackCycle % 3 === 0 ? 'charge' : this.attackCycle % 3 === 1 ? 'tail_sweep' : 'prepare';
                 this.lockedAimAngle = baseAngle + (1 - organModifier(this, 'aim')) * 0.5 * this.genome.bias;
             }
             if (this.fireCooldown <= 0) {
-                const spreads = this.phase === 2 ? [-0.48, -0.24, 0, 0.24, 0.48] : [-0.3, -0.15, 0, 0.15, 0.3];
+                const move = this.attackCycle % 3;
+                const spreads = move === 1
+                    ? [-1.25, -0.9, -0.55, 0.55, 0.9, 1.25]
+                    : this.phase === 2 ? [-0.48, -0.24, 0, 0.24, 0.48] : [-0.3, -0.15, 0, 0.15, 0.3];
                 for (const spread of spreads) {
                     const a = this.lockedAimAngle + spread;
-                    spawnedProjectiles.push(new EnemyProjectile(this.x + 5.5, this.y + 5.5, Math.cos(a) * 0.3, Math.sin(a) * 0.3, this.phase === 2 && spread === 0));
+                    spawnedProjectiles.push(new EnemyProjectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(a) * (move === 1 ? 0.24 : 0.3), Math.sin(a) * (move === 1 ? 0.24 : 0.3), this.phase === 2 && spread === 0));
                 }
-                this.vx += Math.cos(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
-                this.vy += Math.sin(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                if (move === 0) {
+                    this.vx += Math.cos(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                    this.vy += Math.sin(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                } else if (move === 2 && enemyManager) {
+                    const count = this.phase === 2 ? 3 : 2;
+                    for (let i = 0; i < count; i++) enemyManager.spawn(this.x + 2 + i * 4, this.y + this.height - 2, 'cell_spore', { source: 'serpent_shed', emergenceTicks: 54 });
+                }
                 this.attackState = 'recover';
                 this.attackCycle++;
-                this.fireCooldown = this.phase === 2 ? 72 : 105;
+                this.fireCooldown = this.phase === 2 ? 68 : 98;
             }
             if (this.life % 90 === 0) {
                 for (let ox = -4; ox <= 4; ox += 2) for (let oy = -4; oy <= 4; oy += 2) {
@@ -621,9 +629,9 @@ export class Enemy {
                 }
             }
             if (this.life % 120 === 0) {
-                const travel = (this.life / 120) % 3;
-                this.weakPoints = [{ x: 2 + travel * 3, y: 2 + (travel % 2) * 3, width: 2, height: 2, phase: 1 }];
-                if (this.phase === 2) this.weakPoints.push({ x: 9 - travel * 2, y: 5 - (travel % 2) * 2, width: 2, height: 2, phase: 2 });
+                const travel = (this.life / 120) % 4;
+                this.weakPoints = [{ x: 2 + travel * 3, y: 2 + (travel % 2) * 4, width: 3, height: 3, phase: 1 }];
+                if (this.phase === 2) this.weakPoints.push({ x: this.width - 4 - travel * 2, y: 6 - (travel % 2) * 2, width: 3, height: 3, phase: 2 });
             }
         }
         else if (this.type === 'boss_eye') {
@@ -638,18 +646,19 @@ export class Enemy {
 
             const toPlayerA = Math.atan2(dy, dx);
             if (this.fireCooldown <= 42 && this.fireCooldown > 0) {
-                this.attackState = this.attackCycle % 2 === 0 ? 'gaze' : 'iris';
+                this.attackState = this.attackCycle % 3 === 0 ? 'gaze' : this.attackCycle % 3 === 1 ? 'iris' : 'echo_bloom';
                 this.lockedAimAngle = toPlayerA + (1 - organModifier(this, 'aim')) * 0.55 * this.genome.bias;
             }
             if (this.fireCooldown <= 0) {
-                const cx = this.x + 7.5;
-                const cy = this.y + 7.5;
-                if (this.attackCycle % 2 === 0) {
+                const cx = this.x + this.width / 2;
+                const cy = this.y + this.height / 2;
+                const move = this.attackCycle % 3;
+                if (move === 0) {
                     for (let offset = -0.18; offset <= 0.18; offset += 0.09) {
                         const a = this.lockedAimAngle + offset;
                         spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(a) * 0.38, Math.sin(a) * 0.38, offset === 0));
                     }
-                } else {
+                } else if (move === 1) {
                     const safeGap = this.lockedAimAngle;
                     const count = this.phase === 2 ? 20 : 14;
                     for (let i = 0; i < count; i++) {
@@ -657,6 +666,15 @@ export class Enemy {
                         const gapDistance = Math.abs(Math.atan2(Math.sin(a - safeGap), Math.cos(a - safeGap)));
                         if (gapDistance < 0.42) continue;
                         spawnedProjectiles.push(new EnemyProjectile(cx, cy, Math.cos(a) * 0.27, Math.sin(a) * 0.27));
+                    }
+                } else {
+                    for (let lobe = -2; lobe <= 2; lobe++) {
+                        const a = this.lockedAimAngle + lobe * 0.28;
+                        spawnedProjectiles.push(new EnemyProjectile(cx + lobe * 2, cy + Math.abs(lobe), Math.cos(a) * 0.32, Math.sin(a) * 0.32, this.phase === 2 && lobe === 0));
+                    }
+                    if (this.phase === 2 && enemyManager && enemyManager.enemies.length < COMBAT_CONFIG.normalPopulationCap - 2) {
+                        enemyManager.spawn(this.x - 2, this.y + this.height * 0.35, 'virus', { source: 'watcher_echo', emergenceTicks: 64 });
+                        enemyManager.spawn(this.x + this.width, this.y + this.height * 0.6, 'virus', { source: 'watcher_echo', emergenceTicks: 64 });
                     }
                 }
                 this.attackCycle++;
@@ -669,20 +687,24 @@ export class Enemy {
             moveY = (dy / dist) * (this.phase === 2 ? 0.04 : 0.028);
             const baseA = Math.atan2(dy, dx);
             if (this.fireCooldown <= 38 && this.fireCooldown > 0) {
-                this.attackState = 'broadside';
+                this.attackState = this.attackCycle % 3 === 0 ? 'broadside' : this.attackCycle % 3 === 1 ? 'brood' : 'heartburst';
                 this.lockedAimAngle = baseA;
                 if (!this.broodType) this.broodType = (this.attackCycle + this.genomeSeed) % 3 === 0 ? 'virus' : (this.attackCycle + this.genomeSeed) % 3 === 1 ? 'drone' : 'kamikaze';
             }
             if (this.fireCooldown <= 0) {
-                if (enemyManager && enemyManager.enemies.length < 40 && organModifier(this, 'gestation') > 0.25) {
+                const move = this.attackCycle % 3;
+                if (move === 1 && enemyManager && enemyManager.enemies.length < COMBAT_CONFIG.normalPopulationCap - 3 && organModifier(this, 'gestation') > 0.25) {
                     const spawnType = this.broodType || 'drone';
                     enemyManager.spawn(this.x - 2, this.y + 4, spawnType);
-                    enemyManager.spawn(this.x + 18, this.y + 4, spawnType);
-                    if (this.phase === 2) enemyManager.spawn(this.x + 8, this.y + 11, 'kamikaze');
+                    enemyManager.spawn(this.x + this.width, this.y + 5, spawnType);
+                    if (this.phase === 2) enemyManager.spawn(this.x + this.width / 2, this.y + this.height, 'kamikaze');
                 }
-                const angles = [-0.5, -0.25, 0, 0.25, 0.5].map(offset => this.lockedAimAngle + offset);
+                const offsets = move === 2
+                    ? Array.from({ length: this.phase === 2 ? 16 : 12 }, (_, i) => i * Math.PI * 2 / (this.phase === 2 ? 16 : 12)).filter((_, i) => i % 4 !== 0)
+                    : move === 1 ? [-0.28, 0, 0.28] : [-0.65, -0.42, -0.2, 0, 0.2, 0.42, 0.65];
+                const angles = offsets.map(offset => move === 2 ? offset + this.waveTime : this.lockedAimAngle + offset);
                 for (let a of angles) {
-                    spawnedProjectiles.push(new EnemyProjectile(this.x + 9, this.y + 5, Math.cos(a) * 0.31, Math.sin(a) * 0.31, this.phase === 2 && a === angles[2]));
+                    spawnedProjectiles.push(new EnemyProjectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(a) * (move === 2 ? 0.25 : 0.31), Math.sin(a) * (move === 2 ? 0.25 : 0.31), this.phase === 2 && a === angles[Math.floor(angles.length / 2)]));
                 }
                 this.attackCycle++;
                 this.broodType = null;
@@ -703,9 +725,9 @@ export class Enemy {
             if (this.phase === 2 && this.life % 90 === 0) {
                 const heart = this.organs.find(entry => entry.id === 'core');
                 if (heart) {
-                    heart.x = 5 + ((this.life / 90) % 3) * 4;
-                    heart.y = 3 + ((this.life / 180) % 2) * 3;
-                    this.weakPoints = [{ x: heart.x - 1, y: heart.y - 1, width: 3, height: 3, phase: 2 }];
+                    heart.x = this.width * 0.25 + ((this.life / 90) % 3) * this.width * 0.2;
+                    heart.y = this.height * 0.28 + ((this.life / 180) % 2) * this.height * 0.28;
+                    this.weakPoints = [{ x: heart.x - 2, y: heart.y - 2, width: 5, height: 5, phase: 2 }];
                     this.signal = '@'; this.signalTimer = 32;
                 }
             }
@@ -787,7 +809,7 @@ export class Enemy {
             moveY += (iy / id) * 0.025;
         }
 
-        const preparing = ['prepare', 'countdown', 'divide', 'charge', 'gaze', 'iris', 'broadside'].includes(this.attackState);
+        const preparing = ['prepare', 'countdown', 'divide', 'charge', 'tail_sweep', 'gaze', 'iris', 'echo_bloom', 'broadside', 'brood', 'heartburst'].includes(this.attackState);
         if (this.packRole === 'retreat') this.behaviorState = BehaviorState.RETREAT;
         else if (this.attackState === 'release' || this.lungeTimer > 0) this.behaviorState = BehaviorState.COMMIT;
         else if (preparing) this.behaviorState = BehaviorState.PREPARE;
@@ -882,7 +904,7 @@ export class Enemy {
             stampPattern(rendererInstance, bodyX, bodyY, livingBody, brightMult, this.color);
             const shell = this.organs.find(entry => entry.effect === 'armor');
             for (const organ of this.organs) {
-                const activeAttack = organ.type === 'attack' && ['prepare', 'countdown', 'divide', 'release'].includes(this.attackState);
+                const activeAttack = organ.type === 'attack' && ['prepare', 'countdown', 'divide', 'charge', 'tail_sweep', 'gaze', 'iris', 'echo_bloom', 'broadside', 'brood', 'heartburst', 'release'].includes(this.attackState);
                 const exposedCore = organ.type === 'core' && (!shell || shell.state !== OrganState.HEALTHY || this.hp < this.maxHp * 0.45);
                 const damaged = organ.state !== OrganState.HEALTHY;
                 if (!activeAttack && !exposedCore && !damaged) continue;

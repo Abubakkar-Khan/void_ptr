@@ -57,9 +57,9 @@ export const ORGANIC_FIELD_PROFILES = Object.freeze({
     colony: { width: 5, height: 5, glyphs: ['o', ':', '+'], density: 0.5, birth: [3], survive: [2, 3], maxCells: 17 },
     parasite: { width: 5, height: 3, glyphs: ['~', ':', '^'], density: 0.4, birth: [2, 3], survive: [1, 2, 3], maxCells: 11 },
     amalgam: { width: 10, height: 7, glyphs: ['%', '~', ':', '#'], density: 0.58, birth: [3, 4], survive: [2, 3, 4], maxCells: 48 },
-    serpent: { width: 12, height: 9, glyphs: ['~', '=', ':', '%'], density: 0.52, birth: [2, 3], survive: [1, 2, 3], maxCells: 66 },
-    watcher: { width: 15, height: 11, glyphs: [':', 'o', '*', '+'], density: 0.47, birth: [3], survive: [2, 3, 4], maxCells: 78 },
-    carrier: { width: 18, height: 11, glyphs: ['#', '%', ':', 'Y'], density: 0.62, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 112 }
+    serpent: { width: 16, height: 12, glyphs: ['~', '=', ':', '%'], density: 0.52, birth: [2, 3], survive: [1, 2, 3], maxCells: 92 },
+    watcher: { width: 21, height: 16, glyphs: [':', 'o', '*', '+'], density: 0.47, birth: [3], survive: [2, 3, 4], maxCells: 132 },
+    carrier: { width: 24, height: 15, glyphs: ['#', '%', ':', 'Y'], density: 0.62, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 176 }
 });
 
 // These are growth grammars, not sprites. Each mark is a preferred tissue site;
@@ -76,9 +76,9 @@ const FAMILY_GROWTH_GRAMMARS = Object.freeze({
     colony: [' xx  ', 'xxxx ', ' xxx ', '  xxx', ' x x '],
     parasite: ['xx   ', ' xxxx', 'xx x '],
     amalgam: ['  xxx xxx ', ' xxxxxxxx ', 'xxx xx xxx', ' xxxxxxxx ', 'xxx xxxx  ', ' xx  xxxx ', '  xx xx   '],
-    serpent: ['   xxxx     ', ' xxxxxxxx   ', 'xxx  xxxxx  ', ' xxxxx xxxxx', '  xxxxx xxxx', ' xxxx xxx   ', '  xxxxx     ', '   xxx      ', '    x       '],
-    watcher: ['    xxxxxxx    ', '  xxxxxxxxxxx  ', 'xxxxxx   xxxxxx', ' xxxx xxx xxxx ', 'xxx  xxxxx  xxx', ' xxxx xxx xxxx ', 'xxxxxx   xxxxxx', '  xxxxxxxxxxx  ', '    xxxxxxx    ', ' x   xxx   x   ', '   x  x  x     '],
-    carrier: ['   xxxx  xxxx   ', ' xxxxxxxxxxxxxxxx ', 'xxxx  xxxxxx  xxxx', 'xxxxxxxxxxxxxxxxxx', 'xxx xxxx  xxxx xxx', 'xxxxxxxxxxxxxxxxxx', ' xxxx xxxxxx xxxx ', '  xxxxxxxxxxxxxx  ', ' xx  xxxxxxxx  xx ', 'x x   xxxxxx   x x', ' x     xxxx     x ']
+    serpent: ['    xxxxx       ', '  xxxxxxxxx     ', ' xxxxx xxxxx    ', 'xxx xxxxx xxxxx ', ' xxxxxxxxxxxxxxx', '  xxxxxxxx xxxxx', ' xxxxxxxxxxxxx  ', '  xxxxxxxxxxx   ', '   xxxxxxxx     ', '   xxxxxxx      ', '    xxxxx       ', '     xxx        '],
+    watcher: ['       xxxxxxx       ', '   xxxx xxxxx xxxx   ', ' xxxxx xxxxxxx xxxxx ', 'xxxx   xxxxxxx   xxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxx xxx xxx xxxxxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxxx xxx xxx xxxxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxx  xxxxxxx  xxxxx', ' xxxx xxx xxx xxxx   ', '  xxxxxxxxxxxxxxxxx  ', '   xxxx xxxxx xxxx   ', ' x  xxx  xxx  xxx  x ', '   x  x  xxx  x  x   ', '      x  x  x        '],
+    carrier: ['    xxxxx   xxxxx       ', ' xxxxxxxxxxxxxxxxxxxxxx ', 'xxxxx  xxxxxxxx  xxxxx  ', 'xxxxxxxxxxxxxxxxxxxxxxxx', 'xxx xxxxx  xxxxxxx  xxxx', 'xxxxxxxxxxxxxxxxxxxxxxxx', ' xxxx xxxxxxxxxxxx xxxxx ', 'xxxxxxxx  xxxx  xxxxxxxx', ' xxx xxxxxxxxxxxxxxx xxx ', 'xxxxx xxxx  xxxx xxxxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxxx   xxxxxxxxxx   xxxx', ' x x  x xxxxxxxx x  x x ', 'x  x    xxxxxxxx    x  x', '  x      xxxxxx      x   ']
 });
 
 const cellKey = (x, y) => `${x},${y}`;
@@ -193,7 +193,7 @@ export class OrganicField {
 
     render(enemy, animationTime) {
         const frameIndex = Math.floor((animationTime + enemy.genome.pulseOffset) / 7) % this.frames.length;
-        const state = ['charge', 'gaze', 'iris', 'broadside', 'prepare', 'countdown', 'divide'].includes(enemy.attackState)
+        const state = ['charge', 'tail_sweep', 'gaze', 'iris', 'echo_bloom', 'broadside', 'brood', 'heartburst', 'prepare', 'countdown', 'divide'].includes(enemy.attackState)
             ? 'prepare' : enemy.attackState === 'release' ? 'release' : enemy.attackState === 'recover' || enemy.attackState === 'ruptured' ? 'recovery' : 'idle';
         const woundSignature = (enemy.organs || []).map(organ => organ.state[0]).join('');
         const cacheKey = `${state}:${frameIndex}:${woundSignature}`;

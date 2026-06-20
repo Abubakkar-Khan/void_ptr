@@ -2,8 +2,8 @@ const GLYPHS = '01.:;|/\\-_';
 const cellKey = (x, y) => `${x},${y}`;
 export const BACKGROUND_WORD_CONFIG = Object.freeze({
     version: 1,
-    ordinary: ['memory', 'signal', 'kernel', 'spawn', 'cell', 'grow', 'sleep', 'wake', 'ghost', 'error', 'void', 'null', 'ptr', 'fatal', 'lost', 'alone', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn', 'thread', 'stack', 'heap', 'root', 'divide', 'mutate', 'watch', 'carrier'],
-    kinship: ['father', 'papa', 'abu', 'dad', 'baba', 'abba', 'padre', 'pater', 'apa', 'tata'],
+    ordinary: ['memory', 'signal', 'kernel', 'spawn', 'cell', 'grow', 'sleep', 'wake', 'ghost', 'error', 'void', 'null', 'ptr', 'fatal', 'lost', 'alone', 'decay', 'broken', 'corrupt', 'empty', 'panic', 'warn', 'thread', 'stack', 'heap', 'root', 'divide', 'mutate', 'watch', 'carrier', 'serpent', 'bloom', 'spore', 'colony', 'organ', 'tissue', 'pulse', 'dream', 'birth', 'return', 'echo', 'alive', 'evolve', 'hunger', 'family'],
+    kinship: ['father', 'father', 'father', 'papa', 'abu', 'abu', 'abu', 'dad', 'baba', 'abba', 'padre', 'pater', 'apa', 'tata'],
     ordinaryCount: [90, 120],
     kinshipCount: [24, 32],
     ordinaryBrightness: [0.045, 0.095],
@@ -20,6 +20,9 @@ export class MatrixRain {
         this.activeCells = new Set();
         this.easterEggs = [];
         this.backgroundWords = [];
+        this.protectedCells = new Set();
+        this.lifeCells = new Set();
+        this.lifeTick = 0;
         this.seed = 0;
     }
 
@@ -32,6 +35,9 @@ export class MatrixRain {
         this.activeCells = new Set();
         this.easterEggs = [];
         this.backgroundWords = [];
+        this.protectedCells = new Set();
+        this.lifeCells = new Set();
+        this.lifeTick = 0;
         this.seed++;
 
         // Create background code rain grid
@@ -44,8 +50,10 @@ export class MatrixRain {
                 column.push({
                     char: sectorGlyphs[Math.floor(Math.random() * sectorGlyphs.length)],
                     brightness: baseBrightness,
-                    baseBrightness: baseBrightness
+                    baseBrightness: baseBrightness,
+                    baseChar: null
                 });
+                column[column.length - 1].baseChar = column[column.length - 1].char;
             }
             this.grid.push(column);
         }
@@ -65,7 +73,7 @@ export class MatrixRain {
                     if (cells.every(key => !occupiedWordCells.has(key))) placement = { x, y, vertical, cells };
                 }
                 if (!placement) continue;
-                placement.cells.forEach(key => occupiedWordCells.add(key));
+                placement.cells.forEach(key => { occupiedWordCells.add(key); this.protectedCells.add(key); });
                 const brightness = brightnessRange[0] + Math.random() * (brightnessRange[1] - brightnessRange[0]);
                 const record = { word, x: placement.x, y: placement.y, vertical: placement.vertical, brightness };
                 target.push(record);
@@ -77,6 +85,17 @@ export class MatrixRain {
         };
         placeWords(BACKGROUND_WORD_CONFIG.ordinary, BACKGROUND_WORD_CONFIG.ordinaryCount, BACKGROUND_WORD_CONFIG.ordinaryBrightness, this.backgroundWords);
         placeWords(BACKGROUND_WORD_CONFIG.kinship, BACKGROUND_WORD_CONFIG.kinshipCount, BACKGROUND_WORD_CONFIG.kinshipBrightness, this.easterEggs);
+
+        const lifeSeeds = Math.min(140, Math.max(24, Math.floor(cols * rows * 0.012)));
+        for (let i = 0; i < lifeSeeds; i++) {
+            const cx = 2 + Math.floor(Math.random() * Math.max(1, cols - 4));
+            const cy = 2 + Math.floor(Math.random() * Math.max(1, rows - 4));
+            const pattern = i % 3 === 0 ? [[0, 0], [1, 0], [2, 0], [2, -1], [1, -2]] : [[0, 0], [1, 0], [0, 1]];
+            for (const [dx, dy] of pattern) {
+                const key = cellKey(cx + dx, cy + dy);
+                if (!this.protectedCells.has(key)) this.lifeCells.add(key);
+            }
+        }
 
         // Seed breakable static code barriers (pillars/debris) in the large world
         const numObstacles = 20;
@@ -122,6 +141,7 @@ export class MatrixRain {
     }
 
     update() {
+        this.lifeTick++;
         // Only update recently scrambled cells instead of scanning the full world.
         for (const key of [...this.activeCells]) {
             const [x, y] = key.split(',').map(Number);
@@ -134,6 +154,50 @@ export class MatrixRain {
             if (cell.brightness <= cell.baseBrightness + 0.05) {
                 cell.brightness = cell.baseBrightness;
                 this.activeCells.delete(key);
+            }
+        }
+        if (this.lifeTick % 10 === 0) this.stepBackgroundLife();
+    }
+
+    stepBackgroundLife() {
+        const neighbours = new Map();
+        for (const key of this.lifeCells) {
+            const [x, y] = key.split(',').map(Number);
+            for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) {
+                if (!ox && !oy) continue;
+                const nx = x + ox, ny = y + oy;
+                if (nx < 1 || nx >= this.cols - 1 || ny < 1 || ny >= this.rows - 1) continue;
+                const neighbourKey = cellKey(nx, ny);
+                neighbours.set(neighbourKey, (neighbours.get(neighbourKey) || 0) + 1);
+            }
+        }
+        const next = new Set();
+        for (const [key, count] of neighbours) {
+            if (this.protectedCells.has(key)) continue;
+            if (count === 3 || (count === 2 && this.lifeCells.has(key))) next.add(key);
+            if (next.size >= 220) break;
+        }
+        for (const key of this.lifeCells) {
+            if (next.has(key) || this.protectedCells.has(key)) continue;
+            const [x, y] = key.split(',').map(Number);
+            const cell = this.grid[x]?.[y];
+            if (cell) { cell.char = cell.baseChar; cell.brightness = cell.baseBrightness; }
+        }
+        const glyphs = ['.', ':', 'o', '+', 'Y'];
+        for (const key of next) {
+            const [x, y] = key.split(',').map(Number);
+            const cell = this.grid[x]?.[y];
+            if (!cell) continue;
+            cell.char = glyphs[(x * 7 + y * 11 + this.lifeTick / 10) % glyphs.length | 0];
+            cell.brightness = 0.13 + ((x + y) % 4) * 0.025;
+        }
+        this.lifeCells = next;
+        if (this.lifeCells.size < 12 && this.cols > 6 && this.rows > 6) {
+            const cx = 3 + (this.seed * 17 + this.lifeTick) % (this.cols - 6);
+            const cy = 3 + (this.seed * 11 + this.lifeTick) % (this.rows - 6);
+            for (const [dx, dy] of [[0, 0], [1, 0], [2, 0], [2, -1], [1, -2]]) {
+                const key = cellKey(cx + dx, cy + dy);
+                if (!this.protectedCells.has(key)) this.lifeCells.add(key);
             }
         }
     }
@@ -149,7 +213,7 @@ export class MatrixRain {
                 const dx = x - cx;
                 const dy = y - cy;
                 if (dx * dx + dy * dy <= radius * radius) {
-                    if (Math.random() < intensity) {
+                    if (!this.protectedCells.has(cellKey(x, y)) && Math.random() < intensity) {
                         this.grid[x][y].char = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
                         this.grid[x][y].brightness = 0.6 + Math.random() * 0.4;
                         this.activeCells.add(`${x},${y}`);

@@ -88,9 +88,9 @@ export const ENEMY_DEFS = {
     cell_colony: { hp: 10, xp: 10, width: 1, height: 1, mass: 2, cost: 1, ecosystem: true, populationCost: 1 },
     cell_parasite: { hp: 9, xp: 14, width: 1, height: 1, mass: 0.35, cost: 1, ecosystem: true, populationCost: 1 },
     cell_amalgam: { hp: 85, xp: 90, width: 5, height: 3, mass: 4, cost: 7, ecosystem: true, populationCost: 5 },
-    boss_snake: { hp: 800, xp: 1000, width: 11, height: 11, mass: 15, cost: 0 },
-    boss_eye: { hp: 900, xp: 1000, width: 15, height: 15, mass: 12, cost: 0 },
-    boss_carrier: { hp: 1000, xp: 1200, width: 18, height: 11, mass: 12, cost: 0 }
+    boss_snake: { hp: 900, xp: 1000, width: 16, height: 12, mass: 18, cost: 0 },
+    boss_eye: { hp: 1050, xp: 1100, width: 21, height: 16, mass: 15, cost: 0 },
+    boss_carrier: { hp: 1200, xp: 1300, width: 24, height: 15, mass: 18, cost: 0 }
 };
 
 export const COMBAT_CONFIG = {
@@ -98,8 +98,8 @@ export const COMBAT_CONFIG = {
     aimAssistConeRadians: Math.PI * (32 / 180),
     aimAssistStrength: 0.22,
     projectileHitboxScale: 1.25,
-    normalPopulationCap: 36,
-    ecosystemPopulationCap: 12,
+    normalPopulationCap: 48,
+    ecosystemPopulationCap: 16,
     ecosystemTerrainCap: 240,
     ecosystemDenseThreshold: 3,
     spawnSafeRadius: 18,

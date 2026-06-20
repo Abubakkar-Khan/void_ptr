@@ -25,6 +25,7 @@ const GAME_STATES = {
     VICTORY: 'victory',
     PAUSED: 'paused',
     SETTINGS: 'settings',
+    BESTIARY: 'bestiary',
     MOBILE_GUIDE: 'mobile_guide'
 };
 
@@ -188,6 +189,10 @@ class GameEngine {
             audio.playUpgradeSelect();
             this.state = GAME_STATES.SETTINGS;
             ui.currentScreen = null;
+        } else if (action === 'bestiary') {
+            audio.playUpgradeSelect();
+            this.state = GAME_STATES.BESTIARY;
+            ui.currentScreen = null;
         } else if (action === 'fullscreen') {
             input.activateMobileDisplay(true);
         } else if (action === 'controls') {
@@ -298,7 +303,7 @@ class GameEngine {
         if (this.state === GAME_STATES.BOOT) {
             this.bootTicks++;
             const skipBoot = input.mouse.justClicked || input.moveStick?.active || input.shootStick?.active || input.getMenuKey();
-            if (this.bootTicks >= 105 || skipBoot) {
+            if (this.bootTicks >= 145 || skipBoot) {
                 this.state = GAME_STATES.MENU;
                 ui.currentScreen = null;
                 input.resetTransient();
@@ -545,6 +550,7 @@ class GameEngine {
         else if (this.state === GAME_STATES.LEVEL_UP) ui.stampUpgradeScreen(renderer, mx, my, this.activeUpgradesSelection, this.upgradeRerolls);
         else if (this.state === GAME_STATES.PAUSED) ui.stampPauseScreen(renderer, mx, my);
         else if (this.state === GAME_STATES.SETTINGS) ui.stampSettingsScreen(renderer, mx, my);
+        else if (this.state === GAME_STATES.BESTIARY) ui.stampBestiaryScreen(renderer, mx, my);
         else if (this.state === GAME_STATES.MOBILE_GUIDE) ui.stampMobileGuide(renderer, mx, my);
         else if (this.state === GAME_STATES.GAME_OVER || this.state === GAME_STATES.VICTORY) ui.stampResultsScreen(renderer, mx, my, this.state === GAME_STATES.VICTORY, stats.snapshot());
         else if (this.state === GAME_STATES.PLAYING) this.stampHUD();

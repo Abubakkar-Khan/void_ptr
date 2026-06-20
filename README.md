@@ -2,6 +2,8 @@
 
 > A ten-minute, manual-aim ASCII survival shooter set inside a living, corrupted mainframe.
 
+**Play the live build:** [voidptr.vercel.app](https://voidptr.vercel.app/)
+
 VOID\* PTR combines twin-stick combat, roguelite upgrades, procedural synthetic organisms, cellular automata, functional enemy wounds, coordinated pack behavior, and multi-phase organic bosses. Everything visible—including menus, cards, HUD elements, controls, telegraphs, enemies, effects, and environmental life—is rendered with monospaced terminal glyphs.
 
 This document describes the game as currently implemented, including its rules, systems, controls, presentation, persistence, mobile behavior, architecture, and development workflow.
@@ -10,6 +12,7 @@ This document describes the game as currently implemented, including its rules, 
 
 - [Game concept](#game-concept)
 - [Opening flow](#opening-flow)
+- [Organism wiki](#organism-wiki)
 - [Run structure](#run-structure)
 - [Controls](#controls)
 - [Player hulls](#player-hulls)
@@ -46,20 +49,46 @@ The core loop is:
 4. Adapt to coordinated species, infections, environmental growth, and mutations.
 5. Defeat three staged bosses before completing the standard run.
 
+```mermaid
+flowchart LR
+    A["Enter living memory"] --> B["Move and manually fire"]
+    B --> C["Break organs and formations"]
+    C --> D["Collect blue XP"]
+    D --> E["Install one upgrade"]
+    E --> F{"Boss active?"}
+    F -- "No" --> B
+    F -- "Yes" --> G["Read patterns and destroy weak organs"]
+    G --> H["XP vacuum and recovery"]
+    H --> B
+```
+
 Combat is intended to feel powerful without becoming automatic. Basic enemies die quickly, while challenge comes from population pressure, positioning, projectile lanes, symbiosis, pack tactics, wounded behavior, evolved generations, and boss organs.
 
 ## Opening flow
 
-The game starts with a short terminal-style operating-system handshake rather than dropping directly into combat. The boot sequence reports input readiness, organic memory corruption, and executable status through a progress bar. It completes in roughly 1.75 seconds and can be skipped with any keyboard, pointer, gamepad, or touch input.
+The game starts with a living BIOS germination sequence rather than dropping directly into combat. It reports manual-fire linking, cellular-life detection, B3/S23 stability, and executable state while animated glyph tissue grows around the terminal log. It completes in roughly 2.4 seconds and can be skipped with any keyboard, pointer, gamepad, or touch input.
 
-The title screen deliberately keeps only four primary choices:
+The title screen presents five primary choices beneath a full ASCII wordmark and evolving cellular bands:
 
 - **Start 10-Min Run:** choose a hull and begin the standard boss run.
 - **Endless Process:** choose a hull and play without a victory timer.
+- **Organism Wiki:** inspect animated specimens, behaviors, glyph languages, and disruption strategies.
 - **How to Play:** open a device-appropriate keyboard, gamepad, or touch guide.
 - **Settings:** configure music, sound effects, motion, and palette.
 
-There is no Records screen or lifetime statistics system. After selecting a mode, the hull screen explains each movement/weapon profile before the run begins. No card or menu action starts highlighted.
+There is no Records screen or lifetime statistics system. After selecting a mode, the hull screen explains each movement/weapon profile before the run begins. No card, menu action, or wiki entry starts highlighted.
+
+## Organism wiki
+
+The title menu includes a fully ASCII, paged specimen archive. It covers Skitters, Bloomcasters, Ribbons, Prisms, Carapaces, Burst Sacs, Rootweavers, all four ecosystem organisms, and the three bosses. Each page renders a deterministic animated body using the same genome, body-plan, and organic-field code used during combat.
+
+Every entry includes:
+
+- Family and combat role.
+- Stable family glyph alphabet.
+- Core behavior and group function.
+- A practical organ or formation disruption strategy.
+- Previous, next, and back controls compatible with pointer, touch, keyboard, and gamepad navigation.
 
 ## Run structure
 
@@ -81,7 +110,7 @@ Endless mode removes the victory condition. Encounter pressure and threat tiers 
 
 ### Game states
 
-The engine uses explicit states for boot, title menu, hull selection, active play, upgrade selection, pause, settings, control guide, victory, and game over. Combat simulation stops during upgrades, pause screens, instructions, and portrait-orientation blocking.
+The engine uses explicit states for boot, title menu, organism wiki, hull selection, active play, upgrade selection, pause, settings, control guide, victory, and game over. Combat simulation stops during upgrades, pause screens, instructions, and portrait-orientation blocking.
 
 ## Controls
 
@@ -315,24 +344,35 @@ Bosses use large authored concepts combined with procedural organic fields, func
 
 ### NULL SERPENT
 
-A connected living chain of deforming vertebral clusters. Locomotion and attack signals contract down the body. The Serpent coils, herds, performs body-blocking passes, fires aimed fans, charges through directional telegraphs, and consumes nearby growth. Damaged segments scar, rupture, or detach as short-lived organisms. Later phases shed damaged length in exchange for speed and expose additional sensory weak points.
+A screen-length living current of deforming vertebral clusters. Locomotion and attack signals contract down the body. Its rotating move set combines telegraphed charges and projectile fans, marked tail-sweep lanes, and spore shedding. The Serpent coils, herds, body-blocks, and consumes nearby growth. Damaged segments scar, rupture, or detach as short-lived organisms. Later phases shed damaged length in exchange for speed and expose additional sensory weak points.
 
 ### THE WATCHER
 
-A floating sensory colony built from a tracking core, pupil lobes, nerve roots, cilia, and immature orbiting eyes. It uses scanning lanes, locking gaze attacks, and iris bursts with readable gaps—there are no black-hole mechanics. Damaging sensory organs creates blind sectors and less accurate attacks. Later phases fracture the eye into asymmetric cooperating lobes that alternate shared and independent vision.
+A broad floating sensory colony built from a tracking core, pupil lobes, nerve roots, cilia, and immature orbiting eyes. It rotates through locking gaze attacks, iris bursts with readable safe gaps, and delayed echo blooms. There are no black-hole mechanics. Damaging sensory organs creates blind sectors and less accurate attacks. Later phases fracture the colony into asymmetric cooperating lobes and germinate delayed Prism echoes.
 
 ### HEAP CARRIER
 
-A synthetic brood fortress made from carapace, gestation bays, feeding tendrils, propulsion cilia, attack glands, and a protected heart. Bays visibly grow offspring and can be damaged to alter or cancel births. The Carrier deploys coordinated broods, consumes damaged allies for repair, sheds armor, ruptures bays, exposes its heart, and fuses nearby organisms into emergency replacement organs.
+A huge synthetic brood fortress made from carapace, gestation bays, feeding tendrils, propulsion cilia, attack glands, and a protected heart. Its move cycle combines warned broadsides, visible brood germination, and radial heartbursts with rotating gaps. Bays show which offspring are growing and can be damaged to alter or cancel births. The Carrier consumes damaged allies for repair, sheds armor, ruptures bays, exposes its relocating heart, and fuses nearby organisms into emergency replacement organs.
 
-Boss transitions are expressed through organ failure, molting, fragmentation, division, and regrowth—not a generic speed multiplier. Death proceeds organ by organ before the body collapses into nutrients and the reward vacuum begins.
+Boss transitions are expressed through organ failure, molting, fragmentation, division, and regrowth - not a generic speed multiplier. Death proceeds organ by organ before the body collapses into nutrients and the reward vacuum begins.
+
+```mermaid
+flowchart LR
+    S["02:30 NULL SERPENT"] --> R1["recovery"]
+    R1 --> W["05:30 THE WATCHER"]
+    W --> R2["recovery"]
+    R2 --> C["09:00 HEAP CARRIER"]
+    C --> V{"carrier defeated?"}
+    V -- yes --> WIN["victory"]
+    V -- no at 10:00 --> OT["overtime"]
+```
 
 ## Difficulty director
 
 Difficulty is driven by encounter composition and spatial pressure instead of universal health inflation.
 
-- Normal enemy population cap: 36, including organisms still germinating.
-- Active cellular combatant cap: 12; environmental colony terrain has its own budget.
+- Normal enemy population cap: 48, including organisms still germinating.
+- Active cellular combatant cap: 16; environmental colony terrain has its own budget.
 - Cellular terrain cap: 240.
 - Threat budget rises throughout the run.
 - Enemy mixes combine pursuit, ranged fire, shielding, formations, infection, and ecosystem pressure.
@@ -357,7 +397,16 @@ Complex encounters receive longer recovery gaps. At most two principal tactical 
 
 ## Enemy arrivals and spawning
 
-Every creation path now routes through one spawn lifecycle: `reserved -> germinating -> active -> dying`. The encounter director reserves the entire group before any member is created, preventing half-formed formations and population overflow.
+Every creation path now routes through one spawn lifecycle. The encounter director reserves the entire group before any member is created, preventing half-formed formations and population overflow.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Reserved: encounter budget accepted
+    Reserved --> Germinating: body seeded
+    Germinating --> Active: telegraph completes
+    Active --> Dying: core destroyed
+    Dying --> [*]: tissue dissolves
+```
 
 Enemies can enter the run through several systems:
 
@@ -371,7 +420,7 @@ Enemies can enter the run through several systems:
 
 Ordinary formations are placed at least four cells beyond the camera. Local births such as division, fusion, shed tissue, and boss broods are pushed outside an 18-cell player safety radius while they germinate. During the 48-90 tick emergence sequence, an organism grows from dim scattered cells into its stable body and displays a final directional activation pulse. Germinating organisms cannot move, fire, collide, deal contact damage, receive damage, or be selected by aim assistance.
 
-Encounters use a reserved threat budget followed by roughly 12-25 seconds of pressure and a 3-6 second recovery interval. This keeps arrivals legible and makes difficulty come from coordinated intentions rather than a continuous stream of surprise spawns.
+Encounters use a reserved threat budget followed by roughly 8-15 seconds of pressure and a 2-4 second recovery interval. The faster cadence and larger population create a busier arena, while emergence warnings and atomic reservations keep arrivals fair rather than surprising.
 
 ## Experience pickups
 
@@ -457,11 +506,12 @@ The first mobile run opens a paused ASCII guide explaining movement, aim/fire, d
 
 ## Background matrix and hidden words
 
-The background contains dim Matrix-style rain plus deliberately placed vocabulary. Word placement tracks occupied cells to reduce overlap and character piles.
+The background is a living terminal layer rather than a static texture. Dim Matrix-style rain sits beneath a bounded B3/S23-inspired cellular simulation. Small structures germinate, stabilize, travel, and die every ten simulation ticks without touching collision or obscuring combat. Deliberately placed vocabulary is protected from this evolution, and occupied-cell tracking reduces overlap and character piles.
 
-- Roughly 90–120 ordinary words are placed per generated world.
-- Vocabulary includes system, memory, corruption, and biological terms such as `memory`, `signal`, `kernel`, `spawn`, `cell`, `grow`, `sleep`, `wake`, `ghost`, `error`, and `void`.
-- 24–32 kinship words are placed from `father`, `papa`, `abu`, `dad`, `baba`, `abba`, `padre`, `pater`, `apa`, and `tata`.
+- Roughly 90-120 ordinary words are placed per generated world.
+- Vocabulary includes system, memory, corruption, and biological terms such as `memory`, `signal`, `kernel`, `spawn`, `cell`, `grow`, `sleep`, `wake`, `ghost`, `error`, `void`, `tissue`, `pulse`, `birth`, `alive`, and `evolve`.
+- 24-32 kinship words are placed from `father`, `papa`, `abu`, `dad`, `baba`, `abba`, `padre`, `pater`, `apa`, and `tata`.
+- `abu` and `father` receive extra weight in the kinship pool, so they remain hidden but are easier to discover during a run.
 - Words can be horizontal or vertical.
 - They remain lowercase, stationary, and behind gameplay/UI.
 - Kinship words are slightly brighter than ordinary rain but remain dimmer than threats, attacks, and XP.
@@ -479,7 +529,7 @@ The project uses modern browser JavaScript modules and Vite. Gameplay updates ru
 | `main.js` | Game state machine, fixed-step loop, system orchestration |
 | `config.js` | Central hull, weapon, enemy, combat, progression, and boss values |
 | `renderer.js` | Glyph grids, viewport scaling, camera, cell composition |
-| `ui.js` | Entire ASCII HUD/menu/card/results presentation and hit regions |
+| `ui.js` | Entire ASCII HUD/menu/card/results presentation, organism wiki, and hit regions |
 | `input.js` | Keyboard, mouse, gamepad, mobile state, fullscreen, floating sticks |
 | `player.js` | Hull movement, health, dash state, installed modules |
 | `weapons.js` | Blaster, Seeker, Laser, helper attacks, projectile behavior |
@@ -492,12 +542,29 @@ The project uses modern browser JavaScript modules and Vite. Gameplay updates ru
 | `collision.js` | Projectile, contact, pickup, terrain, and dash collision routing |
 | `pickups.js` | XP attraction, collection state, cleanup, boss vacuum |
 | `stats.js` | Minimal non-persistent Game Over summary |
-| `matrixRain.js` | Background rain and occupied-cell word placement |
+| `matrixRain.js` | Background rain, protected word placement, and bounded cellular life |
 | `effects.js` | Glyph-based impacts, warnings, trails, and transient effects |
 | `audio.js` | Synthesized music/SFX and persistent audio settings |
 | `upgrades.js` | Upgrade catalog, applicability, weights, values, display metadata |
 
 ### Performance boundaries
+
+```mermaid
+flowchart TB
+    INPUT["keyboard / mouse / touch / gamepad"] --> MAIN["fixed-step game loop"]
+    MAIN --> PLAYER["player + weapons"]
+    MAIN --> DIRECTOR["encounter director"]
+    DIRECTOR --> SPAWN["reserved germination"]
+    SPAWN --> ENEMIES["organisms + bosses"]
+    ENEMIES --> BIO["genomes / tissue / wounds"]
+    ENEMIES --> MIND["local colony mind"]
+    MAIN --> ECO["ecosystem + nutrients"]
+    MAIN --> BG["Matrix rain + cellular life"]
+    PLAYER --> COLLISION["collision and damage"]
+    ENEMIES --> COLLISION
+    COLLISION --> XP["XP + progression"]
+    MAIN --> RENDER["ASCII renderer + UI"]
+```
 
 The living systems are explicitly bounded:
 

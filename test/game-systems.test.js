@@ -9,7 +9,7 @@ import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PALETT
 import { BehaviorState, Enemy, enemies, EnemyManagerClass, EnemySpawnRequest, SpawnLifecycle } from '../src/enemies.js';
 import { EcosystemSystem } from '../src/ecosystem.js';
 import { StatsTracker } from '../src/stats.js';
-import { UIManager } from '../src/ui.js';
+import { ENEMY_ARCHIVE, UIManager } from '../src/ui.js';
 import { resolveAssistedAim, weapons } from '../src/weapons.js';
 import { Genome, ORGANIC_FIELD_PROFILES, OrganState, renderCreatureBody, SpeciesFamily } from '../src/biology.js';
 import { EvolutionDirector } from '../src/evolution.js';
@@ -323,6 +323,26 @@ test('all menus and results stamp into the ASCII grid with no default focus', ()
     }
 });
 
+test('organism wiki exposes every family and keeps navigation inside compact ASCII layouts', () => {
+    assert.equal(ENEMY_ARCHIVE.length, 14);
+    assert.equal(new Set(ENEMY_ARCHIVE.map(entry => entry.type)).size, ENEMY_ARCHIVE.length);
+    const renderer = {
+        width: 568, height: 320, viewCols: 64, viewRows: 29, isTouchLayout: true,
+        worldCols: 140, worldRows: 100, camX: 0, camY: 0, cellWidth: 9, cellHeight: 11, animationTime: 12,
+        chars: Array.from({ length: 140 }, () => Array(100).fill(' ')),
+        types: Array.from({ length: 140 }, () => Array(100).fill(0)),
+        brightness: Array.from({ length: 140 }, () => Array(100).fill(0))
+    };
+    const ui = new UIManager();
+    ui.stampBestiaryScreen(renderer, -1, -1);
+    assert.equal(ui.focusIndex, -1);
+    assert.deepEqual(ui.buttons.map(button => button.id), ['page_prev', 'back', 'page_next']);
+    for (const button of ui.buttons) {
+        assert.ok(button.col >= 0 && button.row >= 0);
+        assert.ok(button.col + button.w <= renderer.viewCols && button.row + button.h <= renderer.viewRows);
+    }
+});
+
 test('visible interface and effect modules use glyphs instead of vector primitives', () => {
     for (const file of ['src/main.js', 'src/ui.js', 'src/effects.js']) {
         const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
@@ -414,6 +434,48 @@ test('father names and ordinary background words are frequent, dim, and bounded'
     assert.ok(rain.easterEggs.length >= 24 && rain.easterEggs.length <= 32);
 });
 
+test('cellular background evolves within budget without corrupting hidden words', () => {
+    const rain = new MatrixRain();
+    rain.resize(120, 80);
+    const protectedGlyphs = new Map();
+    for (const entry of [...rain.backgroundWords, ...rain.easterEggs]) {
+        for (let index = 0; index < entry.word.length; index++) {
+            const x = entry.vertical ? entry.x : entry.x + index;
+            const y = entry.vertical ? entry.y + index : entry.y;
+            protectedGlyphs.set(`${x},${y}`, entry.word[index]);
+        }
+    }
+    rain.scrambleArea(rain.easterEggs[0].x, rain.easterEggs[0].y, 4, 1);
+    for (let tick = 0; tick < 120; tick++) rain.update();
+    assert.ok(rain.lifeCells.size > 0 && rain.lifeCells.size <= 220);
+    for (const [key, glyph] of protectedGlyphs) {
+        const [x, y] = key.split(',').map(Number);
+        assert.equal(rain.grid[x][y].char, glyph);
+    }
+});
+
+test('difficulty limits and bosses expose three distinct attack preparations', () => {
+    assert.equal(COMBAT_CONFIG.normalPopulationCap, 48);
+    assert.equal(COMBAT_CONFIG.ecosystemPopulationCap, 16);
+    const expectedMoves = {
+        boss_snake: ['charge', 'tail_sweep', 'prepare'],
+        boss_eye: ['gaze', 'iris', 'echo_bloom'],
+        boss_carrier: ['broadside', 'brood', 'heartburst']
+    };
+    for (const [type, states] of Object.entries(expectedMoves)) {
+        const seen = [];
+        for (let cycle = 0; cycle < 3; cycle++) {
+            const boss = new Enemy(30, 30, type, { seed: 700 + cycle });
+            boss.introTimer = 0;
+            boss.attackCycle = cycle;
+            boss.fireCooldown = 20;
+            boss.update(70, 50, 160, 110, [], { enemies: [boss], spawn() {} });
+            seen.push(boss.attackState);
+        }
+        assert.deepEqual(seen, states);
+    }
+});
+
 test('floating touch sticks clamp, respect deadzones, and reset independently', () => {
     const move = new FloatingStick('move');
     const fire = new FloatingStick('shoot');
@@ -464,7 +526,8 @@ test('mobile landscape keeps the full title and paginates cards within short vie
         const grid = makeMobileRenderer(width, height);
         const mobileUi = new UIManager();
         for (let frame = 0; frame < 20; frame++) mobileUi.stampTitleScreen(grid, -1, -1);
-        assert.ok(grid.chars.flat().filter(char => char === '█').length > 10, `${width}x${height} should keep full title art`);
+        assert.ok(grid.chars.flat().filter(char => char === 'V' || char === 'P').length > 10, `${width}x${height} should keep full title art`);
+        assert.ok(mobileUi.buttons.some(button => button.id === 'bestiary'));
         mobileUi.stampShipSelectScreen(grid, -1, -1);
         assert.ok(mobileUi.buttons.some(button => button.id.startsWith('ship_')));
         const choices = upgrades.getRandomSelection(makeUpgradePlayer('auto_blaster'), 3);
@@ -638,8 +701,8 @@ test('wave encounters reserve outside the camera instead of appearing around the
     const player = { x: 68, y: 44, width: 3, height: 3 };
     const reservation = director.spawnEncounter(view, player);
     assert.ok(reservation);
-    assert.ok(reservation.pressureTicks >= 12 * 60);
-    assert.ok(reservation.recoveryTicks >= 3 * 60);
+    assert.ok(reservation.pressureTicks >= 8 * 60);
+    assert.ok(reservation.recoveryTicks >= 2 * 60);
     for (const enemy of enemies.enemies) {
         const insideCamera = enemy.x > view.camX - COMBAT_CONFIG.spawnCameraMargin
             && enemy.x < view.camX + view.viewCols + COMBAT_CONFIG.spawnCameraMargin

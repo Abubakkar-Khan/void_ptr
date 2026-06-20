@@ -92,30 +92,30 @@ export class Director {
 
     spawnEncounter(rendererInstance, player = null) {
         const normalCount = enemies.enemies.filter(e => e && NORMAL_ENEMY_TYPES.has(e.type)).length;
-        const remainingSlots = Math.max(0, 36 - normalCount);
+        const remainingSlots = Math.max(0, COMBAT_CONFIG.normalPopulationCap - normalCount);
         if (remainingSlots < 2) return null;
 
         const available = this.getAvailableTypes();
         const tier = this.threatTier;
         const recipes = [
-            { name: 'HUNTING RING', types: ['drone'], bonus: 3, formation: 'arc', recovery: 180 },
-            { name: 'MOVING NEST', types: ['brute', 'shooter'], bonus: 0, formation: 'cluster', recovery: 300 },
-            { name: 'HERDING CURRENT', types: ['worm', 'drone'], bonus: 1, formation: 'line', recovery: 240 },
-            { name: 'DIVISION FIELD', types: ['virus'], bonus: 1, formation: 'mirror', recovery: 270 },
-            { name: 'PARASITE MIGRATION', types: ['cell_parasite', 'drone'], bonus: 1, formation: 'line', recovery: 240 },
-            { name: 'ROOT TERRITORY', types: ['brute', 'shield_projector'], bonus: 0, formation: 'cluster', recovery: 330 },
-            { name: 'PREDATOR FEED', types: ['cell_amalgam', 'cell_spore'], bonus: 0, formation: 'cluster', recovery: 360 },
-            { name: 'PANIC BLOOM', types: ['kamikaze', 'drone'], bonus: 2, formation: 'arc', recovery: 270 }
+            { name: 'HUNTING RING', types: ['drone'], bonus: 5, formation: 'arc', recovery: 120 },
+            { name: 'MOVING NEST', types: ['brute', 'shooter'], bonus: 2, formation: 'cluster', recovery: 210 },
+            { name: 'HERDING CURRENT', types: ['worm', 'drone'], bonus: 3, formation: 'line', recovery: 150 },
+            { name: 'DIVISION FIELD', types: ['virus'], bonus: 2, formation: 'mirror', recovery: 180 },
+            { name: 'PARASITE MIGRATION', types: ['cell_parasite', 'drone'], bonus: 3, formation: 'line', recovery: 150 },
+            { name: 'ROOT TERRITORY', types: ['brute', 'shield_projector'], bonus: 2, formation: 'cluster', recovery: 210 },
+            { name: 'PREDATOR FEED', types: ['cell_amalgam', 'cell_spore'], bonus: 2, formation: 'cluster', recovery: 240 },
+            { name: 'PANIC BLOOM', types: ['kamikaze', 'drone'], bonus: 4, formation: 'arc', recovery: 150 }
         ].filter(recipe => recipe.types.every(type => available.includes(type)));
 
         const recipe = recipes.length && Math.random() < 0.55
             ? recipes[Math.floor(Math.random() * recipes.length)]
-            : { name: 'WILD PROCESSES', types: available.slice(-2), bonus: 0, formation: 'line', recovery: 210 };
+            : { name: 'WILD PROCESSES', types: available.slice(-2), bonus: 2, formation: 'line', recovery: 135 };
         this.encounterName = recipe.name;
         const anchor = this.getEdgeSpawn(rendererInstance, COMBAT_CONFIG.spawnCameraMargin + 2);
         const encounterId = `encounter-${++this.encounterCounter}`;
 
-        let budget = Math.min(26, 5 + tier * 2 + recipe.bonus);
+        let budget = Math.min(34, 8 + tier * 2.5 + recipe.bonus);
         let safety = 0;
         const requests = [];
         while (budget >= 1 && safety++ < 24 && requests.length < remainingSlots) {
@@ -136,7 +136,7 @@ export class Director {
             budget -= ENEMY_DEFS[type]?.cost || 1;
         }
         if (requests.length < 2 || enemies.reserveEncounter(requests).length !== requests.length) return null;
-        const pressureTicks = Math.round(Math.max(12, Math.min(25, 12 + tier * 1.25)) * 60);
+        const pressureTicks = Math.round(Math.max(8, Math.min(15, 8 + tier * 0.7)) * 60);
         return new EncounterReservation(encounterId, recipe.name, requests, pressureTicks, recipe.recovery);
     }
 
