@@ -58,6 +58,17 @@ const CLAUDE_FILLED_TITLE_LINES = [
     '╚═╝        ╚═╝   ╚═╝  ╚═╝     '
 ];
 
+const FILLED_LOGO_FONT = Object.freeze({
+    V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
+    O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+    I: ['11111', '00100', '00100', '00100', '00100', '00100', '11111'],
+    D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+    P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    '*': ['00100', '10101', '01110', '11111', '01110', '10101', '00100']
+});
+
 export const ENEMY_ARCHIVE = Object.freeze([
     { type: 'drone', name: 'SKITTER', family: 'PACK SCOUT', glyphs: "'", behavior: 'Marks prey, then attacks in alternating lateral lunges.', weakness: 'Break locomotion tissue to ruin its flank rhythm.' },
     { type: 'shooter', name: 'BLOOMCASTER', family: 'SEED ARTILLERY', glyphs: '*', behavior: 'Shelters behind Carapaces and swells before firing seed fans.', weakness: 'Rupture the bright firing sac to cancel its volley.' },
@@ -362,6 +373,34 @@ export class UIManager {
         }
     }
 
+    stampFilledLogo(renderer, centerX, startY, horizontalScale = 1) {
+        const text = 'VOID*PTR';
+        const letterWidth = 5 * horizontalScale;
+        const gap = horizontalScale;
+        const totalWidth = text.length * letterWidth + (text.length - 1) * gap;
+        const startX = Math.floor(centerX - totalWidth / 2);
+        const gradient = ['#ffb06a', '#ff936f', '#f7798d', '#d86bae', '#ac6bd1', '#7f73e8'];
+        for (let letterIndex = 0; letterIndex < text.length; letterIndex++) {
+            const pattern = FILLED_LOGO_FONT[text[letterIndex]];
+            const letterX = startX + letterIndex * (letterWidth + gap);
+            for (let row = 0; row < pattern.length; row++) for (let col = 0; col < 5; col++) {
+                if (pattern[row][col] !== '1') continue;
+                for (let fill = 0; fill < horizontalScale; fill++) {
+                    const x = letterX + col * horizontalScale + fill;
+                    const colorIndex = Math.min(gradient.length - 1, Math.floor((x - startX) / Math.max(1, totalWidth) * gradient.length));
+                    this.stampCell(renderer, x, startY + row + 1, '▓', RENDER_CELL_TYPES.UI_BORDER, 0.24);
+                    const sx = Math.floor(renderer.camX) + x;
+                    const sy = Math.floor(renderer.camY) + startY + row + 1;
+                    if (renderer.customColors?.[sx]) renderer.customColors[sx][sy] = '#4d2949';
+                    this.stampCell(renderer, x, startY + row, '█', RENDER_CELL_TYPES.UI_TEXT, 1);
+                    const wx = Math.floor(renderer.camX) + x;
+                    const wy = Math.floor(renderer.camY) + startY + row;
+                    if (renderer.customColors?.[wx]) renderer.customColors[wx][wy] = gradient[colorIndex];
+                }
+            }
+        }
+    }
+
     stampBootScreen(renderer, bootTicks) {
         const viewCols = renderer.viewCols;
         const viewRows = renderer.viewRows;
@@ -471,6 +510,36 @@ export class UIManager {
         this.stampText(renderer, displayLabel, textX, textY, isHovered ? RENDER_CELL_TYPES.UI_TEXT : RENDER_CELL_TYPES.UI_BORDER, t, 'left', parentCc, parentCr);
     }
 
+    stampStaticLogo(renderer, cc, startY, t, parentCc, parentCr) {
+        const lines = [
+            '██╗   ██╗ ██████╗ ██╗██████╗     ██████╗ ████████╗██████╗ ',
+            '██║   ██║██╔═══██╗██║██╔══██╗    ██╔══██╗╚══██╔══╝██╔══██╗',
+            '██║   ██║██║   ██║██║██║  ██║    ██████╔╝   ██║   ██████╔╝',
+            '╚██╗ ██╔╝██║   ██║██║██║  ██║    ██╔═══╝    ██║   ██╔══██╗',
+            ' ╚████╔╝ ╚██████╔╝██║██████╔╝    ██║        ██║   ██║  ██║',
+            '  ╚═══╝   ╚═════╝ ╚═╝╚═════╝     ╚═╝        ╚═╝   ╚═╝  ╚═╝'
+        ];
+        const totalWidth = lines[0].length;
+        const startX = cc - Math.floor(totalWidth / 2);
+
+        for (let row = 0; row < lines.length; row++) {
+            const line = lines[row];
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === ' ') continue;
+                
+                const targetX = startX + i;
+                const targetY = startY + row;
+
+                const mx = Math.round(parentCc + (targetX - parentCc) * t);
+                const my = Math.round(parentCr + (targetY - parentCr) * t);
+                
+                const charUI = this.getUIChar(char, t);
+                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, 1.0);
+            }
+        }
+    }
+
     stampTitleScreen(renderer, mx, my) {
         this.updateTransition('menu');
         const t = this.transitionProgress;
@@ -482,9 +551,9 @@ export class UIManager {
 
         const mobileLandscape = renderer.isTouchLayout && renderer.width >= renderer.height;
         const compact = !mobileLandscape && (viewCols < 58 || viewRows < 35);
-        const panelW = compact ? Math.max(30, viewCols - 2) : Math.min(64, viewCols - 2);
         const spacious = !mobileLandscape && !compact && viewRows >= 48;
-        const panelH = compact ? Math.min(31, viewRows - 2) : spacious ? Math.min(46, viewRows - 2) : Math.min(30, viewRows - 2);
+        const panelW = compact ? Math.max(30, viewCols - 2) : Math.min(spacious ? 100 : 64, viewCols - 2);
+        const panelH = compact ? Math.min(31, viewRows - 2) : Math.min(33, viewRows - 2);
         const px = Math.floor((viewCols - panelW) / 2);
         const py = Math.floor((viewRows - panelH) / 2);
 
@@ -494,44 +563,38 @@ export class UIManager {
         this.stampPanel(renderer, px, py, panelW, panelH, t, cc, cr);
 
         if (compact) {
-            const title = viewCols >= 52 ? CLAUDE_TITLE_LINES : ['VOID * PTR'];
-            title.forEach((line, index) => this.stampGlitchyText(renderer, line, cc, py + 2 + index, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr));
-            const titleBottom = py + 2 + title.length;
-            this.stampText(renderer, 'LIVING TERMINAL BIOLOGY', cc, titleBottom, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-            this.stampLivingBand(renderer, titleBottom + 1, px + 2, px + panelW - 3, renderer.animationTime, 0.4);
+            const hasFilledLogo = panelW >= 58;
+            if (hasFilledLogo) this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
+            else this.stampGlitchyText(renderer, 'VOID * PTR', cc, py + 2, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            
             const buttonX = px + 3;
             const buttonW = panelW - 6;
-            const buttonStart = title.length > 1 ? py + 10 : py + 7;
+            const buttonStart = hasFilledLogo ? py + 11 : py + 7;
             this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', buttonX, buttonStart, buttonW, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', buttonX, buttonStart + 4, buttonW, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'bestiary', 'ORGANISM WIKI', buttonX, buttonStart + 8, buttonW, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'controls', 'HOW TO PLAY', buttonX, buttonStart + 12, buttonW, 3, t, mx, my, cc, cr);
             this.stampButton(renderer, 'settings', 'SETTINGS', buttonX, buttonStart + 16, buttonW, 3, t, mx, my, cc, cr);
         } else {
-            const titleLines = spacious ? CLAUDE_FILLED_TITLE_LINES : CLAUDE_TITLE_LINES;
-            const titleX = cc - Math.floor(titleLines[0].length / 2);
-            for (let i = 0; i < titleLines.length; i++) {
-                this.stampGlitchyText(renderer, titleLines[i], titleX, py + 2 + i, RENDER_CELL_TYPES.UI_TEXT, t, 'left', cc, cr);
-            }
-            const contentOffset = spacious ? 17 : 0;
-            this.stampLivingBand(renderer, py + 8 + contentOffset, px + 3, px + panelW - 4, renderer.animationTime, 0.45);
-            this.stampText(renderer, 'MANUAL FIRE // LIVING ENEMIES // NO SAFE BUILD', cc, py + 9 + contentOffset, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
+            
+            this.stampText(renderer, 'MANUAL FIRE // LIVING ENEMIES // NO SAFE BUILD', cc, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
             const leftX = px + 3;
             const rightX = px + panelW - 26;
-            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, py + 11 + contentOffset, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, py + 11 + contentOffset, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, py + 15 + contentOffset, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'controls', 'How To Play', rightX, py + 15 + contentOffset, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, py + 13, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, py + 13, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, py + 17, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'controls', 'How To Play', rightX, py + 17, 23, 3, t, mx, my, cc, cr);
             if (mobileLandscape) {
-                this.stampButton(renderer, 'settings', 'Settings', leftX, py + 19 + contentOffset, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', leftX, py + 21, 23, 3, t, mx, my, cc, cr);
                 const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
-                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', rightX + 11, py + 20 + contentOffset, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', rightX, py + 19 + contentOffset, 23, 3, t, mx, my, cc, cr);
+                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', rightX + 11, py + 22, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', rightX, py + 21, 23, 3, t, mx, my, cc, cr);
             } else {
-                this.stampButton(renderer, 'settings', 'Settings', cc - 11, py + 19 + contentOffset, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', cc - 11, py + 21, 23, 3, t, mx, my, cc, cr);
             }
-            this.stampText(renderer, 'WASD MOVE | HOLD AIM TO FIRE | SPACE DASH', cc, py + 24 + contentOffset, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
-            this.stampLivingBand(renderer, py + 26 + contentOffset, px + 4, px + panelW - 5, renderer.animationTime + 73, 0.32);
+            if (panelH >= 29) this.stampText(renderer, 'WASD MOVE | HOLD AIM TO FIRE | SPACE DASH', cc, py + 26, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            
         }
     }
 

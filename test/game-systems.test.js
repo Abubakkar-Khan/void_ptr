@@ -192,7 +192,9 @@ test('progression and combat baselines match the faster ten-minute cadence', () 
     assert.equal(PROGRESSION_CONFIG.pickupMagnetRadius, 28);
     assert.deepEqual(BOSS_SCHEDULE_TICKS, [9000, 19800, 32400]);
     assert.equal(WEAPON_DEFS.auto_blaster.baseDamage, 10);
-    assert.ok(ENEMY_DEFS.drone.hp <= WEAPON_DEFS.auto_blaster.baseDamage * 2);
+    assert.ok(ENEMY_DEFS.drone.hp > WEAPON_DEFS.auto_blaster.baseDamage * 2);
+    assert.ok(ENEMY_DEFS.drone.hp <= WEAPON_DEFS.auto_blaster.baseDamage * 3);
+    assert.ok(ENEMY_DEFS.kamikaze.hp > WEAPON_DEFS.seeker_rockets.baseDamage);
     assert.equal('blackhole' in ENEMY_DEFS, false);
 });
 

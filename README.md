@@ -68,7 +68,7 @@ Combat is intended to feel powerful without becoming automatic. Basic enemies di
 
 The game starts with a living BIOS germination sequence rather than dropping directly into combat. It reports manual-fire linking, cellular-life detection, B3/S23 stability, and executable state while animated glyph tissue grows around the terminal log. It completes in roughly 2.4 seconds and can be skipped with any keyboard, pointer, gamepad, or touch input.
 
-The title screen presents five primary choices beneath a large block-glyph `VOID * PTR` wordmark, restored in the dramatic original terminal-title style, with evolving cellular bands behind it:
+The title screen presents five primary choices beneath a generated, filled-cell `VOID * PTR` logo. A compact bitmap alphabet expands each letter into solid `█` tissue, adds a `▓` terminal shadow, and applies a warm coral-to-violet per-cell gradient in the renderer. This is a CLI-logo treatment rather than a conventional font or outlined FIGlet banner. Evolving cellular bands remain behind it:
 
 - **Start 10-Min Run:** choose a hull and begin the standard boss run.
 - **Endless Process:** choose a hull and play without a victory timer.
@@ -381,7 +381,7 @@ Difficulty is driven by encounter composition and spatial pressure instead of un
 - Enemy mixes combine pursuit, ranged fire, shielding, formations, infection, and ecosystem pressure.
 - Enemy projectile pace increases later in the run while preserving directional warnings.
 - Boss phase two increases attack pressure modestly rather than multiplying health.
-- Ordinary targets are generally intended to die in one to three solid hits; Brutes, elites, evolved organisms, and bosses provide durability.
+- Ordinary targets now survive at least one unmodified starting-weapon hit and generally require two to five solid hits. Brutes, support organisms, elites, evolved organisms, and bosses provide greater durability.
 
 The director pauses major spawning during recovery windows and recognizes overtime/final-boss state explicitly.
 
