@@ -98,10 +98,15 @@ export const COMBAT_CONFIG = {
     aimAssistConeRadians: Math.PI * (32 / 180),
     aimAssistStrength: 0.22,
     projectileHitboxScale: 1.25,
-    normalPopulationCap: 60,
-    ecosystemPopulationCap: 28,
+    normalPopulationCap: 36,
+    ecosystemPopulationCap: 12,
     ecosystemTerrainCap: 240,
-    ecosystemDenseThreshold: 3
+    ecosystemDenseThreshold: 3,
+    spawnSafeRadius: 18,
+    spawnCameraMargin: 4,
+    normalEmergenceTicks: 60,
+    localEmergenceTicks: 60,
+    bossEmergenceTicks: 90
 };
 
 export const PROGRESSION_CONFIG = {

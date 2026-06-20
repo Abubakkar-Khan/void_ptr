@@ -350,9 +350,9 @@ class GameEngine {
         weapons.update(enemies.enemies);
         enemies.update(player, renderer.cols, renderer.rows);
         enemies.elapsedSeconds = waves.elapsedSeconds;
-        ecosystem.update(enemies, player);
+        ecosystem.update(enemies, player, renderer);
         pickups.update(player, enemies.enemies);
-        waves.update(renderer);
+        waves.update(renderer, player);
         if (waves.timeElapsed % 120 === 0) audio.setIntensity(waves.threatTier, enemies.enemies.some(e => e && BOSS_TYPES.has(e.type) && e.hp > 0));
 
         this.resolveCollisions();
@@ -398,6 +398,7 @@ class GameEngine {
 
             for (let e = eEnemies.length - 1; e >= 0; e--) {
                 const enemy = eEnemies[e];
+                if (enemy.isTargetable && !enemy.isTargetable()) continue;
                 if (bullet.hitEnemies?.has(enemy)) continue;
                 const eBox = enemy.getHitbox();
 
@@ -406,7 +407,7 @@ class GameEngine {
                     enemy.applyKnockback(bullet.vx, bullet.vy);
                     
                     const isDead = enemy.takeDamage({ amount: bullet.damage, source: bullet.type, damageType: bullet.type === 'rocket' ? 'splash' : 'bullet', hitX: bullet.x, hitY: bullet.y, directionX: bullet.vx, directionY: bullet.vy, force: Math.hypot(bullet.vx, bullet.vy) });
-                    if (bullet.type !== 'laser' || Math.random() < 0.15) {
+                    if (bullet.type === 'rocket' || Math.random() < 0.28) {
                         effects.spawnImpactSparks(bullet.x, bullet.y);
                     }
                     if (bullet.type === 'rocket') renderer.triggerShake(3, 0.8);
@@ -445,6 +446,7 @@ class GameEngine {
         // Enemies vs Player
         for (let e = eEnemies.length - 1; e >= 0; e--) {
             const enemy = eEnemies[e];
+            if (enemy.isActive && !enemy.isActive()) continue;
             if (collision.checkOverlap(enemy.getContactHitbox(), pHitbox)) {
                 if (player.takeDamage(1, enemy.type)) {
                     const dx = player.x - enemy.x;

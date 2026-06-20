@@ -242,7 +242,7 @@ export class Player {
             effects.spawnGlitchExplosion(this.x + 1.5, this.y + 1.5, '#00ff41', 40);
             if (enemies && enemies.enemies) {
                 for (const e of enemies.enemies) {
-                    if (e && e.x !== undefined && e.type !== 'boss_snake' && e.type !== 'boss_eye' && e.type !== 'boss_carrier') {
+                    if (e && e.x !== undefined && (!e.isTargetable || e.isTargetable()) && e.type !== 'boss_snake' && e.type !== 'boss_eye' && e.type !== 'boss_carrier') {
                         e.hp = 0; // kill standard enemies nearby
                     }
                 }
@@ -405,7 +405,7 @@ export class Player {
                 const py = this.y + 1.5;
                 const dashRadius = 2.8;
                 for (const e of enemiesList) {
-                    if (!e || e.x === undefined || e.y === undefined || e.type === undefined) continue;
+                    if (!e || e.x === undefined || e.y === undefined || e.type === undefined || (e.isTargetable && !e.isTargetable())) continue;
                     const ew = e.width !== undefined ? e.width : 1;
                     const ex = e.x + ew / 2;
                     const ey = e.y + (e.height !== undefined ? e.height : 1) / 2;
@@ -553,12 +553,12 @@ export class Player {
                 const py = this.y + this.height/2;
                 let zapped = 0;
                 const nearby = enemiesList
-                    .filter(e => e && e.x !== undefined && e.y !== undefined)
+                    .filter(e => e && e.x !== undefined && e.y !== undefined && (!e.isTargetable || e.isTargetable()))
                     .map(e => ({ e, d: Math.hypot(e.x + e.width / 2 - px, e.y + e.height / 2 - py) }))
                     .filter(entry => entry.d < 20)
                     .sort((a, b) => a.d - b.d);
                 for (const { e } of nearby) {
-                    if (!e || e.x === undefined || e.y === undefined) continue;
+                    if (!e || e.x === undefined || e.y === undefined || (e.isTargetable && !e.isTargetable())) continue;
                     const ew = e.width !== undefined ? e.width : 1;
                     const eh = e.height !== undefined ? e.height : 1;
                     const dx = e.x + ew/2 - px;
@@ -594,7 +594,7 @@ export class Player {
             this.freezeCooldown--;
             if (this.freezeCooldown <= 0) {
                 for (const e of enemiesList) {
-                    if (!e) continue;
+                    if (!e || (e.isActive && !e.isActive())) continue;
                     if (BOSS_TYPES.has(e.type)) continue;
                     e.frozenTimer = 180; // 3 seconds freeze
                     const ew = e.width !== undefined ? e.width : 1;
@@ -632,7 +632,7 @@ export class Player {
                 
                 // Deal damage and knockback to enemies within radius 20
                 for (const e of enemiesList) {
-                    if (!e || e.x === undefined || e.y === undefined) continue;
+                    if (!e || e.x === undefined || e.y === undefined || (e.isTargetable && !e.isTargetable())) continue;
                     const ew = e.width !== undefined ? e.width : 1;
                     const eh = e.height !== undefined ? e.height : 1;
                     const dx = (e.x + ew / 2) - px;

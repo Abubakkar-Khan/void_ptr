@@ -1,8 +1,18 @@
-import { enemies } from './enemies.js';
+import { enemies, EnemySpawnRequest } from './enemies.js';
 import { effects } from './effects.js';
-import { BOSS_SCHEDULE_TICKS, BOSS_TYPES, ENEMY_DEFS, NORMAL_ENEMY_TYPES } from './config.js';
+import { BOSS_SCHEDULE_TICKS, BOSS_TYPES, COMBAT_CONFIG, ENEMY_DEFS, NORMAL_ENEMY_TYPES } from './config.js';
 
 const BOSS_ORDER = ['boss_snake', 'boss_eye', 'boss_carrier'];
+
+export class EncounterReservation {
+    constructor(id, name, requests, pressureTicks, recoveryTicks) {
+        this.id = id;
+        this.name = name;
+        this.requests = requests;
+        this.pressureTicks = pressureTicks;
+        this.recoveryTicks = recoveryTicks;
+    }
+}
 
 export class Director {
     constructor() {
@@ -20,6 +30,7 @@ export class Director {
         this.bossIndex = 0;
         this.bossWasAlive = false;
         this.encounterName = 'BOOTSTRAP';
+        this.encounterCounter = 0;
     }
 
     startGame() {
@@ -34,7 +45,7 @@ export class Director {
         return 1 + Math.floor(this.elapsedSeconds / 60);
     }
 
-    update(rendererInstance) {
+    update(rendererInstance, player = null) {
         if (!this.inProgress) return;
         this.timeElapsed++;
 
@@ -61,16 +72,15 @@ export class Director {
         this.spawnTimer--;
         if (bossAlive && this.threatTier < 5) return;
         if (this.spawnTimer <= 0) {
-            const recovery = this.spawnEncounter(rendererInstance) || 0;
-            const pressure = Math.min(60, this.elapsedSeconds / 8);
-            this.spawnTimer = Math.max(20, 88 - pressure) + recovery;
+            const reservation = this.spawnEncounter(rendererInstance, player);
+            this.spawnTimer = reservation ? reservation.pressureTicks + reservation.recoveryTicks : 120;
         }
     }
 
     getAvailableTypes() {
         const seconds = this.elapsedSeconds;
         const available = ['drone'];
-        if (seconds >= 35) available.push('shooter');
+        if (seconds >= 25) available.push('shooter');
         if (seconds >= 75) available.push('worm', 'kamikaze');
         if (seconds >= 130) available.push('virus');
         if (seconds >= 150) available.push('cell_parasite');
@@ -80,40 +90,54 @@ export class Director {
         return available;
     }
 
-    spawnEncounter(rendererInstance) {
+    spawnEncounter(rendererInstance, player = null) {
         const normalCount = enemies.enemies.filter(e => e && NORMAL_ENEMY_TYPES.has(e.type)).length;
-        if (normalCount >= 60) return;
+        const remainingSlots = Math.max(0, 36 - normalCount);
+        if (remainingSlots < 2) return null;
 
         const available = this.getAvailableTypes();
         const tier = this.threatTier;
         const recipes = [
-            { name: 'HUNTING RING', types: ['drone'], bonus: 3, formation: 'ring', recovery: 18 },
-            { name: 'MOVING NEST', types: ['brute', 'shooter'], bonus: 0, formation: 'cluster', recovery: 34 },
-            { name: 'HERDING CURRENT', types: ['worm', 'drone'], bonus: 1, formation: 'line', recovery: 26 },
-            { name: 'DIVISION FIELD', types: ['virus'], bonus: 1, formation: 'mirror', recovery: 30 },
-            { name: 'PARASITE MIGRATION', types: ['cell_parasite', 'drone'], bonus: 1, formation: 'line', recovery: 24 },
-            { name: 'ROOT TERRITORY', types: ['brute', 'shield_projector'], bonus: 0, formation: 'cluster', recovery: 38 },
-            { name: 'PREDATOR FEED', types: ['cell_amalgam', 'cell_spore'], bonus: 0, formation: 'cluster', recovery: 42 },
-            { name: 'PANIC BLOOM', types: ['kamikaze', 'drone'], bonus: 2, formation: 'arc', recovery: 28 }
+            { name: 'HUNTING RING', types: ['drone'], bonus: 3, formation: 'arc', recovery: 180 },
+            { name: 'MOVING NEST', types: ['brute', 'shooter'], bonus: 0, formation: 'cluster', recovery: 300 },
+            { name: 'HERDING CURRENT', types: ['worm', 'drone'], bonus: 1, formation: 'line', recovery: 240 },
+            { name: 'DIVISION FIELD', types: ['virus'], bonus: 1, formation: 'mirror', recovery: 270 },
+            { name: 'PARASITE MIGRATION', types: ['cell_parasite', 'drone'], bonus: 1, formation: 'line', recovery: 240 },
+            { name: 'ROOT TERRITORY', types: ['brute', 'shield_projector'], bonus: 0, formation: 'cluster', recovery: 330 },
+            { name: 'PREDATOR FEED', types: ['cell_amalgam', 'cell_spore'], bonus: 0, formation: 'cluster', recovery: 360 },
+            { name: 'PANIC BLOOM', types: ['kamikaze', 'drone'], bonus: 2, formation: 'arc', recovery: 270 }
         ].filter(recipe => recipe.types.every(type => available.includes(type)));
 
         const recipe = recipes.length && Math.random() < 0.55
             ? recipes[Math.floor(Math.random() * recipes.length)]
-            : { name: 'WILD PROCESSES', types: available, bonus: 0, formation: 'line', recovery: 8 };
+            : { name: 'WILD PROCESSES', types: available.slice(-2), bonus: 0, formation: 'line', recovery: 210 };
         this.encounterName = recipe.name;
-        const anchor = this.getEdgeSpawn(rendererInstance, 6);
+        const anchor = this.getEdgeSpawn(rendererInstance, COMBAT_CONFIG.spawnCameraMargin + 2);
+        const encounterId = `encounter-${++this.encounterCounter}`;
 
         let budget = Math.min(26, 5 + tier * 2 + recipe.bonus);
         let safety = 0;
-        while (budget >= 1 && safety++ < 24 && enemies.enemies.length < 63) {
+        const requests = [];
+        while (budget >= 1 && safety++ < 24 && requests.length < remainingSlots) {
             const affordable = recipe.types.filter(type => (ENEMY_DEFS[type]?.cost || 1) <= budget);
             if (!affordable.length) break;
             const type = affordable[Math.floor(Math.random() * affordable.length)];
             const pos = this.getFormationPosition(rendererInstance, anchor, recipe.formation, safety);
-            enemies.spawn(pos.x + (Math.random() - 0.5) * 1.5, pos.y + (Math.random() - 0.5) * 1.5, type);
+            const safePos = this.ensureSafeSpawn({
+                x: pos.x + (Math.random() - 0.5) * 1.5,
+                y: pos.y + (Math.random() - 0.5) * 1.5
+            }, rendererInstance, player);
+            requests.push(new EnemySpawnRequest(
+                safePos.x,
+                safePos.y,
+                type,
+                { source: 'encounter', encounterId, emergenceTicks: 60 }
+            ));
             budget -= ENEMY_DEFS[type]?.cost || 1;
         }
-        return recipe.recovery;
+        if (requests.length < 2 || enemies.reserveEncounter(requests).length !== requests.length) return null;
+        const pressureTicks = Math.round(Math.max(12, Math.min(25, 12 + tier * 1.25)) * 60);
+        return new EncounterReservation(encounterId, recipe.name, requests, pressureTicks, recipe.recovery);
     }
 
     getFormationPosition(rendererInstance, anchor, formation, index) {
@@ -122,10 +146,9 @@ export class Director {
         const toward = Math.atan2(centerY - anchor.y, centerX - anchor.x);
         const tangentX = -Math.sin(toward), tangentY = Math.cos(toward);
         if (formation === 'ring' || formation === 'arc') {
-            const arc = formation === 'ring' ? Math.PI * 1.45 : Math.PI * 0.8;
-            const angle = toward - arc / 2 + (index % 9) / 8 * arc;
-            const radius = Math.max(12, Math.min(rendererInstance.viewCols, rendererInstance.viewRows) * 0.42);
-            return { x: centerX - Math.cos(angle) * radius, y: centerY - Math.sin(angle) * radius };
+            const spread = (index % 9 - 4) * 3;
+            const depth = Math.floor(index / 9) * 2;
+            return { x: anchor.x + tangentX * spread - Math.cos(toward) * depth, y: anchor.y + tangentY * spread - Math.sin(toward) * depth };
         }
         if (formation === 'cluster') return { x: anchor.x + (index % 3 - 1) * 4, y: anchor.y + (Math.floor(index / 3) % 3 - 1) * 3 };
         if (formation === 'mirror') {
@@ -133,6 +156,37 @@ export class Director {
             return { x: anchor.x + tangentX * side * (3 + index), y: anchor.y + tangentY * side * (3 + index) };
         }
         return { x: anchor.x + tangentX * (index - 4) * 2.5, y: anchor.y + tangentY * (index - 4) * 2.5 };
+    }
+
+    ensureSafeSpawn(position, rendererInstance, player) {
+        let x = position.x;
+        let y = position.y;
+        if (player) {
+            const px = player.x + player.width / 2;
+            const py = player.y + player.height / 2;
+            const dx = x - px;
+            const dy = y - py;
+            const distance = Math.hypot(dx, dy) || 1;
+            if (distance < COMBAT_CONFIG.spawnSafeRadius) {
+                x = px + dx / distance * COMBAT_CONFIG.spawnSafeRadius;
+                y = py + dy / distance * COMBAT_CONFIG.spawnSafeRadius;
+            }
+        }
+        const left = rendererInstance.camX - COMBAT_CONFIG.spawnCameraMargin;
+        const right = rendererInstance.camX + rendererInstance.viewCols + COMBAT_CONFIG.spawnCameraMargin;
+        const top = rendererInstance.camY - COMBAT_CONFIG.spawnCameraMargin;
+        const bottom = rendererInstance.camY + rendererInstance.viewRows + COMBAT_CONFIG.spawnCameraMargin;
+        const insideX = x > left && x < right;
+        const insideY = y > top && y < bottom;
+        if (insideX && insideY) {
+            const distances = [Math.abs(x - left), Math.abs(right - x), Math.abs(y - top), Math.abs(bottom - y)];
+            const nearest = distances.indexOf(Math.min(...distances));
+            if (nearest === 0) x = left;
+            else if (nearest === 1) x = right;
+            else if (nearest === 2) y = top;
+            else y = bottom;
+        }
+        return { x, y };
     }
 
     getEdgeSpawn(rendererInstance, padding = 6) {
@@ -155,7 +209,7 @@ export class Director {
 
     spawnBoss(rendererInstance, type = 'boss_snake') {
         const pos = this.getEdgeSpawn(rendererInstance, 10);
-        const boss = enemies.spawn(pos.x, pos.y, type);
+        const boss = enemies.spawn(pos.x, pos.y, type, { source: 'boss', emergenceTicks: 90 });
         if (boss) {
             const hpScale = 1 + Math.max(0, this.threatTier - 1) * 0.12;
             boss.hp = Math.round(boss.hp * hpScale);

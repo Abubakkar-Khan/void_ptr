@@ -6,7 +6,7 @@ import { Director } from '../src/waves.js';
 import { Player } from '../src/player.js';
 import { upgrades } from '../src/upgrades.js';
 import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PALETTE, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
-import { Enemy, enemies } from '../src/enemies.js';
+import { BehaviorState, Enemy, enemies, EnemyManagerClass, EnemySpawnRequest, SpawnLifecycle } from '../src/enemies.js';
 import { EcosystemSystem } from '../src/ecosystem.js';
 import { StatsTracker } from '../src/stats.js';
 import { UIManager } from '../src/ui.js';
@@ -592,4 +592,61 @@ test('combat rituals telegraph attacks and organ destruction increases the kill 
     const attack = caster.organs.find(organ => organ.type === 'attack');
     caster.takeDamage({ amount: 30, damageType: 'bullet', hitX: caster.x + attack.x, hitY: caster.y + attack.y, directionX: 1 });
     assert.ok(caster.xpValue > startingXp);
+});
+
+test('germinating enemies are inert, untargetable, and activate only after emergence', () => {
+    const manager = new EnemyManagerClass();
+    manager.reset(9001);
+    const enemy = manager.requestSpawn(new EnemySpawnRequest(10, 10, 'drone', {
+        source: 'test_birth', emergenceTicks: 4, safeRadius: 18
+    }));
+    const player = { x: 10, y: 10, width: 3, height: 3 };
+    assert.equal(enemy.spawnLifecycle, SpawnLifecycle.GERMINATING);
+    assert.equal(enemy.behaviorState, BehaviorState.EMERGE);
+    assert.equal(enemy.isTargetable(), false);
+    assert.equal(enemy.getContactHitbox().width, 0);
+    const hp = enemy.hp;
+    assert.equal(enemy.takeDamage(999), false);
+    assert.equal(enemy.hp, hp);
+    for (let tick = 0; tick < 4; tick++) manager.update(player, 100, 100);
+    assert.equal(enemy.spawnLifecycle, SpawnLifecycle.ACTIVE);
+    assert.equal(enemy.behaviorState, BehaviorState.SEEK);
+    assert.ok(Math.hypot(enemy.x + enemy.width / 2 - 11.5, enemy.y + enemy.height / 2 - 11.5) >= 17.9);
+    assert.equal(manager.projectiles.length, 0);
+});
+
+test('encounter reservation is atomic and includes germinating organisms in population caps', () => {
+    const manager = new EnemyManagerClass();
+    manager.reset(77);
+    for (let index = 0; index < COMBAT_CONFIG.normalPopulationCap - 1; index++) {
+        manager.spawn(index, 1, 'drone', { emergenceTicks: 60 });
+    }
+    const before = manager.enemies.length;
+    const result = manager.reserveEncounter([
+        new EnemySpawnRequest(1, 1, 'drone', { encounterId: 'overflow' }),
+        new EnemySpawnRequest(2, 1, 'drone', { encounterId: 'overflow' })
+    ]);
+    assert.deepEqual(result, []);
+    assert.equal(manager.enemies.length, before);
+});
+
+test('wave encounters reserve outside the camera instead of appearing around the player', () => {
+    enemies.reset(321);
+    const director = new Director();
+    director.startGame();
+    const view = { camX: 40, camY: 30, viewCols: 60, viewRows: 32, cols: 180, rows: 120 };
+    const player = { x: 68, y: 44, width: 3, height: 3 };
+    const reservation = director.spawnEncounter(view, player);
+    assert.ok(reservation);
+    assert.ok(reservation.pressureTicks >= 12 * 60);
+    assert.ok(reservation.recoveryTicks >= 3 * 60);
+    for (const enemy of enemies.enemies) {
+        const insideCamera = enemy.x > view.camX - COMBAT_CONFIG.spawnCameraMargin
+            && enemy.x < view.camX + view.viewCols + COMBAT_CONFIG.spawnCameraMargin
+            && enemy.y > view.camY - COMBAT_CONFIG.spawnCameraMargin
+            && enemy.y < view.camY + view.viewRows + COMBAT_CONFIG.spawnCameraMargin;
+        assert.equal(insideCamera, false);
+        assert.equal(enemy.spawnLifecycle, SpawnLifecycle.GERMINATING);
+        assert.ok(Math.hypot(enemy.x - player.x, enemy.y - player.y) >= COMBAT_CONFIG.spawnSafeRadius);
+    }
 });

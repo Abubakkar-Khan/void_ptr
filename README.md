@@ -331,8 +331,8 @@ Boss transitions are expressed through organ failure, molting, fragmentation, di
 
 Difficulty is driven by encounter composition and spatial pressure instead of universal health inflation.
 
-- Normal enemy population cap: 60.
-- Cellular combatant cap: 28.
+- Normal enemy population cap: 36, including organisms still germinating.
+- Active cellular combatant cap: 12; environmental colony terrain has its own budget.
 - Cellular terrain cap: 240.
 - Threat budget rises throughout the run.
 - Enemy mixes combine pursuit, ranged fire, shielding, formations, infection, and ecosystem pressure.
@@ -344,7 +344,7 @@ The director pauses major spawning during recovery windows and recognizes overti
 
 Authored encounter recipes replace completely arbitrary enemy mixtures:
 
-- **Hunting Ring:** Skitters approach from an arc around the player.
+- **Hunting Ring:** Skitters enter from an off-screen arc and alternate their lunges.
 - **Moving Nest:** Carapaces shelter Bloomcasters in a compact group.
 - **Herding Current:** Ribbons and Skitters arrive along a shared lane.
 - **Division Field:** Prisms enter as mirrored branches.
@@ -357,19 +357,21 @@ Complex encounters receive longer recovery gaps. At most two principal tactical 
 
 ## Enemy arrivals and spawning
 
+Every creation path now routes through one spawn lifecycle: `reserved -> germinating -> active -> dying`. The encounter director reserves the entire group before any member is created, preventing half-formed formations and population overflow.
+
 Enemies can enter the run through several systems:
 
 1. The main encounter director creates edge formations based on the current threat tier.
-2. The ecosystem triggers a cellular event every 90 seconds, placing spores, parasites, colony cells, or an Amalgam on a 25-cell radius around the player.
+2. The ecosystem triggers a cellular event every 90 seconds from beyond a camera edge.
 3. Prisms reproduce locally when their division cycle completes or a relevant organ ruptures.
 4. Dense colony cells can merge into an Amalgam.
 5. Parasites release spores from a destroyed host.
 6. Brutes divide into smaller Carapaces when their outer body collapses.
 7. Bosses shed tissue, detach sensory lobes, or grow organisms in visible brood bays.
 
-The current encounter-ring and ecosystem-event positions are calculated relative to the player. Because their `birthTimer` displays only a short genome signature instead of concealing and growing the body, formations may appear suddenly within the visible arena. This is a known presentation limitation rather than teleportation behavior or a renderer fault.
+Ordinary formations are placed at least four cells beyond the camera. Local births such as division, fusion, shed tissue, and boss broods are pushed outside an 18-cell player safety radius while they germinate. During the 48-90 tick emergence sequence, an organism grows from dim scattered cells into its stable body and displays a final directional activation pulse. Germinating organisms cannot move, fire, collide, deal contact damage, receive damage, or be selected by aim assistance.
 
-The intended follow-up is to reserve an arrival location, stamp a visible seed/rupture warning, grow the organism over several stages, and enable movement, collision, and attacks only after emergence completes.
+Encounters use a reserved threat budget followed by roughly 12-25 seconds of pressure and a 3-6 second recovery interval. This keeps arrivals legible and makes difficulty come from coordinated intentions rather than a continuous stream of surprise spawns.
 
 ## Experience pickups
 

@@ -98,6 +98,7 @@ export class OrganicField {
             release: this.transformFrames('release'),
             recovery: this.transformFrames('recovery')
         };
+        this.renderCache = new Map();
     }
 
     transformFrames(state) {
@@ -191,9 +192,13 @@ export class OrganicField {
     }
 
     render(enemy, animationTime) {
-        const frameIndex = Math.floor((animationTime + enemy.genome.pulseOffset) / 6) % this.frames.length;
+        const frameIndex = Math.floor((animationTime + enemy.genome.pulseOffset) / 7) % this.frames.length;
         const state = ['charge', 'gaze', 'iris', 'broadside', 'prepare', 'countdown', 'divide'].includes(enemy.attackState)
             ? 'prepare' : enemy.attackState === 'release' ? 'release' : enemy.attackState === 'recover' || enemy.attackState === 'ruptured' ? 'recovery' : 'idle';
+        const woundSignature = (enemy.organs || []).map(organ => organ.state[0]).join('');
+        const cacheKey = `${state}:${frameIndex}:${woundSignature}`;
+        const cached = this.renderCache.get(cacheKey);
+        if (cached) return cached;
         const cells = this.stateFrames[state][frameIndex];
         const grid = Array.from({ length: this.height }, () => Array(this.width).fill(' '));
         for (const cell of cells) {
@@ -215,7 +220,10 @@ export class OrganicField {
         if (!occupiedRows.length) return ['x'];
         const minX = Math.min(...occupiedRows.flatMap(entry => entry.row.map((glyph, x) => glyph === ' ' ? this.width : x)));
         const maxX = Math.max(...occupiedRows.flatMap(entry => entry.row.map((glyph, x) => glyph === ' ' ? -1 : x)));
-        return occupiedRows.map(entry => entry.row.slice(minX, maxX + 1).join(''));
+        const rendered = occupiedRows.map(entry => entry.row.slice(minX, maxX + 1).join(''));
+        if (this.renderCache.size >= 64) this.renderCache.clear();
+        this.renderCache.set(cacheKey, rendered);
+        return rendered;
     }
 }
 

@@ -20,7 +20,7 @@ export class ColonyMindSystem {
     rebuild(entities) {
         this.spatial.clear();
         for (const enemy of entities) {
-            if (!enemy || enemy.hp <= 0) continue;
+            if (!enemy || enemy.hp <= 0 || (enemy.isActive && !enemy.isActive())) continue;
             const key = keyFor(enemy.x, enemy.y);
             if (!this.spatial.has(key)) this.spatial.set(key, []);
             this.spatial.get(key).push(enemy);
@@ -55,7 +55,7 @@ export class ColonyMindSystem {
     }
 
     think(enemy, manager, player) {
-        if (!enemy || enemy.hp <= 0 || BOSS_TYPES.has(enemy.type) || !this.socialOrganWorks(enemy)) return;
+        if (!enemy || enemy.hp <= 0 || (enemy.isActive && !enemy.isActive()) || BOSS_TYPES.has(enemy.type) || !this.socialOrganWorks(enemy)) return;
         const neighbours = this.query(enemy.x, enemy.y, enemy.coordinationRadius || 18).filter(other => other !== enemy && !BOSS_TYPES.has(other.type));
         const allies = neighbours.filter(other => other.genome?.family === enemy.genome?.family || this.compatible(enemy, other));
         if (allies.length) this.assignPack(enemy, allies);
@@ -86,6 +86,7 @@ export class ColonyMindSystem {
     compatible(a, b) {
         const pair = new Set([a.genome?.family, b.genome?.family]);
         return (pair.has(SpeciesFamily.SKITTER) && pair.has(SpeciesFamily.BLOOMCASTER))
+            || (pair.has(SpeciesFamily.BLOOMCASTER) && pair.has(SpeciesFamily.CARAPACE))
             || (pair.has(SpeciesFamily.CARAPACE) && pair.has(SpeciesFamily.ROOTWEAVER))
             || (pair.has(SpeciesFamily.PARASITE) && !ECOSYSTEM_TYPES.has(b.type));
     }

@@ -12,7 +12,7 @@ export function findNearestTarget(originX, originY, enemiesList, maxRadius = COM
     let target = null;
     let bestDistance = maxRadius;
     for (const enemy of enemiesList || []) {
-        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0) continue;
+        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0 || (enemy.isTargetable && !enemy.isTargetable())) continue;
         const ex = enemy.x + (enemy.width || 1) / 2;
         const ey = enemy.y + (enemy.height || 1) / 2;
         const distance = Math.hypot(ex - originX, ey - originY);
@@ -29,7 +29,7 @@ export function resolveAssistedAim(originX, originY, manualVector, enemiesList, 
     let best = null;
     let bestAngle = COMBAT_CONFIG.aimAssistConeRadians;
     for (const enemy of enemiesList || []) {
-        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0) continue;
+        if (!enemy || enemy.hp <= 0 || enemy.introTimer > 0 || (enemy.isTargetable && !enemy.isTargetable())) continue;
         const dx = enemy.x + (enemy.width || 1) / 2 - originX;
         const dy = enemy.y + (enemy.height || 1) / 2 - originY;
         const distance = Math.hypot(dx, dy);
@@ -104,7 +104,7 @@ export class Projectile {
                 let minDist = 40; 
                 this.targetEnemy = null;
                 for (const e of enemiesList) {
-                    if (!e || e.x === undefined || e.y === undefined) continue;
+                    if (!e || e.x === undefined || e.y === undefined || (e.isTargetable && !e.isTargetable())) continue;
                     const dx = e.x - this.x;
                     const dy = e.y - this.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
@@ -328,7 +328,7 @@ class WeaponSystem {
                     if (enemies && enemies.enemies) {
                         const cellHitbox = { x: tx - 0.5, y: ty - 0.5, width: 1.0, height: 1.0 };
                         for (const enemy of enemies.enemies) {
-                            if (enemy && enemy.hp > 0 && !hitEnemies.has(enemy)) {
+                            if (enemy && enemy.hp > 0 && (!enemy.isTargetable || enemy.isTargetable()) && !hitEnemies.has(enemy)) {
                                 const eBox = enemy.getHitbox();
                                 if (collision.checkOverlap(cellHitbox, eBox)) {
                                     hitEnemies.add(enemy);

@@ -6,6 +6,7 @@ const LATTICE = 2;
 const keyFor = (x, y) => `${Math.round(x / LATTICE)},${Math.round(y / LATTICE)}`;
 const terrainKey = (x, y) => `${Math.round(x)},${Math.round(y)}`;
 const isCell = enemy => enemy && ECOSYSTEM_TYPES.has(enemy.type);
+const isActiveCell = enemy => isCell(enemy) && (!enemy.isActive || enemy.isActive());
 
 export class EcosystemSystem {
     constructor() {
@@ -107,14 +108,14 @@ export class EcosystemSystem {
         }
     }
 
-    update(manager, player) {
+    update(manager, player, renderer = null) {
         this.tick++;
         for (let i = this.nutrients.length - 1; i >= 0; i--) {
             if (--this.nutrients[i].life <= 0) this.nutrients.splice(i, 1);
         }
         if (this.tick % 10 !== 0) return;
 
-        const ecosystem = manager.enemies.filter(isCell);
+        const ecosystem = manager.enemies.filter(isActiveCell);
         for (const entity of ecosystem) entity.ecosystemAge = (entity.ecosystemAge || 0) + 10;
         this.attachParasites(manager);
         this.settleSpores(manager);
@@ -127,12 +128,12 @@ export class EcosystemSystem {
             this.seed(manager, 1);
             this.seedTerrain(1, true);
         }
-        if (this.tick % (90 * 60) === 0) this.spawnEncounter(manager, player, this.tick / 60);
+        if (this.tick % (90 * 60) === 0) this.spawnEncounter(manager, player, this.tick / 60, renderer);
     }
 
     attachParasites(manager) {
-        const parasites = manager.enemies.filter(enemy => enemy?.type === 'cell_parasite');
-        const hosts = manager.enemies.filter(enemy => enemy && NORMAL_ENEMY_TYPES.has(enemy.type) && !ECOSYSTEM_TYPES.has(enemy.type));
+        const parasites = manager.enemies.filter(enemy => enemy?.type === 'cell_parasite' && (!enemy.isActive || enemy.isActive()));
+        const hosts = manager.enemies.filter(enemy => enemy && NORMAL_ENEMY_TYPES.has(enemy.type) && !ECOSYSTEM_TYPES.has(enemy.type) && (!enemy.isActive || enemy.isActive()));
         for (const parasite of parasites) {
             let host = null;
             let best = 2.4;
@@ -269,15 +270,36 @@ export class EcosystemSystem {
         }
     }
 
-    spawnEncounter(manager, player, seconds) {
+    spawnEncounter(manager, player, seconds, renderer = null) {
         const cycle = Math.floor(seconds / 90) % 4;
         const types = ['cell_spore', 'cell_parasite', 'cell_colony', 'cell_amalgam'];
         const type = types[cycle];
         const count = type === 'cell_amalgam' ? 1 : 4;
-        for (let i = 0; i < count && this.count(manager) < COMBAT_CONFIG.ecosystemPopulationCap; i++) {
-            const angle = (i / count) * Math.PI * 2 + seconds;
-            manager.spawn(player.x + Math.cos(angle) * 25, player.y + Math.sin(angle) * 25, type);
+        const encounterId = `ecosystem-${Math.floor(seconds)}`;
+        const margin = COMBAT_CONFIG.spawnCameraMargin + 2;
+        let anchorX;
+        let anchorY;
+        if (renderer) {
+            const edge = Math.floor(seconds / 90) % 4;
+            if (edge === 0) { anchorX = renderer.camX - margin; anchorY = renderer.camY + renderer.viewRows * 0.35; }
+            else if (edge === 1) { anchorX = renderer.camX + renderer.viewCols + margin; anchorY = renderer.camY + renderer.viewRows * 0.65; }
+            else if (edge === 2) { anchorX = renderer.camX + renderer.viewCols * 0.35; anchorY = renderer.camY - margin; }
+            else { anchorX = renderer.camX + renderer.viewCols * 0.65; anchorY = renderer.camY + renderer.viewRows + margin; }
+        } else {
+            const angle = seconds;
+            anchorX = player.x + Math.cos(angle) * (COMBAT_CONFIG.spawnSafeRadius + 8);
+            anchorY = player.y + Math.sin(angle) * (COMBAT_CONFIG.spawnSafeRadius + 8);
         }
+        const requests = [];
+        for (let i = 0; i < count && this.count(manager) < COMBAT_CONFIG.ecosystemPopulationCap; i++) {
+            requests.push({
+                x: anchorX + (i - (count - 1) / 2) * 3,
+                y: anchorY + Math.sin(i * 1.7) * 2,
+                type,
+                options: { source: 'ecosystem_event', encounterId, emergenceTicks: 66 }
+            });
+        }
+        manager.reserveEncounter?.(requests);
         if (cycle === 0) this.seedTerrain(3);
         else if (cycle === 1) {
             for (let i = 0; i < 12; i++) this.addTerrain(player.x + 18 + i * 2, player.y + Math.sin(i) * 5, 1, 'STACK');
