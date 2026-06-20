@@ -57,9 +57,9 @@ export const ORGANIC_FIELD_PROFILES = Object.freeze({
     colony: { width: 6, height: 6, glyphs: ['o'], density: 0.5, birth: [3], survive: [2, 3], maxCells: 22 },
     parasite: { width: 6, height: 3, glyphs: ['^'], density: 0.36, birth: [2, 3], survive: [1, 2, 3], maxCells: 12 },
     amalgam: { width: 12, height: 8, glyphs: ['&'], density: 0.6, birth: [3, 4], survive: [2, 3, 4], maxCells: 60 },
-    serpent: { width: 36, height: 9, glyphs: ['='], density: 0.46, birth: [2, 3], survive: [1, 2, 3], maxCells: 150 },
-    watcher: { width: 25, height: 17, glyphs: ['@'], density: 0.44, birth: [3], survive: [2, 3, 4], maxCells: 180 },
-    carrier: { width: 30, height: 17, glyphs: ['M'], density: 0.64, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 230 }
+    serpent: { width: 48, height: 13, glyphs: ['='], density: 0.55, birth: [2, 3], survive: [1, 2, 3], maxCells: 350 },
+    watcher: { width: 35, height: 23, glyphs: ['@'], density: 0.52, birth: [3], survive: [2, 3, 4], maxCells: 380 },
+    carrier: { width: 40, height: 23, glyphs: ['M'], density: 0.68, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 450 }
 });
 
 // These are growth grammars, not sprites. Each mark is a preferred tissue site;
@@ -76,9 +76,71 @@ const FAMILY_GROWTH_GRAMMARS = Object.freeze({
     colony: [' xx  ', 'xxxx ', ' xxx ', '  xxx', ' x x '],
     parasite: ['xx   ', ' xxxx', 'xx x '],
     amalgam: ['  xxx xxx ', ' xxxxxxxx ', 'xxx xx xxx', ' xxxxxxxx ', 'xxx xxxx  ', ' xx  xxxx ', '  xx xx   '],
-    serpent: ['xxxx                                ', ' xxxxxxx                            ', '      xxxxxxxx                      ', '             xxxxxxxxx              ', '                     xxxxxxxx       ', '                            xxxxxxxx', '                       xxxxxxxxx    ', '              xxxxxxxxx            ', '     xxxxxxxxx                      '],
-    watcher: ['        xxxxxxxxx        ', '    xxxx xxxxxxx xxxx    ', '  xxxx   xxxxxxx   xxxx  ', 'xxx   xxxxxxxxxxxxx   xxx', ' xx  xxxxx     xxxxx  xx ', 'xxxxx xxx  xxx  xxx xxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxxxxxx  xxxxxxx  xxxxxxx', ' xx  xxxxx  x  xxxxx  xx ', 'xxxxx xxx xxx xxx xxxxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxx   xxxxxxxxxxxxx   xxx', '  xxxx   xxxxxxx   xxxx  ', '    xxxx xxxxxxx xxxx    ', ' x    xxx  xxx  xxx    x ', '    x  x   xxx   x  x    ', '       x   x x   x       '],
-    carrier: ['      xxxxxx    xxxxxx      ', '  xxxxxxxxxxxxxxxxxxxxxxxxxx  ', 'xxxxx   xxxxxxxxxxxxxx   xxxxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'xxx xxxxx   xxxxxx   xxxxx xxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', ' xxxxx xxxxxxxxxxxxxxxxx xxxxx ', 'xxxxxxxxx   xxxxxx   xxxxxxxxx', 'xxx xxxxxxxxxxxxxxxxxxxxxxxx x', 'xxxxxxxx xxxxx  xxxxx xxxxxxxx', ' xxx  xxxxxxxxxxxxxxxxxxx  xxx ', 'xxxxx    xxxxxxxxxxxx    xxxxx', ' x xx  x xxxxxxxxxxxx x  xx x ', 'x   x     xxxxxxxxxx     x   x', 'x  x  x    xxxxxxxx   x  x  x', '   x       xxxxxx       x    ', '  x          xx          x   ']
+    serpent: [
+        'xxxx                                            ',
+        ' xxxxxxxx                                       ',
+        '   xxxxxxxxxx                                   ',
+        '       xxxxxxxxxxx                              ',
+        '             xxxxxxxxxxx                        ',
+        '                   xxxxxxxxxxxx                 ',
+        '                          xxxxxxxxxxx           ',
+        '                               xxxxxxxxxxxx     ',
+        '                                  xxxxxxxxxxxx  ',
+        '                              xxxxxxxxxxxx      ',
+        '                        xxxxxxxxxxxx            ',
+        '              xxxxxxxxxxxx                      ',
+        '       xxxxxxxxxxx                              '
+    ],
+    watcher: [
+        '              xxxxxxx              ',
+        '          xxxxxx   xxxxxx          ',
+        '        xxxxxx       xxxxxx        ',
+        '      xxxx               xxxx      ',
+        '     xxx                   xxx     ',
+        '    xxx                     xxx    ',
+        '   xxx  xxxxxxx     xxxxxxx  xxx   ',
+        '  xx  xxxxxxxxxxx xxxxxxxxxxx  xx  ',
+        ' xx  xxxxxxx   xxxxx   xxxxxxx  xx ',
+        ' x  xxxxx        x        xxxxx  x ',
+        'xx  xxxx         x         xxxx  xx',
+        'xx xxxxx         x         xxxxx xx',
+        'xx xxxxx        xxx        xxxxx xx',
+        'xx xxxxx         x         xxxxx xx',
+        'xx  xxxx         x         xxxx  xx',
+        ' x  xxxxx        x        xxxxx  x ',
+        ' xx  xxxxxxx   xxxxx   xxxxxxx  xx ',
+        '  xx  xxxxxxxxxxx xxxxxxxxxxx  xx  ',
+        '   xxx  xxxxxxx     xxxxxxx  xxx   ',
+        '    xxx                     xxx    ',
+        '     xxx                   xxx     ',
+        '      xxxx               xxxx      ',
+        '        xxxxxx       xxxxxx        '
+    ],
+    carrier: [
+        '         xxxxxxxxxxxxxxxxxxxxxxx        ',
+        '      xxxxxxxxxxxxxxxxxxxxxxxxxxxxx     ',
+        '    xxxxxxxx    xxxxxxxxx    xxxxxxxx   ',
+        '  xxxxxxx          xxx          xxxxxxx ',
+        ' xxxxxxxxxxx                 xxxxxxxxxxx',
+        ' xxxxxxxxxxxxx             xxxxxxxxxxxxx',
+        'xxxxxxxxxxxxxxxx         xxxxxxxxxxxxxxxx',
+        'xxxxxx   xxxxxxxxx     xxxxxxxxx   xxxxxx',
+        'xxxx       xxxxxxxxx xxxxxxxxx       xxxx',
+        'xxx          xxxxxxxxxxxxxxx          xxx',
+        'xx           xxxxxxxxxxxxxxx           xx',
+        'xxx          xxxxxxxxxxxxxxx          xxx',
+        'xxxx       xxxxxxxxx xxxxxxxxx       xxxx',
+        'xxxxxx   xxxxxxxxx     xxxxxxxxx   xxxxxx',
+        'xxxxxxxxxxxxxxxx         xxxxxxxxxxxxxxxx',
+        ' xxxxxxxxxxxxx             xxxxxxxxxxxxx',
+        ' xxxxxxxxxxx                 xxxxxxxxxxx',
+        '  xxxxxxx          xxx          xxxxxxx ',
+        '    xxxxxxxx    xxxxxxxxx    xxxxxxxx   ',
+        '      xxxxxxxxxxxxxxxxxxxxxxxxxxxxx     ',
+        '         xxxxxxxxxxxxxxxxxxxxxxx        ',
+        '            xxxxxxxxxxxxxxxxx           ',
+        '              xxxxxxxxxxxxx             '
+    ]
 });
 
 const cellKey = (x, y) => `${x},${y}`;

@@ -596,7 +596,7 @@ export class Enemy {
             const baseAngle = Math.atan2(dy, dx);
             const coilBias = this.attackCycle % 3 === 1 ? this.genome.bias * 0.72 : 0;
             const slitherAngle = baseAngle + Math.sin(this.waveTime) * 0.8 + coilBias;
-            const speedMult = this.phase === 2 ? 1.65 : 1;
+            const speedMult = this.phase === 2 ? 1.8 : 1.25;
             moveX = Math.cos(slitherAngle) * 0.04 * speedMult;
             moveY = Math.sin(slitherAngle) * 0.04 * speedMult;
             if (this.fireCooldown <= 30 && this.fireCooldown > 0) {
@@ -613,8 +613,8 @@ export class Enemy {
                     spawnedProjectiles.push(new EnemyProjectile(this.x + this.width / 2, this.y + this.height / 2, Math.cos(a) * (move === 1 ? 0.24 : 0.3), Math.sin(a) * (move === 1 ? 0.24 : 0.3), this.phase === 2 && spread === 0));
                 }
                 if (move === 0) {
-                    this.vx += Math.cos(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
-                    this.vy += Math.sin(this.lockedAimAngle) * (this.phase === 2 ? 1.25 : 0.85);
+                    this.vx += Math.cos(this.lockedAimAngle) * (this.phase === 2 ? 1.5 : 1.05);
+                    this.vy += Math.sin(this.lockedAimAngle) * (this.phase === 2 ? 1.5 : 1.05);
                 } else if (move === 2 && enemyManager) {
                     const count = this.phase === 2 ? 3 : 2;
                     for (let i = 0; i < count; i++) enemyManager.spawn(this.x + 2 + i * 4, this.y + this.height - 2, 'cell_spore', { source: 'serpent_shed', emergenceTicks: 54 });
@@ -630,18 +630,15 @@ export class Enemy {
             }
             if (this.life % 120 === 0) {
                 const travel = (this.life / 120) % 4;
-                this.weakPoints = [{ x: 2 + travel * 3, y: 2 + (travel % 2) * 4, width: 3, height: 3, phase: 1 }];
-                if (this.phase === 2) this.weakPoints.push({ x: this.width - 4 - travel * 2, y: 6 - (travel % 2) * 2, width: 3, height: 3, phase: 2 });
+                this.weakPoints = [{ x: 4 + travel * 4, y: 3 + (travel % 2) * 4, width: 4, height: 4, phase: 1 }];
+                if (this.phase === 2) this.weakPoints.push({ x: this.width - 6 - travel * 3, y: 8 - (travel % 2) * 3, width: 4, height: 4, phase: 2 });
             }
         }
         else if (this.type === 'boss_eye') {
             this.waveTime += 0.03;
-            if (dist > 28) {
-                moveX = (dx / dist) * 0.04;
-                moveY = (dy / dist) * 0.04;
-            } else if (dist < 18) {
-                moveX = -(dx / dist) * 0.025;
-                moveY = -(dy / dist) * 0.025;
+            if (dist > 15) {
+                moveX = (dx / dist) * 0.045;
+                moveY = (dy / dist) * 0.045;
             }
 
             const toPlayerA = Math.atan2(dy, dx);
@@ -683,8 +680,8 @@ export class Enemy {
             }
         }
         else if (this.type === 'boss_carrier') {
-            moveX = (dx / dist) * (this.phase === 2 ? 0.04 : 0.028);
-            moveY = (dy / dist) * (this.phase === 2 ? 0.04 : 0.028);
+            moveX = (dx / dist) * (this.phase === 2 ? 0.055 : 0.038);
+            moveY = (dy / dist) * (this.phase === 2 ? 0.055 : 0.038);
             const baseA = Math.atan2(dy, dx);
             if (this.fireCooldown <= 38 && this.fireCooldown > 0) {
                 this.attackState = this.attackCycle % 3 === 0 ? 'broadside' : this.attackCycle % 3 === 1 ? 'brood' : 'heartburst';
@@ -843,6 +840,13 @@ export class Enemy {
         } else {
             this.x = nextX;
             this.y = nextY;
+        }
+
+        if (BOSS_TYPES.has(this.type) && typeof gridCols !== 'undefined' && typeof gridRows !== 'undefined') {
+            if (this.x < 1) { this.x = 1; this.vx = Math.max(0, this.vx); }
+            if (this.y < 1) { this.y = 1; this.vy = Math.max(0, this.vy); }
+            if (this.x > gridCols - this.width - 1) { this.x = gridCols - this.width - 1; this.vx = Math.min(0, this.vx); }
+            if (this.y > gridRows - this.height - 1) { this.y = gridRows - this.height - 1; this.vy = Math.min(0, this.vy); }
         }
     }
 
@@ -1069,21 +1073,21 @@ export class Enemy {
         }
         else if (this.type === 'boss_carrier') {
             const CARRIER_PATTERNS = [
-                ['╔', '═', '═', '╦', '═', '╦', '╦', '╦', '╦', '╦', '╦', '═', '╦', '═', '═', '╗'],
-                ['║', '█', '█', '║', ' ', '║', '░', '░', '░', '░', '║', ' ', '║', '█', '█', '║'],
-                ['║', '█', '█', '╠', '═', '╬', '█', '█', '█', '█', '╬', '═', '╣', '█', '█', '║'],
-                ['╠', '═', '═', '╣', ' ', '║', '█', '☣', '☣', '█', '║', ' ', '╠', '═', '═', '╣'],
-                ['║', '░', '░', '║', ' ', '╚', '╦', '═', '═', '╦', '╝', ' ', '║', '░', '░', '║'],
-                ['║', '█', '█', '╠', '═', '═', '╬', '░', '░', '╬', '═', '═', '╣', '█', '█', '║'],
-                ['║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║'],
-                ['║', '░', '░', '║', ' ', ' ', '╚', '╦', '╦', '╝', ' ', ' ', '║', '░', '░', '║'],
-                ['╚', '╦', '╦', '╝', ' ', ' ', ' ', '║', '║', ' ', ' ', ' ', '╚', '╦', '╦', '╝'],
-                [' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ']
+                ['╔', '═', '═', '╦', '═', '╦', '╦', '╦', '╦', '╦', '╦', '╦', '╦', '╦', '═', '╦', '═', '═', '╗'],
+                ['║', '█', '█', '║', ' ', '║', '░', '░', '░', '░', '░', '░', '░', '║', ' ', '║', '█', '█', '║'],
+                ['║', '█', '█', '╠', '═', '╬', '█', '█', '█', '█', '█', '█', '█', '╬', '═', '╣', '█', '█', '║'],
+                ['╠', '═', '═', '╣', ' ', '║', '█', '☣', '☣', '█', '☣', '☣', '█', '║', ' ', '╠', '═', '═', '╣'],
+                ['║', '░', '░', '║', ' ', '╚', '╦', '═', '═', '╦', '═', '═', '╦', '╝', ' ', '║', '░', '░', '║'],
+                ['║', '█', '█', '╠', '═', '═', '╬', '░', '░', '╬', '░', '░', '╬', '═', '═', '╣', '█', '█', '║'],
+                ['║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║', '█', '█', '║', ' ', ' ', '║', '█', '█', '║'],
+                ['║', '░', '░', '║', ' ', ' ', '╚', '╦', '╦', '╝', '╦', '╦', '╝', ' ', ' ', '║', '░', '░', '║'],
+                ['╚', '╦', '╦', '╝', ' ', ' ', ' ', '║', '║', ' ', '║', '║', ' ', ' ', ' ', '╚', '╦', '╦', '╝'],
+                [' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ', '▼', '▼', ' ', ' ', ' ', ' ', '▼', '▼', ' ']
             ];
-            const ix = Math.floor(this.x);
-            const iy = Math.floor(this.y);
+            const ix = Math.floor(this.x) + 10; // Shifted over for wider boss
+            const iy = Math.floor(this.y) + 2;
             for (let row = 0; row < 10; row++) {
-                for (let col = 0; col < 16; col++) {
+                for (let col = 0; col < 19; col++) {
                     let char = CARRIER_PATTERNS[row][col];
                     if (row === 9 && char === '▼') {
                         const rand = Math.random();

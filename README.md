@@ -445,9 +445,54 @@ The XP bar is always placed at the bottom of the gameplay HUD.
 
 The game intentionally avoids lifetime records and detailed telemetry. Victory and Game Over show only the current run’s time, kills, level, and score. No performance history, per-species archive, account, telemetry service, or online leaderboard is maintained.
 
-## ASCII presentation and interface
+## ASCII Rendering Engine
 
-The renderer is a glyph-cell compositor over a single canvas. It separates world scale from UI layout so the arena remains readable while menus can reserve enough grid rows for content.
+The entire game uses a custom software-composed ASCII rendering pipeline, drawing monospaced text to a single HTML `<canvas>`. There are no DOM elements (aside from the canvas itself), WebGL shaders, or texture atlases involved in the visuals. 
+
+```mermaid
+flowchart TD
+    subgraph Update Loop
+        A[Game Entities]
+        B[Background / Matrix Rain]
+        C[UI & Menus]
+    end
+    
+    subgraph Virtual Grid Buffers
+        D[renderer.chars 2D Array]
+        E[renderer.types 2D Array]
+        F[renderer.brightness 2D Array]
+    end
+    
+    A & B & C -->|Stamp glyphs at X,Y| D & E & F
+    
+    subgraph Render Pass
+        G[Viewport bounds logic]
+        H[Color Palette Lookup]
+        I[Canvas Context ctx.fillText]
+    end
+    
+    D & E & F --> G
+    G --> H
+    H --> I --> J((Screen))
+```
+
+### Grid-Based Compositing
+
+Instead of drawing immediately to the screen, entities "stamp" themselves onto a virtual 2D terminal grid representing the viewport.
+
+1. **Virtual Buffers:** The `renderer.js` module maintains three parallel 2D arrays:
+   - `chars`: The specific string character residing at that cell coordinate (e.g., `█`, `*`, `+`).
+   - `types`: The rendering category of the cell (e.g., `PLAYER`, `ENEMY`, `UI_TEXT`, `PROJECTILE`).
+   - `brightness`: A float `[0.0, 1.0]` that determines the opacity, fade, and pulsing effects.
+2. **Sequential Stamping:** Every frame (60 Hz), the buffers are cleared with empty spaces. Background systems, particles, environmental life, enemies, the player, and finally UI layers write to the buffer. Later writes simply overwrite earlier writes, naturally handling depth and occlusion without a Z-buffer.
+3. **Canvas Drawing:** After the simulation frame completes, the renderer loops through the populated viewport grid and issues `ctx.fillStyle` and `ctx.fillText` commands, mapping the `types` array to specific hex color codes.
+
+### Procedural Cellular Bodies
+
+Enemies and bosses do not use static ASCII strings. They are generated via cellular fields:
+- A "genome" determines the bounds, symmetry, and density of an organism.
+- The `biology.js` engine loops over the organism's bounding box and uses stable seeded noise to decide whether a cell `(x, y)` relative to its center should be populated.
+- When an organism is wounded, the underlying cells are dynamically removed or temporarily overwritten with corrupted characters, meaning destruction is directly tied to the visual structure.
 
 ### Visual language
 
@@ -461,21 +506,18 @@ The renderer is a glyph-cell compositor over a single canvas. It separates world
 | Environmental life | Subdued green |
 | Bosses/warnings | Bright red with restrained emphasis |
 
-The game permits ASCII, terminal box-drawing, and block glyphs. It does not use bitmap sprites, conventional card rectangles, circular auras, or proportional UI text. Telegraphs are rendered as glyph lanes, arrows, blinking organs, countdown symbols, and directional markers.
+The game permits standard ASCII, terminal box-drawing elements, and block glyphs (`░▒▓█`). It avoids proportional UI text completely. Telegraphs are rendered purely via glyph lanes, arrows (`<`, `>`), blinking organs, countdown symbols, and directional markers.
 
 ### Menus and cards
 
-- The full `VOID* PTR` ASCII banner is used on desktop and mobile landscape.
-- Ship, upgrade, pause, settings, guide, victory, and game-over screens are grid-stamped.
-- No item is selected when a screen opens (`focusIndex = -1`).
-- Cards calculate wrapped title, values, description, evolution text, padding, and footer space before choosing their height.
-- Wide screens can use multi-column layouts.
-- Short or narrow landscape screens show one complete paged card instead of clipping content.
-- Selection is shown through brighter terminal borders and restrained markers, never a permanent circle or filled graphical card.
-- The HUD focuses on health, timer, level/XP, weapon state, dash state, threat, and boss phase.
-- Damage numbers are intentionally hidden to reduce clutter.
+- The full `VOID* PTR` ASCII banner is dynamically stamped based on screen size constraints.
+- Ship, upgrade, pause, settings, guide, victory, and game-over screens are grid-stamped using a unified `ui.js` stamping API (`stampText`, `stampPanel`, `stampButton`).
+- Cards calculate wrapped titles, values, descriptions, and padding before choosing their height dynamically.
+- Wide screens can use multi-column layouts, whereas mobile falls back to stacked configurations.
+- Selection is shown through brighter terminal borders and restrained markers (`>`), never a permanent circle or filled graphical card.
+- Damage numbers are intentionally hidden to reduce screen clutter.
 
-JetBrains Mono Medium is the intended typeface for world glyphs, headings, UI, and numeric values. Font ligatures are disabled so character-cell anatomy remains stable.
+JetBrains Mono Medium is the intended typeface for world glyphs, headings, UI, and numeric values. Font ligatures are disabled so character-cell anatomy remains stable across browsers.
 
 ## Mobile and PWA behavior
 

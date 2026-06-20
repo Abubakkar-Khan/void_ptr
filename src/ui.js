@@ -566,6 +566,7 @@ export class UIManager {
         ];
         const totalWidth = lines[0].length;
         const startX = cc - Math.floor(totalWidth / 2);
+        const isGlitchFrame = Math.random() < 0.08;
 
         for (let row = 0; row < lines.length; row++) {
             const line = lines[row];
@@ -573,14 +574,23 @@ export class UIManager {
                 const char = line[i];
                 if (char === ' ') continue;
                 
-                const targetX = startX + i;
+                let targetX = startX + i;
                 const targetY = startY + row;
+
+                let charUI = this.getUIChar(char, t);
+                let brightness = 1.0;
+
+                if (t >= 1.0 && isGlitchFrame && Math.random() < 0.02) {
+                    const GLITCH = '01.:;|/\\-_*@#%&';
+                    charUI = GLITCH[Math.floor(Math.random() * GLITCH.length)];
+                    brightness = 0.4 + Math.random() * 0.6;
+                    if (Math.random() < 0.3) targetX += (Math.random() < 0.5 ? -1 : 1);
+                }
 
                 const mx = Math.round(parentCc + (targetX - parentCc) * t);
                 const my = Math.round(parentCr + (targetY - parentCr) * t);
                 
-                const charUI = this.getUIChar(char, t);
-                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, 1.0);
+                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, brightness);
             }
         }
     }
@@ -603,6 +613,7 @@ export class UIManager {
         ];
         const totalWidth = 28;
         const startX = cc - Math.floor(totalWidth / 2);
+        const isGlitchFrame = Math.random() < 0.08;
 
         for (let row = 0; row < lines.length; row++) {
             const line = lines[row];
@@ -610,14 +621,23 @@ export class UIManager {
                 const char = line[i];
                 if (char === ' ') continue;
                 
-                const targetX = startX + i;
+                let targetX = startX + i;
                 const targetY = startY + row;
+
+                let charUI = this.getUIChar(char, t);
+                let brightness = 1.0;
+
+                if (t >= 1.0 && isGlitchFrame && Math.random() < 0.02) {
+                    const GLITCH = '01.:;|/\\-_*@#%&';
+                    charUI = GLITCH[Math.floor(Math.random() * GLITCH.length)];
+                    brightness = 0.4 + Math.random() * 0.6;
+                    if (Math.random() < 0.3) targetX += (Math.random() < 0.5 ? -1 : 1);
+                }
 
                 const mx = Math.round(parentCc + (targetX - parentCc) * t);
                 const my = Math.round(parentCr + (targetY - parentCr) * t);
                 
-                const charUI = this.getUIChar(char, t);
-                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, 1.0);
+                this.stampCell(renderer, mx, my, charUI, RENDER_CELL_TYPES.UI_TEXT, brightness);
             }
         }
     }
@@ -646,14 +666,31 @@ export class UIManager {
 
         if (compact) {
             const hasFilledLogo = panelW >= 58;
+            let buttonStart;
+            
             if (hasFilledLogo) {
                 this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
+                buttonStart = py + 12;
+                
+                // Structure divider
+                const divY = py + 9;
+                for(let x = px + 2; x < px + panelW - 2; x++) {
+                    if(x !== cc) this.stampCell(renderer, x, divY, '─', RENDER_CELL_TYPES.UI_BORDER, 0.3 * t);
+                }
+                this.stampText(renderer, '❖', cc, divY, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             } else {
                 this.stampMobileLogo(renderer, cc, py + 2, t, cc, cr);
+                buttonStart = py + 18;
+                
+                // Structure divider below the taller mobile logo
+                const divY = py + 16;
+                for(let x = px + 2; x < px + panelW - 2; x++) {
+                    if(x !== cc) this.stampCell(renderer, x, divY, '─', RENDER_CELL_TYPES.UI_BORDER, 0.3 * t);
+                }
+                this.stampText(renderer, '❖', cc, divY, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             }
             
             // Layout identical to PC mode (two columns side-by-side)
-            const buttonStart = hasFilledLogo ? py + 11 : py + 16;
             const btnW = Math.floor((panelW - 5) / 2);
             const leftX = px + 2;
             const rightX = cc + 1;
@@ -682,22 +719,29 @@ export class UIManager {
         } else {
             this.stampStaticLogo(renderer, cc, py + 2, t, cc, cr);
             
-            this.stampText(renderer, 'MANUAL FIRE // LIVING ENEMIES // NO SAFE BUILD', cc, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            const divY = py + 9;
+            for(let x = px + 2; x < px + panelW - 2; x++) {
+                if(x !== cc) this.stampCell(renderer, x, divY, '─', RENDER_CELL_TYPES.UI_BORDER, 0.4 * t);
+            }
+            this.stampText(renderer, '❖', cc, divY, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+
+            this.stampText(renderer, '❖ MANUAL FIRE ❖ LIVING ENEMIES ❖ NO SAFE BUILD ❖', cc, py + 11, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+            
             const leftX = px + 3;
             const rightX = px + panelW - 26;
-            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, py + 13, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, py + 13, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, py + 17, 23, 3, t, mx, my, cc, cr);
-            this.stampButton(renderer, 'controls', 'How To Play', rightX, py + 17, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_10', 'START 10-MIN RUN', leftX, py + 14, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'select_ship_endless', 'ENDLESS PROCESS', rightX, py + 14, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'bestiary', 'Organism Wiki', leftX, py + 18, 23, 3, t, mx, my, cc, cr);
+            this.stampButton(renderer, 'controls', 'How To Play', rightX, py + 18, 23, 3, t, mx, my, cc, cr);
             if (mobileLandscape) {
-                this.stampButton(renderer, 'settings', 'Settings', leftX, py + 21, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', leftX, py + 22, 23, 3, t, mx, my, cc, cr);
                 const fullscreen = typeof document !== 'undefined' && (document.fullscreenElement || document.webkitFullscreenElement);
-                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', rightX + 11, py + 22, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
-                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', rightX, py + 21, 23, 3, t, mx, my, cc, cr);
+                if (fullscreen) this.stampText(renderer, 'FULLSCREEN ACTIVE', rightX + 11, py + 23, RENDER_CELL_TYPES.UI_BORDER, t, 'center', cc, cr);
+                else this.stampButton(renderer, 'fullscreen', 'ENTER FULLSCREEN', rightX, py + 22, 23, 3, t, mx, my, cc, cr);
             } else {
-                this.stampButton(renderer, 'settings', 'Settings', cc - 11, py + 21, 23, 3, t, mx, my, cc, cr);
+                this.stampButton(renderer, 'settings', 'Settings', cc - 11, py + 22, 23, 3, t, mx, my, cc, cr);
             }
-            if (panelH >= 29) this.stampText(renderer, 'WASD MOVE | HOLD AIM TO FIRE | SPACE DASH', cc, py + 26, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
+            if (panelH >= 31) this.stampText(renderer, 'WASD MOVE | HOLD AIM TO FIRE | SPACE DASH', cc, py + 28, RENDER_CELL_TYPES.UI_TEXT, t, 'center', cc, cr);
             
         }
     }
