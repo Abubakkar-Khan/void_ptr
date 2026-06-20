@@ -251,7 +251,11 @@ class WeaponSystem {
         
         const streams = 1 + playerInstance.upgrades.extraThreads;
         const type = playerInstance.weaponType;
-        const chaosDamage = 1 + (playerInstance.upgrades.chaosDamage || 0);
+        playerInstance.shotSequence = (playerInstance.shotSequence || 0) + 1;
+        const criticalLevel = playerInstance.upgrades.criticalSection || 0;
+        const criticalShot = criticalLevel > 0 && playerInstance.shotSequence % (6 - criticalLevel) === 0;
+        const chaosDamage = (1 + (playerInstance.upgrades.chaosDamage || 0)) * (1 + (playerInstance.upgrades.coreDump || 0) * 0.25) * (criticalShot ? 2 : 1);
+        if (criticalShot) effects.spawnImpactSparks(px, py, '#ffffff');
 
         if (type === 'auto_blaster') {
             const speed = WEAPON_DEFS.auto_blaster.projectileSpeed;

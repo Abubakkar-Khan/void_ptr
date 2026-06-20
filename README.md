@@ -68,7 +68,7 @@ Combat is intended to feel powerful without becoming automatic. Basic enemies di
 
 The game starts with a living BIOS germination sequence rather than dropping directly into combat. It reports manual-fire linking, cellular-life detection, B3/S23 stability, and executable state while animated glyph tissue grows around the terminal log. It completes in roughly 2.4 seconds and can be skipped with any keyboard, pointer, gamepad, or touch input.
 
-The title screen presents five primary choices beneath a full ASCII wordmark and evolving cellular bands:
+The title screen presents five primary choices beneath a large block-glyph `VOID * PTR` wordmark, restored in the dramatic original terminal-title style, with evolving cellular bands behind it:
 
 - **Start 10-Min Run:** choose a hull and begin the standard boss run.
 - **Endless Process:** choose a hull and play without a victory timer.
@@ -231,16 +231,17 @@ Upgrade rules:
 
 | Category | Examples | Effect |
 | --- | --- | --- |
-| Weapon | Multi-Thread, Turbo Boost, weapon amplifiers | More streams, faster firing, higher damage, evolutions |
-| Mobility | Overclock, Dash Corruption, Segfault Trail | Speed and offensive dashing |
+| Weapon | Multi-Thread, Turbo Boost, Critical Section, weapon amplifiers | More streams, faster firing, rhythmic double-damage shots, evolutions |
+| Mobility | Overclock, Dash Corruption, Segfault Trail, Phase Cache | Speed, offensive dashing, and shorter dash recovery |
 | Defense | Shield Matrix, Stack Canary, Stack Flush | Hit blocking and projectile control |
 | Autonomous | Helper Daemon, Tesla Overload | Supporting homing fire and nearby chain damage |
 | Control | System Freeze | Periodically freezes standard threats |
 | Utility | Garbage Collector, L1 Cache Overclock | Pickup range and extra card choice |
 | Core/Panic | Kernel Overclock, Swap Partition | Base mobility or emergency repair/clear |
 | Chaos | Undefined Behavior, Memory Leak | Strong unstable mutations and risk/reward XP |
+| Power | Core Dump | Trade maximum hull integrity for up to 50% more weapon damage |
 
-Cards show their category, level, current value, next value, concise description, evolution information, and controls. Layout height is measured from wrapped content before cards are placed.
+Cards show their category, level, current value, next value, concise description, evolution information, and controls. Badge, title, and values have dedicated rows; descriptions are limited to three measured lines and evolution copy to one line, preventing content from crossing card borders.
 
 ## Enemies and organic species
 
@@ -248,13 +249,13 @@ Normal enemies are assembled from seeded cellular fields rather than static ASCI
 
 | Family | Glyph language | Identity and behavior |
 | --- | --- | --- |
-| Skitter/Drone | `' ~ -` | Sparse, asymmetric crawlers that mark, flank, and lunge |
-| Bloomcaster/Shooter | `* : %` | Swells projectile sacs before firing from behind protection |
-| Ribbon/Worm | `~ = .` | Flowing articulated chains that bend, reform, and herd the player |
-| Prism/Virus | `+ : x` | Crystalline automata with controlled division behavior |
-| Carapace/Brute | `# % ;` | Dense armored mass that exposes soft tissue when cracked |
-| Burst Sac/Kamikaze | `! * :` | Contracts through a readable countdown and ruptures outward |
-| Rootweaver/Projector | `| : Y` | Slow support organism that anchors formations and pulses protection |
+| Skitter/Drone | `'` | Tiny sparse branchers with shifting contact legs; marks, flanks, and lunges |
+| Bloomcaster/Shooter | `*` | Large radial sac that swells before firing from behind protection |
+| Ribbon/Worm | `~` | Long, low flowing chain that bends, reforms, and herds the player |
+| Prism/Virus | `+` | Mirrored crystalline lattice with controlled division behavior |
+| Carapace/Brute | `#` | Wide dense armored mass that exposes porous tissue when cracked |
+| Burst Sac/Kamikaze | `!` | Contracting unstable sac with a readable rupture rhythm |
+| Rootweaver/Projector | `Y` | Tall branching root organism that anchors formations and pulses protection |
 
 Every family uses a bounded precomputed animation cycle. Transparent gaps, changing edges, protrusions, contraction, division, and decay make bodies feel alive while preserving family readability. There are no long connector lines between cooperating enemies.
 
@@ -356,6 +357,8 @@ A huge synthetic brood fortress made from carapace, gestation bays, feeding tend
 
 Boss transitions are expressed through organ failure, molting, fragmentation, division, and regrowth - not a generic speed multiplier. Death proceeds organ by organ before the body collapses into nutrients and the reward vacuum begins.
 
+Bosses also have unique signature tissue (`=` Serpent, `@` Watcher, `M` Carrier), much larger morphology budgets, and a persistent HUD locator showing compass direction and distance. During germination, the locator becomes a full incoming-boss nameplate with emergence progress, so a boss is never grand but mysteriously off-screen.
+
 ```mermaid
 flowchart LR
     S["02:30 NULL SERPENT"] --> R1["recovery"]
@@ -371,8 +374,8 @@ flowchart LR
 
 Difficulty is driven by encounter composition and spatial pressure instead of universal health inflation.
 
-- Normal enemy population cap: 48, including organisms still germinating.
-- Active cellular combatant cap: 16; environmental colony terrain has its own budget.
+- Normal enemy population cap: 56, including organisms still germinating.
+- Active cellular combatant cap: 18; environmental colony terrain has its own budget.
 - Cellular terrain cap: 240.
 - Threat budget rises throughout the run.
 - Enemy mixes combine pursuit, ranged fire, shielding, formations, infection, and ecosystem pressure.

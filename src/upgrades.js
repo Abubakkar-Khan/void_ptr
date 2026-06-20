@@ -23,7 +23,10 @@ export const UPGRADES = [
     { id: 'pointer_arithmetic', icon: '\\', title: 'POINTER ARITHMETIC', maxLevel: 1, weight: 3, tag: 'WEAPON' },
     { id: 'undefined_behavior', icon: '?', title: 'UNDEFINED BEHAVIOR', maxLevel: 2, weight: 2, tag: 'CHAOS' },
     { id: 'fork_bomb', icon: 'Y', title: 'FORK BOMB', maxLevel: 2, weight: 4, tag: 'WEAPON' },
-    { id: 'memory_leak', icon: '$', title: 'MEMORY LEAK', maxLevel: 2, weight: 3, tag: 'CHAOS' }
+    { id: 'memory_leak', icon: '$', title: 'MEMORY LEAK', maxLevel: 2, weight: 3, tag: 'CHAOS' },
+    { id: 'critical_section', icon: 'X', title: 'CRITICAL SECTION', maxLevel: 3, weight: 6, tag: 'WEAPON' },
+    { id: 'phase_cache', icon: '>', title: 'PHASE CACHE', maxLevel: 2, weight: 5, tag: 'DASH' },
+    { id: 'core_dump', icon: '%', title: 'CORE DUMP', maxLevel: 2, weight: 4, tag: 'POWER' }
 ];
 
 export const upgrades = {
@@ -51,6 +54,9 @@ export const upgrades = {
             case 'undefined_behavior': return playerInstance.upgrades.undefinedBehavior || 0;
             case 'fork_bomb': return playerInstance.upgrades.forkBomb || 0;
             case 'memory_leak': return playerInstance.upgrades.memoryLeak || 0;
+            case 'critical_section': return playerInstance.upgrades.criticalSection || 0;
+            case 'phase_cache': return playerInstance.upgrades.phaseCache || 0;
+            case 'core_dump': return playerInstance.upgrades.coreDump || 0;
             case 'heal': return 0;
             default: return 0;
         }
@@ -145,6 +151,15 @@ export const upgrades = {
             case 'memory_leak':
                 description = `Uncollected memory grows up to +${nextLvl * 50}% value but attracts threats`;
                 break;
+            case 'critical_section':
+                description = `Every ${6 - nextLvl}th trigger pull deals double damage`;
+                break;
+            case 'phase_cache':
+                description = `Dash cooldown falls to ${72 - nextLvl * 12} ticks`;
+                break;
+            case 'core_dump':
+                description = `All weapon damage +${nextLvl * 25}%; maximum HP -${nextLvl}`;
+                break;
         }
 
         let currentValue = `L${nextLvl - 1}`;
@@ -162,8 +177,28 @@ export const upgrades = {
             currentValue = `${WEAPON_DEFS.null_laser.baseDamage + (nextLvl - 1) * WEAPON_DEFS.null_laser.damagePerLevel} DMG`;
             nextValue = `${WEAPON_DEFS.null_laser.baseDamage + nextLvl * WEAPON_DEFS.null_laser.damagePerLevel} DMG`;
             if (nextLvl === 4) evolutionText = 'EVOLUTION: COLD OVERDRIVE';
+        } else if (uId === 'critical_section') {
+            currentValue = nextLvl === 1 ? 'OFF' : `EVERY ${7 - nextLvl}`;
+            nextValue = `EVERY ${6 - nextLvl}`;
+        } else if (uId === 'phase_cache') {
+            currentValue = `${84 - nextLvl * 12} TICKS`;
+            nextValue = `${72 - nextLvl * 12} TICKS`;
+        } else if (uId === 'core_dump') {
+            currentValue = `+${(nextLvl - 1) * 25}% DMG`;
+            nextValue = `+${nextLvl * 25}% DMG`;
         }
-        const shortDescription = description.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+        const conciseCopy = {
+            thread: '+1 projectile stream.', speed: '+15% movement speed.', fire_rate: 'Fire sooner between shots.',
+            heal: 'Repair 40% hull integrity.', drone: 'Add a homing helper daemon.', electric: 'Chain lightning to nearby threats.',
+            shield: 'Block one hit; recharge faster.', freeze: 'Periodically freeze standard threats.', bomb: 'Clear bullets with a damage pulse.',
+            dash_dmg: 'Dash damages each crossed enemy.', bios_cache: 'Gain a fourth upgrade choice.', bios_kernel: '+10% speed and acceleration.',
+            bios_swap: 'Full repair and purge standard threats.', upg_blaster_dmg: 'Stronger blaster rounds.', upg_seeker_dmg: 'Stronger explosive seekers.',
+            upg_laser_dmg: 'Stronger piercing beam.', garbage_collector: 'Pull XP from farther away.', stack_canary: 'Shield break deletes nearby bullets.',
+            segfault: 'Dash leaves a damaging trail.', pointer_arithmetic: 'Laser reflects from one barrier.', undefined_behavior: 'Install one strong random mutation.',
+            fork_bomb: 'Kills split rounds into fragments.', memory_leak: 'Old XP grows, but attracts threats.', critical_section: `Every ${6 - nextLvl}th shot deals 2x damage.`,
+            phase_cache: `Dash cooldown becomes ${72 - nextLvl * 12} ticks.`, core_dump: `+${nextLvl * 25}% damage; lose 1 max HP.`
+        };
+        const shortDescription = conciseCopy[uId] || description.replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
         return { id: uId, icon, title, description, shortDescription, currentValue, nextValue, evolutionText, tag: baseUpgrade?.tag || 'MODULE', level: nextLvl };
     },
     getRandomSelection: (playerInstance, count) => {

@@ -46,39 +46,39 @@ export function seededRandom(seed) {
 const pick = (rng, values) => values[Math.floor(rng() * values.length) % values.length];
 
 export const ORGANIC_FIELD_PROFILES = Object.freeze({
-    skitter: { width: 6, height: 4, glyphs: ["'", '~', '-'], density: 0.42, birth: [3], survive: [2, 3], maxCells: 15 },
-    bloomcaster: { width: 7, height: 5, glyphs: ['*', ':', '%'], density: 0.55, birth: [3, 4], survive: [2, 3, 4], maxCells: 24 },
-    ribbon: { width: 9, height: 4, glyphs: ['~', '=', '.'], density: 0.38, birth: [2, 3], survive: [1, 2, 3], maxCells: 22 },
-    prism: { width: 6, height: 6, glyphs: ['+', ':', 'x'], density: 0.45, birth: [3], survive: [2, 3], maxCells: 24 },
-    carapace: { width: 8, height: 6, glyphs: ['#', '%', ';'], density: 0.68, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 36 },
-    burst_sac: { width: 6, height: 5, glyphs: ['!', '*', ':'], density: 0.54, birth: [3], survive: [2, 3, 4], maxCells: 22 },
-    rootweaver: { width: 7, height: 7, glyphs: ['|', ':', 'Y'], density: 0.46, birth: [3, 4], survive: [2, 3, 4], maxCells: 28 },
-    spore: { width: 3, height: 3, glyphs: ['.', "'", '*'], density: 0.32, birth: [2, 3], survive: [1, 2, 3], maxCells: 5 },
-    colony: { width: 5, height: 5, glyphs: ['o', ':', '+'], density: 0.5, birth: [3], survive: [2, 3], maxCells: 17 },
-    parasite: { width: 5, height: 3, glyphs: ['~', ':', '^'], density: 0.4, birth: [2, 3], survive: [1, 2, 3], maxCells: 11 },
-    amalgam: { width: 10, height: 7, glyphs: ['%', '~', ':', '#'], density: 0.58, birth: [3, 4], survive: [2, 3, 4], maxCells: 48 },
-    serpent: { width: 16, height: 12, glyphs: ['~', '=', ':', '%'], density: 0.52, birth: [2, 3], survive: [1, 2, 3], maxCells: 92 },
-    watcher: { width: 21, height: 16, glyphs: [':', 'o', '*', '+'], density: 0.47, birth: [3], survive: [2, 3, 4], maxCells: 132 },
-    carrier: { width: 24, height: 15, glyphs: ['#', '%', ':', 'Y'], density: 0.62, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 176 }
+    skitter: { width: 5, height: 3, glyphs: ["'"], density: 0.34, birth: [3], survive: [2, 3], maxCells: 10 },
+    bloomcaster: { width: 9, height: 7, glyphs: ['*'], density: 0.58, birth: [3, 4], survive: [2, 3, 4], maxCells: 35 },
+    ribbon: { width: 13, height: 4, glyphs: ['~'], density: 0.32, birth: [2, 3], survive: [1, 2, 3], maxCells: 30 },
+    prism: { width: 7, height: 7, glyphs: ['+'], density: 0.42, birth: [3], survive: [2, 3], maxCells: 28 },
+    carapace: { width: 10, height: 7, glyphs: ['#'], density: 0.72, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 48 },
+    burst_sac: { width: 7, height: 6, glyphs: ['!'], density: 0.52, birth: [3], survive: [2, 3, 4], maxCells: 27 },
+    rootweaver: { width: 9, height: 9, glyphs: ['Y'], density: 0.4, birth: [3, 4], survive: [2, 3, 4], maxCells: 40 },
+    spore: { width: 3, height: 3, glyphs: ['.'], density: 0.28, birth: [2, 3], survive: [1, 2, 3], maxCells: 5 },
+    colony: { width: 6, height: 6, glyphs: ['o'], density: 0.5, birth: [3], survive: [2, 3], maxCells: 22 },
+    parasite: { width: 6, height: 3, glyphs: ['^'], density: 0.36, birth: [2, 3], survive: [1, 2, 3], maxCells: 12 },
+    amalgam: { width: 12, height: 8, glyphs: ['&'], density: 0.6, birth: [3, 4], survive: [2, 3, 4], maxCells: 60 },
+    serpent: { width: 36, height: 9, glyphs: ['='], density: 0.46, birth: [2, 3], survive: [1, 2, 3], maxCells: 150 },
+    watcher: { width: 25, height: 17, glyphs: ['@'], density: 0.44, birth: [3], survive: [2, 3, 4], maxCells: 180 },
+    carrier: { width: 30, height: 17, glyphs: ['M'], density: 0.64, birth: [3, 4], survive: [2, 3, 4, 5], maxCells: 230 }
 });
 
 // These are growth grammars, not sprites. Each mark is a preferred tissue site;
 // the automaton mutates its edges while preserving the family's visual rhythm.
 const FAMILY_GROWTH_GRAMMARS = Object.freeze({
-    skitter: ['  x x ', ' xxx  ', 'x xx x', '  x   '],
-    bloomcaster: ['  xxx  ', ' xxxxx ', 'xx x xx', ' xxxxx ', '  x x  '],
-    ribbon: ['xx       ', ' xxxx    ', '   xxxx  ', '      xxx'],
-    prism: ['  x x ', ' xxxxx', 'xx x x', ' xxxxx', 'x x x ', '  x   '],
-    carapace: ['  xxxx  ', ' xxxxxx ', 'xxxxxxxx', 'xxx  xxx', ' xxxxxx ', '  xxxx  '],
-    burst_sac: ['  xx  ', ' xxxx ', 'xx xx ', ' xxxx ', '  xx  '],
-    rootweaver: ['   x   ', ' xxxxx ', '  xxx  ', 'xxxxxxx', '  xxx  ', ' x x x ', 'x  x  x'],
+    skitter: ['x x x', ' xxx ', 'x   x'],
+    bloomcaster: ['   xxx   ', ' x  x  x ', 'xxxxxxxxx', 'xx  x  xx', 'xxxxxxxxx', ' x  x  x ', '   xxx   '],
+    ribbon: ['xxx          ', '  xxxxx      ', '      xxxxx  ', '          xxx'],
+    prism: ['x  x  x', ' x x x ', '  xxx  ', 'xxxxxxx', '  xxx  ', ' x x x ', 'x  x  x'],
+    carapace: ['  xxxxxx  ', ' xxxxxxxx ', 'xxxxxxxxxx', 'xxx    xxx', 'xxxxxxxxxx', ' xxxxxxxx ', '  xxxxxx  '],
+    burst_sac: ['   x   ', ' xxxxx ', 'xxxxxxx', 'xx x xx', ' xxxxx ', '   x   '],
+    rootweaver: ['    x    ', '   xxx   ', ' x  x  x ', '  xxxxx  ', 'xxxxxxxxx', '  x x x  ', ' x  x  x ', 'x   x   x', 'x   x   x'],
     spore: [' x ', 'xxx', ' x '],
     colony: [' xx  ', 'xxxx ', ' xxx ', '  xxx', ' x x '],
     parasite: ['xx   ', ' xxxx', 'xx x '],
     amalgam: ['  xxx xxx ', ' xxxxxxxx ', 'xxx xx xxx', ' xxxxxxxx ', 'xxx xxxx  ', ' xx  xxxx ', '  xx xx   '],
-    serpent: ['    xxxxx       ', '  xxxxxxxxx     ', ' xxxxx xxxxx    ', 'xxx xxxxx xxxxx ', ' xxxxxxxxxxxxxxx', '  xxxxxxxx xxxxx', ' xxxxxxxxxxxxx  ', '  xxxxxxxxxxx   ', '   xxxxxxxx     ', '   xxxxxxx      ', '    xxxxx       ', '     xxx        '],
-    watcher: ['       xxxxxxx       ', '   xxxx xxxxx xxxx   ', ' xxxxx xxxxxxx xxxxx ', 'xxxx   xxxxxxx   xxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxx xxx xxx xxxxxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxxx xxx xxx xxxxxx', ' xxx xxxxxxxxxxx xxx ', 'xxxxx  xxxxxxx  xxxxx', ' xxxx xxx xxx xxxx   ', '  xxxxxxxxxxxxxxxxx  ', '   xxxx xxxxx xxxx   ', ' x  xxx  xxx  xxx  x ', '   x  x  xxx  x  x   ', '      x  x  x        '],
-    carrier: ['    xxxxx   xxxxx       ', ' xxxxxxxxxxxxxxxxxxxxxx ', 'xxxxx  xxxxxxxx  xxxxx  ', 'xxxxxxxxxxxxxxxxxxxxxxxx', 'xxx xxxxx  xxxxxxx  xxxx', 'xxxxxxxxxxxxxxxxxxxxxxxx', ' xxxx xxxxxxxxxxxx xxxxx ', 'xxxxxxxx  xxxx  xxxxxxxx', ' xxx xxxxxxxxxxxxxxx xxx ', 'xxxxx xxxx  xxxx xxxxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxxx   xxxxxxxxxx   xxxx', ' x x  x xxxxxxxx x  x x ', 'x  x    xxxxxxxx    x  x', '  x      xxxxxx      x   ']
+    serpent: ['xxxx                                ', ' xxxxxxx                            ', '      xxxxxxxx                      ', '             xxxxxxxxx              ', '                     xxxxxxxx       ', '                            xxxxxxxx', '                       xxxxxxxxx    ', '              xxxxxxxxx            ', '     xxxxxxxxx                      '],
+    watcher: ['        xxxxxxxxx        ', '    xxxx xxxxxxx xxxx    ', '  xxxx   xxxxxxx   xxxx  ', 'xxx   xxxxxxxxxxxxx   xxx', ' xx  xxxxx     xxxxx  xx ', 'xxxxx xxx  xxx  xxx xxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxxxxxx  xxxxxxx  xxxxxxx', ' xx  xxxxx  x  xxxxx  xx ', 'xxxxx xxx xxx xxx xxxxxxx', ' xx  xxxxxxxxxxxxxxx  xx ', 'xxx   xxxxxxxxxxxxx   xxx', '  xxxx   xxxxxxx   xxxx  ', '    xxxx xxxxxxx xxxx    ', ' x    xxx  xxx  xxx    x ', '    x  x   xxx   x  x    ', '       x   x x   x       '],
+    carrier: ['      xxxxxx    xxxxxx      ', '  xxxxxxxxxxxxxxxxxxxxxxxxxx  ', 'xxxxx   xxxxxxxxxxxxxx   xxxxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'xxx xxxxx   xxxxxx   xxxxx xxx', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', ' xxxxx xxxxxxxxxxxxxxxxx xxxxx ', 'xxxxxxxxx   xxxxxx   xxxxxxxxx', 'xxx xxxxxxxxxxxxxxxxxxxxxxxx x', 'xxxxxxxx xxxxx  xxxxx xxxxxxxx', ' xxx  xxxxxxxxxxxxxxxxxxx  xxx ', 'xxxxx    xxxxxxxxxxxx    xxxxx', ' x xx  x xxxxxxxxxxxx x  xx x ', 'x   x     xxxxxxxxxx     x   x', 'x  x  x    xxxxxxxx   x  x  x', '   x       xxxxxx       x    ', '  x          xx          x   ']
 });
 
 const cellKey = (x, y) => `${x},${y}`;
@@ -174,6 +174,13 @@ export class OrganicField {
             const survives = alive && (this.profile.survive.includes(neighbours) || noise < 0.1);
             const born = !alive && this.profile.birth.includes(neighbours) && noise < 0.82;
             if (survives || born) next.add(cellKey(x, y));
+        }
+        // Keep a deterministic portion of the authored growth axis alive. This is
+        // the species' skeleton: tissue can breathe around it without every family
+        // converging into the same cellular cloud after several frames.
+        const grammar = FAMILY_GROWTH_GRAMMARS[this.family] || [];
+        for (let y = 0; y < grammar.length; y++) for (let x = 0; x < grammar[y].length; x++) {
+            if (grammar[y][x] !== ' ' && hashSeed(`${this.seed}:axis:${frame}:${x}:${y}`) % 100 < 68) next.add(cellKey(x, y));
         }
         this.reseed(next, frame);
         if (next.size > this.profile.maxCells) {

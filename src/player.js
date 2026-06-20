@@ -31,6 +31,9 @@ const createDefaultUpgrades = () => ({
     undefinedBehavior: 0,
     forkBomb: 0,
     memoryLeak: 0,
+    criticalSection: 0,
+    phaseCache: 0,
+    coreDump: 0,
     chaosSpeed: 0,
     chaosDamage: 0
 });
@@ -140,6 +143,7 @@ export class Player {
         this.dashDmgLevel = 0; // Initialize dash corruption damage level
         this.currentPattern = PLAYER_PATTERNS.UP;
         this.dashInputBuffer = 0;
+        this.shotSequence = 0;
         this.dashDx = 0;
         this.dashDy = 0;
     }
@@ -181,6 +185,7 @@ export class Player {
         this.pendingDamageEvents = [];
         this.dashHitEnemies = new Set();
         this.dashInputBuffer = 0;
+        this.shotSequence = 0;
         this.dashDx = 0;
         this.dashDy = 0;
         this.recalculateStats();
@@ -266,6 +271,13 @@ export class Player {
         }
         else if (upgradeId === 'fork_bomb') this.upgrades.forkBomb++;
         else if (upgradeId === 'memory_leak') this.upgrades.memoryLeak++;
+        else if (upgradeId === 'critical_section') this.upgrades.criticalSection++;
+        else if (upgradeId === 'phase_cache') this.upgrades.phaseCache++;
+        else if (upgradeId === 'core_dump') {
+            this.upgrades.coreDump++;
+            this.maxHp = Math.max(3, this.maxHp - 1);
+            this.hp = Math.min(this.hp, this.maxHp);
+        }
         this.recalculateStats();
     }
 
@@ -346,7 +358,7 @@ export class Player {
         if (this.dashInputBuffer > 0 && this.dashCooldown === 0 && this.dashTimer === 0) {
             this.dashInputBuffer = 0;
             this.dashTimer = this.dashDuration;
-            this.dashCooldown = 72;
+            this.dashCooldown = Math.max(42, 72 - (this.upgrades.phaseCache || 0) * 12);
             this.dashHitEnemies = new Set();
             audio.playDash();
             stats.recordDash();

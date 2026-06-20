@@ -115,10 +115,10 @@ export class Director {
         const anchor = this.getEdgeSpawn(rendererInstance, COMBAT_CONFIG.spawnCameraMargin + 2);
         const encounterId = `encounter-${++this.encounterCounter}`;
 
-        let budget = Math.min(34, 8 + tier * 2.5 + recipe.bonus);
+        let budget = Math.min(42, 9 + tier * 3 + recipe.bonus);
         let safety = 0;
         const requests = [];
-        while (budget >= 1 && safety++ < 24 && requests.length < remainingSlots) {
+        while (budget >= 1 && safety++ < 30 && requests.length < remainingSlots) {
             const affordable = recipe.types.filter(type => (ENEMY_DEFS[type]?.cost || 1) <= budget);
             if (!affordable.length) break;
             const type = affordable[Math.floor(Math.random() * affordable.length)];

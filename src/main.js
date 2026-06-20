@@ -229,7 +229,7 @@ class GameEngine {
             const choices = player.upgrades.cacheOverclock ? 4 : 3;
             this.activeUpgradesSelection = upgrades.getRandomSelection(player, choices);
             ui.currentScreen = null;
-        } else if (['thread', 'speed', 'fire_rate', 'heal', 'drone', 'electric', 'shield', 'freeze', 'bomb', 'dash_dmg', 'bios_cache', 'bios_kernel', 'bios_swap', 'upg_blaster_dmg', 'upg_seeker_dmg', 'upg_laser_dmg', 'garbage_collector', 'stack_canary', 'segfault', 'pointer_arithmetic', 'undefined_behavior', 'fork_bomb', 'memory_leak'].includes(action)) {
+        } else if (['thread', 'speed', 'fire_rate', 'heal', 'drone', 'electric', 'shield', 'freeze', 'bomb', 'dash_dmg', 'bios_cache', 'bios_kernel', 'bios_swap', 'upg_blaster_dmg', 'upg_seeker_dmg', 'upg_laser_dmg', 'garbage_collector', 'stack_canary', 'segfault', 'pointer_arithmetic', 'undefined_behavior', 'fork_bomb', 'memory_leak', 'critical_section', 'phase_cache', 'core_dump'].includes(action)) {
             player.applyUpgrade(action);
             if (player.pendingLevelUps > 0) {
                 player.consumeLevelUp();
@@ -567,6 +567,8 @@ class GameEngine {
 
     stampHUD() {
         const boss = enemies.enemies.find(enemy => enemy && enemy.hp > 0 && BOSS_TYPES.has(enemy.type));
+        const bossDx = boss ? boss.x + boss.width / 2 - (player.x + player.width / 2) : 0;
+        const bossDy = boss ? boss.y + boss.height / 2 - (player.y + player.height / 2) : 0;
         const overtime = !waves.endless && waves.timeElapsed >= waves.modeTimeLimit && !waves.isVictory();
         ui.stampHUD(renderer, {
             hp: player.hp, maxHp: player.maxHp, xp: player.xp, xpMax: player.xpToNextLevel,
@@ -574,7 +576,8 @@ class GameEngine {
             threat: waves.getThreatLabel(), weapon: WEAPON_DEFS[player.weaponType]?.name || player.weaponType,
             heat: player.weaponType === 'null_laser' ? Math.round(player.heat) : null,
             overheated: player.overheated, dash: player.dashCooldown <= 0 ? 'READY' : `${Math.ceil(player.dashCooldown / 60)}s`,
-            boss, debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length} U:${this.performanceMetrics.updateMs.toFixed(1)} R:${this.performanceMetrics.renderMs.toFixed(1)} C:${renderer.lastVisibleCells || 0}` : '',
+            boss, bossDx, bossDy, bossDistance: boss ? Math.round(Math.hypot(bossDx, bossDy)) : 0,
+            debug: this.debugVisible ? `E:${enemies.enemies.length} EB:${enemies.projectiles.length} PB:${weapons.projectiles.length} U:${this.performanceMetrics.updateMs.toFixed(1)} R:${this.performanceMetrics.renderMs.toFixed(1)} C:${renderer.lastVisibleCells || 0}` : '',
             hint: !input.touchCapable && waves.elapsedSeconds < 12 ? 'WASD MOVE | HOLD ARROWS/MOUSE FIRE | SPACE DASH' : '',
             touch: input.touchCapable ? { ...input.getTouchPresentation(), dashReady: player.dashCooldown <= 0, dashSeconds: Math.ceil(player.dashCooldown / 60) } : null,
             controller: !!input.getGamepad()

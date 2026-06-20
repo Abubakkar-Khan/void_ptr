@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 import { Director } from '../src/waves.js';
 import { Player } from '../src/player.js';
-import { upgrades } from '../src/upgrades.js';
+import { UPGRADES, upgrades } from '../src/upgrades.js';
 import { BOSS_SCHEDULE_TICKS, COMBAT_CONFIG, ECOSYSTEM_TYPES, ENEMY_DEFS, PALETTE, PROGRESSION_CONFIG, WEAPON_DEFS } from '../src/config.js';
 import { BehaviorState, Enemy, enemies, EnemyManagerClass, EnemySpawnRequest, SpawnLifecycle } from '../src/enemies.js';
 import { EcosystemSystem } from '../src/ecosystem.js';
@@ -110,6 +110,34 @@ test('laser upgrade text derives from the authoritative runtime definition', () 
     const player = makeUpgradePlayer('null_laser');
     const detail = upgrades.getUpgradeDetails(player, 'upg_laser_dmg');
     assert.match(detail.description, new RegExp(String(WEAPON_DEFS.null_laser.baseDamage + WEAPON_DEFS.null_laser.damagePerLevel)));
+});
+
+test('upgrade cards use concise copy and new modules change combat meaningfully', () => {
+    const mock = makeUpgradePlayer('auto_blaster');
+    const details = UPGRADES.map(entry => upgrades.getUpgradeDetails(mock, entry.id));
+    assert.ok(details.every(entry => entry.shortDescription.length <= 48));
+    assert.ok(details.some(entry => entry.id === 'critical_section'));
+    assert.ok(details.some(entry => entry.id === 'phase_cache'));
+    assert.ok(details.some(entry => entry.id === 'core_dump'));
+
+    const player = new Player();
+    const startingHp = player.maxHp;
+    player.applyUpgrade('critical_section');
+    player.applyUpgrade('phase_cache');
+    player.applyUpgrade('core_dump');
+    assert.equal(player.upgrades.criticalSection, 1);
+    assert.equal(player.upgrades.phaseCache, 1);
+    assert.equal(player.upgrades.coreDump, 1);
+    assert.equal(player.maxHp, startingHp - 1);
+
+    weapons.reset();
+    const damages = [];
+    for (let shot = 0; shot < 5; shot++) {
+        player.fireCooldown = 0;
+        weapons.fire(player, player.x + 20, player.y);
+        damages.push(weapons.projectiles.at(-1).damage);
+    }
+    assert.ok(damages[4] > damages[3] * 1.9, 'fifth trigger pull should enter the critical section');
 });
 
 test('boss defeat creates a recovery window before the next encounter', () => {
@@ -315,6 +343,7 @@ test('all menus and results stamp into the ASCII grid with no default focus', ()
         const asciiUi = new UIManager();
         for (let frame = 0; frame < 20; frame++) asciiUi.stampTitleScreen(grid, -1, -1);
         assert.equal(asciiUi.focusIndex, -1);
+        if (rows >= 60) assert.ok(grid.chars.flat().filter(char => char === '█').length > 40, 'spacious title should use filled banner art');
         assert.equal(asciiUi.buttons.some(button => button.id === 'records'), false);
         assert.ok(asciiUi.buttons.some(button => button.id === 'controls'));
         assert.ok(grid.chars.flat().some(char => '╔╗╚╝┌┐└┘'.includes(char)));
@@ -363,7 +392,7 @@ test('seeded genomes are reproducible, individual, and family-readable', () => {
     const b = new Enemy(10, 10, 'drone', { seed: 4242 });
     assert.deepEqual(renderCreatureBody(a, 20), renderCreatureBody(b, 20));
     const organism = renderCreatureBody(a, 20).join('');
-    assert.match(organism, /[%H=~:;]/);
+    assert.match(organism, /'/);
     assert.doesNotMatch(organism, /[<>()[\]]/);
     const breathingFrames = new Set([0, 7, 14, 21].map(frame => renderCreatureBody(a, frame).join('\n')));
     assert.ok(breathingFrames.size >= 3);
@@ -423,6 +452,15 @@ test('organic fields are seeded, bounded, amorphous, and family-specific', () =>
     }
 });
 
+test('every species family owns a unique signature glyph and silhouette scale', () => {
+    const profiles = Object.values(ORGANIC_FIELD_PROFILES);
+    assert.equal(new Set(profiles.map(profile => profile.glyphs[0])).size, profiles.length);
+    assert.ok(ORGANIC_FIELD_PROFILES.ribbon.width > ORGANIC_FIELD_PROFILES.bloomcaster.width);
+    assert.ok(ORGANIC_FIELD_PROFILES.rootweaver.height > ORGANIC_FIELD_PROFILES.skitter.height * 2);
+    assert.ok(ORGANIC_FIELD_PROFILES.serpent.width >= 36);
+    assert.ok(ORGANIC_FIELD_PROFILES.carrier.maxCells > ORGANIC_FIELD_PROFILES.watcher.maxCells);
+});
+
 test('father names and ordinary background words are frequent, dim, and bounded', () => {
     const rain = new MatrixRain();
     rain.resize(120, 80);
@@ -455,8 +493,8 @@ test('cellular background evolves within budget without corrupting hidden words'
 });
 
 test('difficulty limits and bosses expose three distinct attack preparations', () => {
-    assert.equal(COMBAT_CONFIG.normalPopulationCap, 48);
-    assert.equal(COMBAT_CONFIG.ecosystemPopulationCap, 16);
+    assert.equal(COMBAT_CONFIG.normalPopulationCap, 56);
+    assert.equal(COMBAT_CONFIG.ecosystemPopulationCap, 18);
     const expectedMoves = {
         boss_snake: ['charge', 'tail_sweep', 'prepare'],
         boss_eye: ['gaze', 'iris', 'echo_bloom'],
@@ -526,7 +564,7 @@ test('mobile landscape keeps the full title and paginates cards within short vie
         const grid = makeMobileRenderer(width, height);
         const mobileUi = new UIManager();
         for (let frame = 0; frame < 20; frame++) mobileUi.stampTitleScreen(grid, -1, -1);
-        assert.ok(grid.chars.flat().filter(char => char === 'V' || char === 'P').length > 10, `${width}x${height} should keep full title art`);
+        assert.ok(grid.chars.flat().filter(char => char === '█').length > 20, `${width}x${height} should keep full block title art`);
         assert.ok(mobileUi.buttons.some(button => button.id === 'bestiary'));
         mobileUi.stampShipSelectScreen(grid, -1, -1);
         assert.ok(mobileUi.buttons.some(button => button.id.startsWith('ship_')));
